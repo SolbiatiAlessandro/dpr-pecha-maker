@@ -1,9 +1,27 @@
-# Pecha Studio: functional spec
+# DPR Pecha Maker: functional spec
 
-A browser tool that turns Tibetan text into traditional pecha pages ready to print. The feature set
+A browser tool that turns a PDF of a Tibetan text into traditional pecha pages ready to print. The feature set
 follows the public documentation of PechaMaker (Windows, 2004-2018, by Frederick W. Johnson): its
 website, FAQ, release notes and User's Guide. The code here is new. PechaMaker's executable was never
 run or disassembled, and none of its code is reused.
+
+## Starting from a PDF
+
+The opening screen is one drop target. Dropping a PDF reads its text and opens the page with the
+settings on the left. Everything runs in the browser and nothing is uploaded.
+
+- Healthy text is used as it stands. Rotated text, running heads, page numbers and bracketed viewer
+  marks are left out, and non-Tibetan lines are left out unless the option is set.
+- Text in old fonts (TibetanMachine, Ededris and others) converts through the font tables.
+- Many Tibetan PDFs have a flawed hidden text layer. Spelling is checked against the stacks Tibetan
+  allows, and holes (glyphs with no character code) are detected.
+- A few holes or bad stacks: every page is also read with Tibetan OCR, and only the damaged syllables
+  take the OCR's reading, where the two line up and the reading fits the gap. A hole is always a
+  stacked letter or a vowel sign. Gaps left after a second pass take a word from the same document
+  when one word clearly fits. Anything still unknown shows as □.
+- A text layer wrong throughout, or a scan: the OCR alone, with a note to check every line.
+- Measured on the Nitartha Digital Library print page for skyid sdug lam khyer (Chrome PDF, Kokonor
+  font): OCR alone 89.5% of syllables correct, the combined reading 99.55%, with 7 gaps marked.
 
 ## What a pecha is here
 
@@ -62,7 +80,7 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 
 ## Files
 
-- Opens `.pxp`, `.pxc` and `.pxt`: layout, notes, numbering and text. Text in the TibetanMachine family
+- Opens PDF, `.txt`, and `.pxp`, `.pxc` and `.pxt`: layout, notes, numbering and text. Text in the TibetanMachine family
   converts to Unicode through published tables. Other legacy fonts convert where a table exists.
 - `.pxp` structure as read from sample files: a header with a font table; `iNiT key=value` lines, with
   byte strings after a length key; an INI template; then the body. In the body `0x11 op a b c 0x11` is
@@ -72,6 +90,6 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 
 ## Not built yet
 
-Pictures in side boxes and inline images, RTF and TibetDoc import, separate save of text and template,
+Pictures in side boxes and inline images, RTF and TibetDoc import, OCR for woodblock-print scans, separate save of text and template,
 TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
 tabs beyond a simple tab stop, editing directly on the page, undo beyond the browser's own.

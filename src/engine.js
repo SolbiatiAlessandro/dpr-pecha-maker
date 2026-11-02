@@ -96,7 +96,9 @@ const Engine = (() => {
       .split(/\n[ \t]*\n+/)
       .map(par => par.split('\n').map(l => l.trim()).filter(Boolean).reduce((acc, line) => {
         if (!acc) return line;
-        return acc + (isTib(acc[acc.length - 1]) ? '' : ' ') + line;
+        const end = acc[acc.length - 1];
+        const twoShads = end === SHAD && line[0] === SHAD;     // a shad pair split across two lines keeps its gap
+        return acc + (isTib(end) && !twoShads ? '' : ' ') + line;
       }, ''))
       .join(' ');
   }

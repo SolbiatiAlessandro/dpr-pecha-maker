@@ -55,6 +55,33 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.deepStrictEqual(Engine.impose(doc, pages)[0].slots.map(p => p && p.n), [1, 5, null].map((x, i) => (i === 2 ? null : x)));
 }
 
+// a hole left by the PDF is filled from the OCR only where the two line up, and sound text is untouched
+{
+  const PdfRead = require('../src/pdfread.js');
+  const line = PdfRead.lineRecord('འ\u0000ོ་མགོན་དྭགས་པོ', 12);
+  assert.strictEqual(PdfRead.repairPage([line], ['འགྲོ', 'མགོན', 'དྭགས', 'པོ']).filled, 1);
+  assert.strictEqual(line.text, 'འགྲོ་མགོན་དྭགས་པོ');
+  const sound = PdfRead.lineRecord('དེ་\u0000ས་མགོན་པོ', 12);
+  const r = PdfRead.repairPage([sound], ['དེ', 'མགོན', 'པོ']);
+  assert.deepStrictEqual([r.filled, r.left], [0, 1]);
+  assert.strictEqual(sound.text, 'དེ་\u25A1ས་མགོན་པོ');
+  // OCR that drops the subscript cannot fill a hole, and a hole keeps its marker for the next pass
+  const plain = PdfRead.lineRecord('ཆོས་\u0000ེ་དང་', 12);
+  assert.strictEqual(PdfRead.repairPage([plain], ['ཆོས', 'རེ', 'དང'], true).filled, 0);
+  assert.strictEqual(PdfRead.repairPage([plain], ['ཆོས', 'རྗེ', 'དང'], true).filled, 1);
+  assert.strictEqual(plain.text, 'ཆོས་རྗེ་དང་');
+  const vowels = PdfRead.lineRecord('ཆེན་པ\u0000འ\u0000་གནས་', 12);
+  assert.strictEqual(PdfRead.repairPage([vowels], ['ཆེན', 'པོའི', 'གནས'], true).filled, 1);
+  assert.strictEqual(vowels.text, 'ཆེན་པོའི་གནས་');
+  const doc = [PdfRead.lineRecord('\u0000ིད་དང་སྐྱིད་དང་སྐྱིད་པ་\u0000ས་གྱིས་ཀྱིས་', 12)];
+  assert.deepStrictEqual(PdfRead.fillFromDocument([doc]), { filled: 1, left: 1 });
+  assert.strictEqual(doc[0].text, 'སྐྱིད་དང་སྐྱིད་དང་སྐྱིད་པ་\u25A1ས་གྱིས་ཀྱིས་');
+  assert.strictEqual(PdfRead.isDamaged('ཆྗེན'), true);
+  assert.strictEqual(PdfRead.isDamaged('བསྒྲུབས'), false);
+  assert.strictEqual(PdfRead.isDamaged('རྗེས'), false);
+  assert.strictEqual(PdfRead.tidy('འཆང ་ཐུང ་མ། ། མར་'), 'འཆང་ཐུང་མ། །མར་');
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

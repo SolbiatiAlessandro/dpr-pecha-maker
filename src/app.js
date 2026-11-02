@@ -1,12 +1,15 @@
 // Interface: holds one document, writes form changes into it, and redraws the pages.
-const STORE_KEY = 'pecha-studio-doc-v1';
+const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const $ = id => document.getElementById(id);
 const PAPERS = { A4: [11.69, 8.27], A3: [16.54, 11.69], Letter: [11, 8.5], Legal: [14, 8.5], Custom: null };
 const SIDES = [['title.front', 'Title, front'], ['title.back', 'Title, back'], ['fancy.front', 'Fancy, front'], ['fancy.back', 'Fancy, back'], ['body.front', 'Body, front'], ['body.back', 'Body, back']];
 const FONTS = ['Jomolhari', 'Noto Serif Tibetan'];
 const YIGOS = ['༄༅༅། །', '༄༅། །', '༆༅། །', '༄༅༅།', '༄༅།'];
 
+const PREVIEW_PAGES = 24;
+
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
+let source = null;   // the PDF behind this document: { name, result }
 
 // ---------- measuring ----------
 
@@ -235,13 +238,20 @@ function render() {
     frag.append(d);
   };
   const sheets = Engine.impose(doc, res.pages);
+  const total = view === 'pages' ? res.pages.length : sheets.length;
   if (view === 'pages') {
-    for (const p of res.pages) {
+    for (const p of res.pages.slice(0, PREVIEW_PAGES)) {
       const folio = Math.ceil(p.n / 2);
       leaf(`Page ${p.n} · ${p.kind} · folio ${folio} ${p.front ? 'front' : 'back'}`, Engine.pageSvg(p, doc, measure, res.folioCount));
     }
   } else {
-    sheets.forEach((s, i) => leaf(`Sheet side ${i + 1} of ${sheets.length} · ${s.side === 'seq' ? 'pages in order' : s.side}`, Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
+    sheets.slice(0, PREVIEW_PAGES).forEach((s, i) => leaf(`Sheet side ${i + 1} of ${sheets.length} · ${s.side === 'seq' ? 'pages in order' : s.side}`, Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
+  }
+  if (total > PREVIEW_PAGES) {
+    const more = document.createElement('p');
+    more.className = 'more';
+    more.textContent = `Showing the first ${PREVIEW_PAGES} of ${total}. Printing includes all of them.`;
+    frag.append(more);
   }
   host.replaceChildren(frag);
   const paperSheets = doc.print.sides === 'duplex' ? Math.ceil(sheets.length / 2) : sheets.length;
@@ -286,23 +296,86 @@ function toast(msg) {
   toast.t = setTimeout(() => { t.hidden = true; }, 4200);
 }
 
-function setDoc(d, sample) {
-  doc = d; isSample = sample;
+function showWork() {
+  $('start').hidden = true;
+  $('work').hidden = false;
+}
+
+function showStart(message, bad) {
+  $('work').hidden = true;
+  $('start').hidden = false;
+  startStatus(message || '', bad);
+  $('resume').hidden = !restore();
+}
+
+function startStatus(message, bad) {
+  const s = $('startStatus');
+  s.textContent = message;
+  s.classList.toggle('bad', !!bad);
+}
+
+function setDoc(d, sample, src = null) {
+  doc = d; isSample = sample; source = src;
+  showWork();
   buildPanels();
   noteSample();
   render();
 }
 
 function noteSample() {
-  $('sampleNote').innerHTML = isSample
-    ? 'Example text: Dorje Chang Tungma, Tibetan from <a href="https://www.lotsawahouse.org/tibetan-masters/bengar-jampal-zangpo/invoking-the-blessings" target="_blank" rel="noopener">Lotsawa House</a> (CC BY-NC). Replace it with your own text.'
-    : 'Your work stays in this browser. Use Save to keep a copy.';
-  $('credits').textContent = 'An independent web tool. It opens files made with PechaMaker by Frederick W. Johnson and is not affiliated with it. Typefaces: Jomolhari and Noto Serif Tibetan.';
+  const note = $('sampleNote');
+  if (isSample) {
+    note.innerHTML = 'Example text: Dorje Chang Tungma, Tibetan from <a href="https://www.lotsawahouse.org/tibetan-masters/bengar-jampal-zangpo/invoking-the-blessings" target="_blank" rel="noopener">Lotsawa House</a> (CC BY-NC). Replace it with your own text.';
+  } else if (source) {
+    const r = source.result;
+    const pages = `${r.pageCount} ${r.pageCount === 1 ? 'page' : 'pages'}`;
+    const fonts = r.legacyFonts.length ? ` Old Tibetan fonts were converted (${r.legacyFonts.join(', ')}), so check the text against the PDF.` : '';
+    const filled = r.repaired === undefined ? '' : ` This PDF left gaps in its text. ${r.repaired} were filled from the page images and ${r.unrepaired} are marked □ for you to correct.`;
+    note.textContent = r.ocr
+      ? `Text read from images of ${source.name}, ${pages}, because the PDF has no reliable text. This reading makes mistakes, so check every line against the PDF.`
+      : `Text read from ${source.name}, ${pages}.${fonts}${filled}`;
+  } else {
+    note.textContent = 'Your work stays in this browser. Use Save to keep a copy.';
+  }
+  $('otherWrap').hidden = !(source && source.result.hasOther);
+  $('credits').textContent = 'DPR Pecha Maker is an independent web tool. It opens files made with PechaMaker by Frederick W. Johnson and is not affiliated with it. Typefaces: Jomolhari and Noto Serif Tibetan.';
+}
+
+function docFromPdf(result, keepOther) {
+  const d = Engine.defaultDoc();
+  d.text = PdfRead.compose(result.pages, keepOther).text;
+  return d;
+}
+
+async function openPdf(file, buf) {
+  startStatus(`Reading ${file.name}…`);
+  try {
+    const result = await PdfRead.read(buf, LEGACY_TABLE, (n, total, stage) => {
+      if (stage === 'load') startStatus('Parts of this PDF’s text are missing, so its pages will also be read as images. Loading the Tibetan reader…');
+      else startStatus(stage === 'ocr' ? `Reading the image of page ${n} of ${total}…` : `Reading page ${n} of ${total}…`);
+    });
+    if (result.scanned && !result.ocr) {
+      showStart(`No readable Tibetan was found in ${file.name}. Paste the text instead.`, true);
+      return;
+    }
+    if (!result.tibetan) {
+      const fonts = result.otherFonts.slice(0, 4).join(', ');
+      showStart(`No Tibetan text was found in ${file.name}.${fonts ? ` Its fonts are ${fonts}. If the Tibetan is in one of them, that font cannot be converted yet.` : ''}`, true);
+      return;
+    }
+    $('keepOther').checked = false;
+    setDoc(docFromPdf(result, false), false, { name: file.name, result });
+    toast(result.ocr ? `Read ${file.name} from page images. Check the text against the PDF.` : `Read ${result.pageCount} ${result.pageCount === 1 ? 'page' : 'pages'} from ${file.name}.`);
+  } catch (e) {
+    const locked = e && e.name === 'PasswordException';
+    showStart(locked ? `${file.name} is password protected. Remove the password and try again.` : `Could not read ${file.name}. The file may be damaged, or the page could not load its PDF reader.`, true);
+  }
 }
 
 async function openFile(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const name = file.name.toLowerCase();
+  if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
     if (/\.px[pct]$/.test(name)) {
       const { doc: d, unknown } = Pxp.toDoc(buf, LEGACY_TABLE, Engine.defaultDoc(), Engine);
@@ -318,7 +391,7 @@ async function openFile(file) {
       toast(`Opened ${file.name}.`);
     }
   } catch (e) {
-    toast(`Could not read ${file.name}. Use a .pxp, .pecha or .txt file.`);
+    showStart(`Could not read ${file.name}. Use a PDF, or a .pxp, .pecha or .txt file.`, true);
   }
 }
 
@@ -367,8 +440,22 @@ function init() {
     if (s) insertAtCursor(s);
     $('wylie').value = ''; $('wyliePreview').textContent = '';
   });
-  $('newDoc').addEventListener('click', () => { const d = Engine.defaultDoc(); setDoc(d, false); $('text').focus(); });
+  $('newDoc').addEventListener('click', () => showStart());
   $('openFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
+  $('pasteText').addEventListener('click', () => { setDoc(Engine.defaultDoc(), false); $('text').focus(); });
+  $('tryExample').addEventListener('click', () => setDoc(sampleDoc(), true));
+  $('resume').addEventListener('click', () => { const s = restore(); if (s) setDoc(s.doc, s.isSample); });
+  $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); doc.text = d.text; $('text').value = d.text; schedule(); } });
+  let depth = 0;
+  window.addEventListener('dragenter', e => { e.preventDefault(); depth++; document.body.classList.add('dragging'); });
+  window.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove('dragging'); });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    depth = 0; document.body.classList.remove('dragging');
+    const f = e.dataTransfer.files[0];
+    if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
+  });
   $('saveDoc').addEventListener('click', saveFile);
   $('printBtn').addEventListener('click', () => {
     buildPrint();
@@ -376,17 +463,17 @@ function init() {
     window.print();
   });
   window.addEventListener('beforeprint', buildPrint);
-  const saved = new URLSearchParams(location.search).has('sample') ? null : restore();
+  const params = new URLSearchParams(location.search);
   setView('pages', true);
-  if (saved) setDoc(saved.doc, saved.isSample); else setDoc(sampleDoc(), true);
-  if (new URLSearchParams(location.search).has('sheets')) setView('sheets');
-  if (new URLSearchParams(location.search).has('print')) buildPrint();
+  if (params.has('sample')) setDoc(sampleDoc(), true); else showStart();
+  if (params.has('sheets')) setView('sheets');
+  if (params.has('print')) buildPrint();
 }
 
 function setView(v, quiet) {
   view = v;
   segment($('viewSeg'), [['pages', 'Pages'], ['sheets', 'Print sheets']], view, x => setView(x));
-  if (!quiet) render();
+  if (!quiet && doc) render();
 }
 
 Promise.all(['Jomolhari', 'Noto Serif Tibetan'].map(f => document.fonts.load(`20px "${f}"`, 'ཀ'))).catch(() => {}).then(init);

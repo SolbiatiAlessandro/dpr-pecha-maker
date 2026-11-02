@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Inline fonts and scripts into one self-contained page: docs/index.html (served by GitHub Pages)."""
+"""Inline fonts and scripts into docs/index.html (served by GitHub Pages).
+
+docs/vendor holds pdf.js, loaded only when someone drops a PDF, so the first page stays light.
+"""
 import base64
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ["vendor/jsewts.js", "src/legacy-table.js", "src/folio.js", "src/engine.js", "src/pxp.js", "src/sample.js", "src/app.js"]
+SCRIPTS = ["vendor/jsewts.js", "src/legacy-table.js", "src/folio.js", "src/engine.js", "src/pxp.js", "src/pdfread.js", "src/sample.js", "src/app.js"]
 FONTS = [
     ("Jomolhari", "fonts/jomolhari-tibetan.woff2", "U+0F00-0FFF"),
     ("Jomolhari", "fonts/jomolhari-latin.woff2", "U+0000-00FF,U+2000-206F"),
