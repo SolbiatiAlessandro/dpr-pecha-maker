@@ -20,8 +20,8 @@ settings on the left. Everything runs in the browser and nothing is uploaded.
   stacked letter or a vowel sign. Gaps left after a second pass take a word from the same document
   when one word clearly fits. Anything still unknown shows as □.
 - A text layer wrong throughout, or a scan: the OCR alone, with a note to check every line.
-- Measured on the Nitartha Digital Library print page for skyid sdug lam khyer (Chrome PDF, Kokonor
-  font): OCR alone 89.5% of syllables correct, the combined reading 99.55%, with 7 gaps marked.
+- Measured on a 3,554-syllable text printed to PDF from Chrome in the Kokonor font, against its exact
+  text: OCR alone 89.5% of syllables correct, the combined reading 99.55%, with 7 gaps marked.
 
 ## What a pecha is here
 
