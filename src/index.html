@@ -1,0 +1,166 @@
+<title>Pecha Studio</title>
+<meta name="description" content="Compose and print traditional Tibetan pecha in the browser.">
+<style>
+/*FONTS*/
+/* Workbench: controls on a paper panel, pecha folios lying on a slate table. Colours from a painted temple ceiling. */
+:root {
+  --ink: #211816; --ink-soft: #62544e; --paper: #f7f1e5; --panel: #efe6d6; --rule: #d8cbb6;
+  --table: #2c3a43; --table-2: #36474f; --slate: #7a97ab; --verm: #c4482b; --verm-deep: #a53a21;
+  --red: #5e1f17; --gold: #c79e4c; --folio: #fbf8f1;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --tib: 'Jomolhari', 'Noto Serif Tibetan', serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--table); color: var(--ink); font: 14px/1.45 var(--ui); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, label.btn:focus-within {
+  outline: 2px solid var(--verm); outline-offset: 1px;
+}
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: 372px minmax(0, 1fr); }
+header {
+  grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; background: var(--red); color: var(--paper);
+  padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.mark { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.mark b { font: 400 25px/1.2 var(--tib); }
+.mark span { letter-spacing: .08em; font-size: 12px; text-transform: uppercase; opacity: .85; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(247, 241, 229, .4); background: transparent; color: inherit;
+  padding: 6px 12px; border-radius: 3px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { background: rgba(247, 241, 229, .12); }
+.btn.primary { background: var(--verm); border-color: var(--verm); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--verm-deep); }
+.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+.side { background: var(--paper); display: flex; flex-direction: column; min-height: 0; border-right: 1px solid #1d272d; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--panel); border-bottom: 1px solid var(--rule); }
+.tabs button { border: 0; background: none; padding: 10px 4px; cursor: pointer; color: var(--ink-soft); border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--verm); font-weight: 600; }
+.pane { padding: 14px 16px 26px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.pane h3 { margin: 6px 0 0; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); }
+.pane p.hint { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+#text {
+  width: 100%; min-height: 300px; flex: 1; resize: vertical; padding: 10px 12px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px;
+  font: 21px/1.75 var(--tib);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--rule); background: var(--folio); padding: 3px 9px; border-radius: 3px; cursor: pointer; font-size: 12.5px; }
+.chip:hover { border-color: var(--verm); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12.5px; color: var(--ink-soft); }
+.field input, .field select { width: 100%; padding: 5px 7px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.field.wide { grid-column: 1 / -1; }
+.field .tib, .tib { font-family: var(--tib); font-size: 17px; }
+.check { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; }
+.check input { margin-top: 3px; accent-color: var(--verm); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.seg button { border: 0; background: var(--folio); padding: 6px 4px; cursor: pointer; font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--red); color: var(--paper); }
+.wylie { display: flex; gap: 6px; }
+.wylie input { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid var(--rule); border-radius: 3px; background: var(--folio); }
+#wyliePreview { min-height: 30px; font: 19px/1.5 var(--tib); }
+.source { font-size: 12px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 10px; }
+.source a { color: var(--verm-deep); }
+
+.stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 18px; background: var(--table-2); color: #dfe7ea; font-size: 13px; font-variant-numeric: tabular-nums; }
+.bar .seg { border-color: #4f6370; width: 180px; }
+.bar .seg button { background: transparent; color: #dfe7ea; }
+.bar .seg button[aria-pressed="true"] { background: var(--slate); color: #10181d; }
+#warn { color: #ffd38a; }
+.table { flex: 1; overflow: auto; padding: 22px 22px 60px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.leaf { width: 100%; max-width: 1180px; display: flex; flex-direction: column; gap: 5px; }
+.leaf .tag { color: #b9c8d1; font-size: 12px; font-variant-numeric: tabular-nums; }
+.leaf svg { display: block; width: 100%; height: auto; background: var(--folio); box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .28); }
+.leaf.sheet svg { background: #fff; }
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 3px; z-index: 30; max-width: 90vw; }
+#printRoot { display: none; }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { display: block; height: auto; }
+  .side { border-right: 0; }
+  .pane { overflow: visible; }
+  #text { min-height: 200px; }
+  .table { padding: 14px 12px 40px; }
+  .bar { padding-inline: 12px; }
+}
+@media print {
+  html, body { background: #fff; height: auto; }
+  .app, #toast { display: none !important; }
+  #printRoot { display: block; }
+  .sheet-print { break-after: page; break-inside: avoid; overflow: hidden; }
+  .sheet-print svg { display: block; }
+}
+</style>
+<style id="pageStyle"></style>
+
+<div class="app">
+  <header>
+    <div class="mark"><b lang="bo">དཔེ་ཆ།</b><span>Pecha Studio</span></div>
+    <button class="btn" id="newDoc" type="button">New</button>
+    <label class="btn" tabindex="0">Open file<input id="openFile" type="file" accept=".pxp,.pxc,.pxt,.pecha,.json,.txt"></label>
+    <button class="btn" id="saveDoc" type="button">Save</button>
+    <button class="btn primary" id="printBtn" type="button">Print or save PDF</button>
+  </header>
+
+  <section class="side" aria-label="Settings">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="text" aria-selected="true" type="button">Text</button>
+      <button role="tab" data-tab="layout" aria-selected="false" type="button">Layout</button>
+      <button role="tab" data-tab="marks" aria-selected="false" type="button">Marks</button>
+      <button role="tab" data-tab="print" aria-selected="false" type="button">Print</button>
+    </div>
+
+    <div class="pane" data-pane="text">
+      <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
+      <div class="chips" id="codes"></div>
+      <label class="check"><input type="checkbox" id="flow"><span>Run lines together. A blank line starts a new paragraph.</span></label>
+      <h3>Type in Wylie</h3>
+      <div class="wylie"><input id="wylie" placeholder="bkra shis bde legs/" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="Wylie text"><button class="chip" id="wylieInsert" type="button">Insert</button></div>
+      <div id="wyliePreview" lang="bo"></div>
+      <p class="source" id="sampleNote"></p>
+      <p class="source" id="credits"></p>
+    </div>
+
+    <div class="pane" data-pane="layout" hidden>
+      <h3>Paper</h3><div class="grid" id="paperFields"></div>
+      <h3>Page order</h3><div class="grid" id="orderFields"></div>
+      <h3>Page design</h3>
+      <div class="seg" id="typeSeg"></div>
+      <div class="grid" id="typeFields"></div>
+    </div>
+
+    <div class="pane" data-pane="marks" hidden>
+      <h3>Yi-go</h3><div class="grid" id="yigoFields"></div>
+      <h3>Rinchen pung shad</h3><div class="grid" id="shadFields"></div>
+      <h3>End line</h3><div class="grid" id="dzogFields"></div>
+      <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
+      <h3>Page numbers</h3><div class="grid" id="pageNumFields"></div>
+      <h3>Margin notes</h3>
+      <div class="field wide"><label for="noteSide">Notes for</label><select id="noteSide"></select></div>
+      <div class="grid" id="noteFields"></div>
+    </div>
+
+    <div class="pane" data-pane="print" hidden>
+      <div class="grid" id="printFields"></div>
+      <p class="hint" id="printHelp"></p>
+    </div>
+  </section>
+
+  <main class="stage">
+    <div class="bar">
+      <div class="seg" id="viewSeg"></div>
+      <span id="stats"></span>
+      <span id="warn" role="status"></span>
+    </div>
+    <div class="table" id="table"></div>
+  </main>
+</div>
+<div id="printRoot"></div>
+<div id="toast" hidden></div>
+<script>/*SCRIPTS*/</script>
