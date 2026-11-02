@@ -13,6 +13,7 @@ assert.deepStrictEqual(atoms('ཀ། །ཁ'), ['ཀ།_', '།ཁ']);
 assert.deepStrictEqual(Folio.words(82), 'བརྒྱད་ཅུ་གྱ་གཉིས་');
 assert.deepStrictEqual(Folio.words(182), 'བརྒྱ་ གྱ་གཉིས་');
 assert.deepStrictEqual(Folio.words(200), 'ཉིས་བརྒྱ་ཐམ་པ་');
+assert.strictEqual(Folio.JYON, 'བྱོན།');
 
 function layout(text, over = {}) {
   const doc = Engine.defaultDoc();

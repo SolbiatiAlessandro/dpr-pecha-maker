@@ -147,7 +147,7 @@ function buildPanels() {
     { path: 'folio.size', label: 'Size, pt', step: 1, min: 6 },
     { path: 'folio.inset', label: 'Inset from box, in', step: 0.01, min: 0 },
     { path: 'folio.onTitle', label: 'Show on Title pages', type: 'check' },
-    { path: 'folio.jyon', label: 'Add “gyön” to the last folio', type: 'check' },
+    { path: 'folio.jyon', label: 'Add བྱོན། to the last folio', type: 'check' },
     { path: 'folio.rhino', label: 'Same phrase on every folio (seru)', type: 'text', wide: true, tibetan: true },
   ]);
   fill($('pageNumFields'), [

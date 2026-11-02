@@ -46,7 +46,7 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
   the line above. It stays flat past 98% of the width.
 - **Folio numbers**: spelled in Tibetan on the left of each front. 21-99 stand alone in the long form
   (བརྒྱད་ཅུ་གྱ་གཉིས), the short form follows hundreds, and exact hundreds take ཐམ་པ. Also an option for
-  one fixed phrase on every folio, and a closing word on the last folio.
+  one fixed phrase on every folio, and བྱོན། added to the last folio.
 - **Page numbers**: Arabic, rotated, on the right.
 - **Margin notes**: rotated text at inside left top and bottom, inside right, outside left and outside
   right, set separately for the front and back of each page type.

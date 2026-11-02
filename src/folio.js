@@ -28,6 +28,6 @@ const Folio = (() => {
     return parts.join(' ');
   }
 
-  return { words, JYON: 'གཡོན' };
+  return { words, JYON: 'བྱོན།' };
 })();
 if (typeof module !== 'undefined') module.exports = Folio;
