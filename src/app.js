@@ -6,6 +6,8 @@ const SIDES = [['title.front', 'Title, front'], ['title.back', 'Title, back'], [
 const FONTS = ['Jomolhari', 'Noto Serif Tibetan'];
 const YIGOS = ['༄༅༅། །', '༄༅། །', '༆༅། །', '༄༅༅།', '༄༅།'];
 
+const PRINT_MODES = [['duplex', 'Two-sided printer'], ['manual', 'One side at a time'], ['sequence', 'Proof copy']];
+
 const PREVIEW_PAGES = 24;
 
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
@@ -163,12 +165,22 @@ function buildPanels() {
   ns.replaceChildren(...SIDES.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
   ns.value = noteSide;
   buildNotePanel();
+  buildPrintPanel();
+}
+
+function buildPrintPanel() {
+  segment($('modeSeg'), PRINT_MODES, doc.print.sides, v => { doc.print.sides = v; buildPrintPanel(); schedule(); });
+  const manual = doc.print.sides === 'manual', proof = doc.print.sides === 'sequence';
   fill($('printFields'), [
-    { path: 'print.sides', label: 'What to print', type: 'select', wide: true, options: [['duplex', 'Both sides, for a two-sided printer'], ['fronts', 'Fronts only (first pass)'], ['backs', 'Backs only (second pass)'], ['sequence', 'Page order, one side only']], onChange: updatePrintHelp },
-    { path: 'print.cutMarks', label: 'Print cut marks', type: 'check' },
-    { path: 'print.stack', label: 'Keep order when the whole stack is cut at once', type: 'check' },
+    ...(proof ? [] : [
+      { path: 'print.firstOnly', label: 'Only sheet 1, to test the printer', type: 'check' },
+      { path: 'print.turnBacks', label: 'Turn the backs upside down', type: 'check' },
+    ]),
+    ...(manual ? [{ path: 'print.reverseBacks', label: 'Print the backs in reverse sheet order', type: 'check' }] : []),
+    { path: 'print.cutMarks', label: 'Cut marks and sheet numbers', type: 'check' },
+    ...(proof ? [] : [{ path: 'print.stack', label: 'Keep order when the whole stack is cut at once', type: 'check' }]),
   ]);
-  updatePrintHelp();
+  updatePrintSteps();
 }
 
 function buildTypePanel() {
@@ -206,16 +218,65 @@ function buildNotePanel() {
   ]);
 }
 
-function updatePrintHelp() {
-  const edge = doc.paper.w >= doc.paper.h ? 'long edge' : 'short edge';
-  const size = `${doc.paper.w} × ${doc.paper.h} in`;
-  const text = {
-    duplex: `In the print dialog choose two-sided printing, flip on ${edge}, scale 100%, no margins, paper ${size}. Each folio then reads by flipping it up.`,
-    fronts: `Print these first at scale 100%, then turn the stack over and turn it around so the bottom edge feeds first, and print Backs only.`,
-    backs: `Load the printed fronts turned over and turned around, so the bottom edge feeds first. Rows run in reverse so each back lands behind its front.`,
-    sequence: `Pages print in order on single sheets. Use this to proof the text.`,
+// A pecha leaf is read by turning it over its top edge, away from the reader. The steps below get each back
+// printed the right way up behind its front, on a two-sided printer or in two runs through a one-sided one.
+function updatePrintSteps() {
+  const res = latest;
+  if (!res || !doc) return;
+  const mode = doc.print.sides;
+  const all = Math.ceil(res.folioCount / doc.pecha.perSheet);
+  const n = doc.print.firstOnly ? Math.min(1, all) : all;
+  const count = `${n} ${n === 1 ? 'sheet' : 'sheets'}`;
+  const edge = doc.paper.w >= doc.paper.h ? 'long' : 'short';
+  const paper = doc.paper.name === 'Custom' ? `${doc.paper.w} × ${doc.paper.h} in` : doc.paper.name;
+  const setup = `Paper ${paper}, scale 100%, margins none.`;
+  const check = 'Then turn sheet 1 over its top edge, the way you turn a pecha leaf. Page 2 should be the right way up behind page 1.';
+  const html = {
+    duplex: `<ol class="steps">
+      <li><button class="btn primary" type="button" data-pass="duplex">Print both sides</button>
+        <p>${count}. In the print dialog turn on two-sided printing and choose <b>flip on ${edge} edge</b> (on a Mac: Two-Sided, ${edge === 'long' ? 'Long' : 'Short'}-Edge binding). ${setup}</p></li>
+      <li><p>${check}</p></li>
+    </ol>
+    <p class="hint">Save as PDF in the same dialog gives a file a print shop can print two-sided, flipped on the ${edge} edge.</p>`,
+    manual: `<ol class="steps">
+      <li><button class="btn primary" type="button" data-pass="fronts">Print the fronts</button><p>${count}, one side. ${setup}</p></li>
+      <li><p><b>Turn the printed stack over its top edge</b>, the way you turn a pecha leaf, so the two ends stay where they are. Keep the sheets in order. Put them back in the tray with the blank side facing the way fresh paper goes in, and the end that came out first going in first.</p></li>
+      <li><button class="btn primary" type="button" data-pass="backs">Print the backs</button><p>${check}</p></li>
+    </ol>
+    <p class="hint">Printers feed paper differently, so try one sheet first. If the backs come out upside down, tick <i>Turn the backs upside down</i>. If a back lands on the wrong sheet, tick <i>Print the backs in reverse sheet order</i>.</p>`,
+    sequence: `<ol class="steps"><li><button class="btn primary" type="button" data-pass="sequence">Print a proof</button>
+      <p>Pages in reading order on one side of the paper, for checking the text. This copy cannot be cut into a pecha.</p></li></ol>`,
   };
-  $('printHelp').textContent = text[doc.print.sides];
+  $('printSteps').innerHTML = html[mode] || html.duplex;
+  $('flipFig').hidden = mode === 'sequence';
+  if (mode !== 'sequence') $('flipFig').innerHTML = flipFigure(res);
+}
+
+// Sheet 1 front and back as small diagrams, each folio in its own colour, so the reversed backs make sense.
+function flipFigure(res) {
+  const [front, back] = Engine.impose(doc, res.pages, { pass: 'duplex', firstOnly: true });
+  if (!front || !back) return '';
+  const rows = doc.pecha.perSheet, rowH = 15, W = 104, H = rows * rowH + 8, gap = 64;
+  const tints = ['#ecc978', '#a9c2d3', '#eaa58f', '#b3cfa8', '#d5c4ea', '#f1bccb', '#bfe3de', '#f2d8a7'];
+  const pages = s => s.slots.filter(Boolean).map(p => p.n).join(', ');
+  const sheet = (s, x0, label) => {
+    let g = `<rect x="${x0 + 0.5}" y="0.5" width="${W - 1}" height="${H - 1}" fill="#fff" stroke="#b9ab94"/>`;
+    s.slots.forEach((p, r) => {
+      if (!p) return;
+      const y = 4 + r * rowH;
+      g += `<rect x="${x0 + 6}" y="${y + 2}" width="${W - 12}" height="${rowH - 4}" fill="${tints[(Math.ceil(p.n / 2) - 1) % tints.length]}"/>`;
+      g += `<text x="${x0 + W / 2}" y="${y + rowH / 2 + 4}" text-anchor="middle">page ${p.n}</text>`;
+    });
+    return g + `<text x="${x0 + W / 2}" y="${H + 15}" text-anchor="middle" class="cap">${label}</text>`;
+  };
+  const ax = W + 8, bx = W + gap - 8;
+  return `<svg viewBox="0 0 ${2 * W + gap} ${H + 22}" role="img" aria-label="Sheet 1 front holds pages ${pages(front)}. Its back holds pages ${pages(back)}, so each back sits behind its own front.">
+    <defs><marker id="arrowHead" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#7a6a58"/></marker></defs>
+    ${sheet(front, 0, 'Sheet 1, front')}
+    <path d="M${ax} ${H * 0.7} C${ax + 14} ${-4} ${bx - 14} ${-4} ${bx} ${H * 0.7}" fill="none" stroke="#7a6a58" stroke-width="1.3" marker-end="url(#arrowHead)"/>
+    <text x="${W + gap / 2}" y="${H * 0.7 + 14}" text-anchor="middle" class="cap">turn over</text>
+    ${sheet(back, W + gap, 'Back of sheet 1')}
+  </svg>`;
 }
 
 // ---------- drawing ----------
@@ -245,7 +306,10 @@ function render() {
       leaf(`Page ${p.n} · ${p.kind} · folio ${folio} ${p.front ? 'front' : 'back'}`, Engine.pageSvg(p, doc, measure, res.folioCount));
     }
   } else {
-    sheets.slice(0, PREVIEW_PAGES).forEach((s, i) => leaf(`Sheet side ${i + 1} of ${sheets.length} · ${s.side === 'seq' ? 'pages in order' : s.side}`, Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
+    const of = sheets.filter(s => s.side !== 'back').length;
+    const tag = s => (s.side === 'seq' ? `Proof sheet ${s.sheet} of ${of} · pages in order`
+      : `Sheet ${s.sheet} of ${of} · ${s.side === 'front' ? 'front' : doc.print.turnBacks ? 'back, upside down for a printer that turns it' : 'back, as it reads once the sheet is turned over its top edge'}`);
+    sheets.slice(0, PREVIEW_PAGES).forEach(s => leaf(tag(s), Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
   }
   if (total > PREVIEW_PAGES) {
     const more = document.createElement('p');
@@ -254,18 +318,35 @@ function render() {
     frag.append(more);
   }
   host.replaceChildren(frag);
-  const paperSheets = doc.print.sides === 'duplex' ? Math.ceil(sheets.length / 2) : sheets.length;
+  const paperSheets = sheets.filter(s => s.side !== 'back').length;
   $('stats').textContent = `${res.pages.length} pages · ${res.folioCount} folios · ${paperSheets} ${paperSheets === 1 ? 'sheet' : 'sheets'} of ${doc.paper.name === 'Custom' ? 'paper' : doc.paper.name}`;
   $('warn').textContent = Engine.fits(doc) ? '' : `${doc.pecha.perSheet} pecha at ${doc.pecha.height} in need ${(doc.pecha.perSheet * doc.pecha.height).toFixed(2)} in, and the sheet is ${doc.paper.h} in tall.`;
   $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
-  updatePrintHelp();
+  updatePrintSteps();
   persist();
 }
 
-function buildPrint() {
+// pass: 'duplex', 'fronts', 'backs' or 'sequence'; left out, it follows the chosen way of printing.
+function buildPrint(pass) {
   const res = latest || Engine.run(doc, measure);
-  const html = Engine.impose(doc, res.pages).map(s => `<div class="sheet-print" style="width:${doc.paper.w}in;height:${doc.paper.h}in">${Engine.sheetSvg(s, doc, measure, res.folioCount, false)}</div>`).join('');
-  $('printRoot').innerHTML = html;
+  const sheets = Engine.impose(doc, res.pages, { pass, firstOnly: doc.print.firstOnly && pass !== 'sequence' && doc.print.sides !== 'sequence' });
+  $('printRoot').innerHTML = sheets.map(s => `<div class="sheet-print" style="width:${doc.paper.w}in;height:${doc.paper.h}in">${Engine.sheetSvg(s, doc, measure, res.folioCount, false)}</div>`).join('');
+}
+
+let printPass = null;
+function printNow(pass) {
+  if (!Engine.fits(doc)) toast('The pecha do not fit on this sheet. Reduce the height or the number per sheet.');
+  printPass = pass;
+  buildPrint(pass);
+  window.print();
+}
+
+function openPrintPanel() {
+  document.querySelector('.tabs button[data-tab="print"]').click();
+  const pane = document.querySelector('[data-pane="print"]');
+  if (matchMedia('(max-width: 860px)').matches) pane.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const first = pane.querySelector('[data-pass]');
+  if (first) first.focus({ preventScroll: true });
 }
 
 // ---------- storage and files ----------
@@ -299,13 +380,16 @@ function toast(msg) {
 function showWork() {
   $('start').hidden = true;
   $('work').hidden = false;
+  startProgress();
 }
 
 function showStart(message, bad) {
   $('work').hidden = true;
   $('start').hidden = false;
   startStatus(message || '', bad);
+  startProgress();
   $('resume').hidden = !restore();
+  drawFlags();
 }
 
 function startStatus(message, bad) {
@@ -314,7 +398,39 @@ function startStatus(message, bad) {
   s.classList.toggle('bad', !!bad);
 }
 
+// part: 0 to 1, null while the length is unknown, left out to hide the bar.
+function startProgress(part) {
+  const bar = $('startProgress');
+  bar.hidden = part === undefined;
+  bar.classList.toggle('wait', part === null);
+  if (typeof part === 'number') {
+    const pct = Math.round(Math.max(0, Math.min(1, part)) * 100);
+    bar.firstElementChild.style.width = `${pct}%`;
+    bar.setAttribute('aria-valuenow', pct);
+  } else bar.removeAttribute('aria-valuenow');
+}
+
+// A string of prayer flags across the top of the opening screen, in their order: sky, wind, fire, water, earth.
+function drawFlags() {
+  const svg = $('flags'), W = Math.max(320, Math.round($('start').clientWidth || innerWidth));
+  if (svg.dataset.w === String(W)) return;
+  const colours = ['#2c68b0', '#f3efe4', '#c43d2b', '#2d8650', '#e3b22d'];
+  const N = Math.max(9, Math.round(W / 38)), D = Math.min(24, W * 0.02), top = 3, fw = (W / N) * 0.8, fh = 25;
+  let out = `<path d="M0 ${top} Q${W / 2} ${top + 2 * D} ${W} ${top}" fill="none" stroke="#b7a98f" stroke-width="1"/>`;
+  for (let i = 0; i < N; i++) {
+    const t = (i + 0.5) / N, x = t * W, y = top + 4 * D * t * (1 - t);
+    const angle = Math.atan(4 * D * (1 - 2 * t) / W) * 180 / Math.PI;
+    const ink = `M${-fw / 2 + 4} 9h${fw - 8}M${-fw / 2 + 4} 13h${fw - 8}M${-fw / 2 + 4} 17h${fw - 14}`;
+    out += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angle.toFixed(2)})"><rect x="${-fw / 2}" y="0" width="${fw}" height="${fh}" fill="${colours[i % 5]}"/><path d="${ink}" stroke="rgba(30,20,10,.22)" stroke-width="1"/></g>`;
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${top + D + fh + 4}`);
+  svg.innerHTML = out;
+  svg.dataset.w = String(W);
+}
+
 function setDoc(d, sample, src = null) {
+  d.print = { ...Engine.defaultDoc().print, ...d.print };
+  if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
   showWork();
   buildPanels();
@@ -349,10 +465,17 @@ function docFromPdf(result, keepOther) {
 
 async function openPdf(file, buf) {
   startStatus(`Reading ${file.name}…`);
+  startProgress(0);
   try {
-    const result = await PdfRead.read(buf, LEGACY_TABLE, (n, total, stage) => {
-      if (stage === 'load') startStatus('Parts of this PDF’s text are missing, so its pages will also be read as images. Loading the Tibetan reader…');
-      else startStatus(stage === 'ocr' ? `Reading the image of page ${n} of ${total}…` : `Reading page ${n} of ${total}…`);
+    const result = await PdfRead.read(buf, LEGACY_TABLE, (n, total, stage, part) => {
+      if (stage === 'load') {
+        startStatus('This PDF’s text is incomplete or missing, so its pages will be read as images. Loading the Tibetan reader…');
+        startProgress(null);
+        return;
+      }
+      const says = { ocr: `Reading the image of page ${n} of ${total}…`, ocr2: `Taking a closer look at page ${n} of ${total}…` };
+      startStatus(says[stage] || `Reading page ${n} of ${total}…`);
+      startProgress(part);
     });
     if (result.scanned && !result.ocr) {
       showStart(`No readable Tibetan was found in ${file.name}. Paste the text instead.`, true);
@@ -457,17 +580,21 @@ function init() {
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
   $('saveDoc').addEventListener('click', saveFile);
-  $('printBtn').addEventListener('click', () => {
-    buildPrint();
-    if (!Engine.fits(doc)) toast('The pecha do not fit on this sheet. Reduce the height or the number per sheet.');
-    window.print();
+  $('printBtn').addEventListener('click', openPrintPanel);
+  $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
+  // The browser's own print command prints both sides in one file, or the proof.
+  window.addEventListener('beforeprint', () => { if (!printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
+  window.addEventListener('afterprint', () => {
+    if (printPass === 'fronts') toast('Now turn the printed stack over its top edge, put it back in the tray, and print the backs.');
+    printPass = null;
   });
-  window.addEventListener('beforeprint', buildPrint);
+  let resizing = null;
+  window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
   const params = new URLSearchParams(location.search);
   setView('pages', true);
   if (params.has('sample')) setDoc(sampleDoc(), true); else showStart();
   if (params.has('sheets')) setView('sheets');
-  if (params.has('print')) buildPrint();
+  if (params.has('print')) { printPass = params.get('print') || null; buildPrint(printPass || undefined); }
 }
 
 function setView(v, quiet) {

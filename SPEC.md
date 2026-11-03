@@ -71,10 +71,17 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 
 ## Printing
 
-- Both sides for a two-sided printer, fronts only, backs only, or pages in order.
-- Backs run in reverse row order, because a flip along the top edge puts the bottom row behind the top
-  row. Each folio then reads by flipping it up.
-- Optional cut marks, and optional ordering so a whole stack can be cut at once and stay in sequence.
+- A pecha leaf is read by turning it over its top edge, away from the reader, so each back must be the
+  right way up after that turn.
+- Three ways to print. A two-sided printer gets fronts and backs alternating, with flip on long edge for
+  landscape sheets. A one-sided printer runs the paper twice: fronts, then the stack turned over its top
+  edge and fed again, then backs. This follows PechaMaker's odd and even passes. A proof prints pages in
+  reading order and is not for cutting.
+- Backs run in reverse row order, because the turn puts the bottom row behind the top row.
+- Printers feed and turn paper differently, so there is a one-sheet test, an option to turn the backs
+  upside down, and, for two runs, an option to print the backs in reverse sheet order.
+- Optional cut marks with the sheet number and side in the trimmed margin, and optional ordering so a
+  whole stack can be cut at once and stay in sequence.
 - Output is the browser's print dialog at the exact sheet size, which also gives a PDF with embedded
   fonts and selectable Unicode text.
 

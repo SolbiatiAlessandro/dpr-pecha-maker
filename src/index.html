@@ -7,6 +7,11 @@
   --ink: #211816; --ink-soft: #62544e; --paper: #f7f1e5; --panel: #efe6d6; --rule: #d8cbb6;
   --table: #2c3a43; --table-2: #36474f; --slate: #7a97ab; --verm: #c4482b; --verm-deep: #a53a21;
   --red: #5e1f17; --gold: #c79e4c; --folio: #fbf8f1;
+  /* Prayer flag colours, in their order: sky, wind, fire, water, earth. */
+  --flag-b: #2c68b0; --flag-w: #f3efe4; --flag-r: #c43d2b; --flag-g: #2d8650; --flag-y: #e3b22d;
+  --flags: linear-gradient(90deg, var(--flag-b) 0 20%, var(--flag-w) 20% 40%, var(--flag-r) 40% 60%, var(--flag-g) 60% 80%, var(--flag-y) 80%);
+  /* Lokta, the Nepali bark paper pecha are printed on in Kathmandu: mottled, with long fibres. */
+  --lokta: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.5' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .35 0 0 0 0 .2 .55 0 0 0 -.22'/%3E%3C/filter%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.01 .45' numOctaves='2' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .4 0 0 0 0 .25 1.8 0 0 0 -1.18'/%3E%3C/filter%3E%3Crect width='320' height='320' filter='url(%23m)'/%3E%3Crect width='320' height='320' filter='url(%23f)'/%3E%3C/svg%3E");
   --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --tib: 'Jomolhari', 'Noto Serif Tibetan', serif;
   color-scheme: light;
@@ -23,6 +28,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 header {
   grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; background: var(--red); color: var(--paper);
   padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 4px solid; border-image: var(--flags) 1;
 }
 .mark { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
 .mark b { font: 400 25px/1.2 var(--tib); }
@@ -41,6 +47,7 @@ header {
 .tabs button { border: 0; background: none; padding: 10px 4px; cursor: pointer; color: var(--ink-soft); border-bottom: 2px solid transparent; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--verm); font-weight: 600; }
 .pane { padding: 14px 16px 26px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.pane > * { flex-shrink: 0; }
 .pane h3 { margin: 6px 0 0; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); }
 .pane p.hint { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
 #text {
@@ -60,6 +67,20 @@ header {
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
 .seg button { border: 0; background: var(--folio); padding: 6px 4px; cursor: pointer; font-size: 13px; }
 .seg button[aria-pressed="true"] { background: var(--red); color: var(--paper); }
+.seg.wrap button { padding: 7px 4px; line-height: 1.25; }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 14px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 6px 10px; align-items: start; }
+.steps li::before {
+  content: counter(step); grid-row: 1 / span 2; width: 24px; height: 24px; border-radius: 50%; background: var(--red); color: var(--paper);
+  display: grid; place-items: center; font-size: 12px; font-weight: 700;
+}
+.steps li > * { grid-column: 2; }
+.steps p { margin: 0; font-size: 13px; }
+.steps .btn { justify-self: start; }
+#printSteps { display: flex; flex-direction: column; gap: 12px; }
+.flip { margin: 0; padding: 10px 12px 6px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px; }
+.flip svg { display: block; width: 100%; max-width: 330px; height: auto; margin: 0 auto; font: 10.5px var(--ui); fill: var(--ink); }
+.flip .cap { fill: var(--ink-soft); }
 .wylie { display: flex; gap: 6px; }
 .wylie input { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid var(--rule); border-radius: 3px; background: var(--folio); }
 #wyliePreview { min-height: 30px; font: 19px/1.5 var(--tib); }
@@ -82,13 +103,17 @@ header {
 #printRoot { display: none; }
 
 /* Opening screen: the drop target is an empty pecha page on the table. */
-.start { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding-block: 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); color: #dfe7ea; }
-.drop { width: min(1040px, 100%); background: var(--folio); color: var(--ink); padding: 12px; cursor: pointer; display: block; box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 14px 34px rgba(0, 0, 0, .34); }
+.start { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding-block: 92px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); color: #dfe7ea; }
+.flags { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block; pointer-events: none; }
+.drop { width: min(1040px, 100%); background: var(--lokta), #f8f1e2; color: var(--ink); padding: 12px; cursor: pointer; display: block; box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 14px 34px rgba(0, 0, 0, .34); }
 .drop-box { display: block; border: 1px solid var(--ink); padding: 3px; }
 .drop-in { border: 1px solid var(--ink); display: grid; grid-template-columns: minmax(36px, 9%) minmax(0, 1fr) minmax(36px, 9%); min-height: 270px; }
 .drop-side { position: relative; }
 .drop-side::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; border: solid var(--ink); border-width: 0 1px; }
 .drop-side.l::after { right: 0; }
+/* Like the margin of a pecha front: short title at the top, folio number at the bottom, read from below. */
+.drop-side.l { display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 18px 6px 18px 0; }
+.drop-side.l i { font: normal 400 15px/1 var(--tib); writing-mode: vertical-rl; transform: rotate(180deg); color: var(--ink-soft); }
 .drop-side.r::after { left: 0; }
 .drop-main { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 22px 18px; text-align: center; min-width: 0; }
 .drop-main b { font: 400 40px/1.3 var(--tib); }
@@ -99,8 +124,19 @@ header {
 .dragging .drop { outline: 3px solid var(--verm); outline-offset: 5px; }
 .alts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 20px; font-size: 14px; }
 .alts button { background: none; border: 0; padding: 2px 0; color: #dfe7ea; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-#startStatus { min-height: 22px; max-width: 70ch; text-align: center; font-size: 14px; }
+.status-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(560px, 100%); }
+#startStatus { min-height: 22px; max-width: 70ch; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
 #startStatus.bad { color: #ffd38a; }
+.progress { width: min(440px, 100%); height: 8px; border-radius: 4px; background: rgba(223, 231, 234, .14); overflow: hidden; }
+/* The bar fills as a string of prayer flags. */
+.progress span {
+  display: block; height: 100%; width: 0; transition: width .3s ease;
+  background: repeating-linear-gradient(90deg, var(--flag-b) 0 16px, var(--flag-w) 16px 32px, var(--flag-r) 32px 48px, var(--flag-g) 48px 64px, var(--flag-y) 64px 80px);
+}
+.progress.wait span { width: 100%; animation: flags-run 1.4s linear infinite; opacity: .85; }
+@keyframes flags-run { to { background-position: 80px 0; } }
+@media (prefers-reduced-motion: reduce) { .progress.wait span { animation: none; } }
+.blessing { margin: 6px 0 0; font: 400 19px/1.4 var(--tib); color: var(--gold); opacity: .8; }
 details summary { cursor: pointer; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); font-weight: 700; }
 details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 
@@ -124,9 +160,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 <style id="pageStyle"></style>
 
 <section class="start" id="start">
+  <svg class="flags" id="flags" aria-hidden="true" preserveAspectRatio="xMidYMin meet"></svg>
   <label class="drop" id="dropZone">
     <span class="drop-box"><span class="drop-in">
-      <span class="drop-side l"></span>
+      <span class="drop-side l" aria-hidden="true"><i lang="bo">དཔེ་ཆ།</i><i lang="bo">གཅིག</i></span>
       <span class="drop-main">
         <b lang="bo">དཔེ་ཆ།</b>
         <h1>DPR Pecha Maker</h1>
@@ -137,12 +174,16 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     </span></span>
     <input id="openFile" type="file" accept=".pdf,.pxp,.pxc,.pxt,.pecha,.json,.txt" hidden>
   </label>
-  <div id="startStatus" role="status"></div>
+  <div class="status-wrap">
+    <div id="startStatus" role="status"></div>
+    <div class="progress" id="startProgress" role="progressbar" aria-label="Reading the PDF" aria-valuemin="0" aria-valuemax="100" hidden><span></span></div>
+  </div>
   <div class="alts">
     <button id="pasteText" type="button">Paste text instead</button>
     <button id="tryExample" type="button">See an example</button>
     <button id="resume" type="button" hidden>Continue your last pecha</button>
   </div>
+  <p class="blessing" lang="bo" title="Tashi delek">བཀྲ་ཤིས་བདེ་ལེགས།</p>
 </section>
 
 <div class="app" id="work" hidden>
@@ -197,8 +238,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     </div>
 
     <div class="pane" data-pane="print" hidden>
+      <h3>How will you print?</h3>
+      <div class="seg wrap" id="modeSeg"></div>
+      <div id="printSteps"></div>
+      <figure class="flip" id="flipFig"></figure>
+      <h3>Options</h3>
       <div class="grid" id="printFields"></div>
-      <p class="hint" id="printHelp"></p>
     </div>
   </section>
 

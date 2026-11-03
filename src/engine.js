@@ -49,7 +49,7 @@ const Engine = (() => {
           'body.front': noteSet(), 'body.back': noteSet(),
         },
       },
-      print: { sides: 'duplex', cutMarks: true, stack: false },
+      print: { sides: 'duplex', cutMarks: true, stack: false, turnBacks: false, reverseBacks: false, firstOnly: false },
     };
   }
 
@@ -429,27 +429,32 @@ const Engine = (() => {
 
   // Backs run in reverse row order, because a flip along the top edge puts the bottom row behind
   // the top row. With "stack" the first sheet holds folios 1, S+1, 2S+1 so cut piles stay in order.
-  function impose(doc, pages) {
-    const n = doc.pecha.perSheet, mode = doc.print.sides;
+  // A pecha leaf is read by turning it over its top edge, so the backs of a sheet run in reverse row order.
+  // pass: 'duplex' (both sides, alternating), 'fronts' or 'backs' (one side per run through the printer), or 'sequence'.
+  function impose(doc, pages, opts = {}) {
+    const n = doc.pecha.perSheet;
+    const mode = opts.pass || (doc.print.sides === 'manual' ? 'duplex' : doc.print.sides);
     const folios = Math.ceil(pages.length / 2);
     const sheetsNeeded = Math.ceil(folios / n);
     const folioAt = (s, r) => (doc.print.stack ? r * sheetsNeeded + s : s * n + r);
     const pageOf = no => pages[no - 1] || null;
     const sheets = [];
     if (mode === 'sequence') {
-      for (let i = 0; i < pages.length; i += n) sheets.push({ side: 'seq', slots: Array.from({ length: n }, (_, r) => pages[i + r] || null) });
+      for (let i = 0; i < pages.length; i += n) sheets.push({ side: 'seq', sheet: i / n + 1, slots: Array.from({ length: n }, (_, r) => pages[i + r] || null) });
       return sheets;
     }
-    for (let s = 0; s < sheetsNeeded; s++) {
+    const count = opts.firstOnly ? Math.min(1, sheetsNeeded) : sheetsNeeded;
+    for (let s = 0; s < count; s++) {
       const fronts = [], backs = [];
       for (let r = 0; r < n; r++) {
         const f = folioAt(s, r);
         fronts.push(f < folios ? pageOf(2 * f + 1) : null);
         backs.unshift(f < folios ? pageOf(2 * f + 2) : null);
       }
-      if (mode !== 'backs') sheets.push({ side: 'front', slots: fronts });
-      if (mode !== 'fronts') sheets.push({ side: 'back', slots: backs });
+      if (mode !== 'backs') sheets.push({ side: 'front', sheet: s + 1, slots: fronts });
+      if (mode !== 'fronts') sheets.push({ side: 'back', sheet: s + 1, slots: backs });
     }
+    if (mode === 'backs' && doc.print.reverseBacks) sheets.reverse();
     return sheets;
   }
 
@@ -468,7 +473,14 @@ const Engine = (() => {
       for (let k = 1; k < n; k++) { const y = k * strip; out += line(0, y, tick, y) + line(W - tick, y, W, y); }
       const w = W - (doc.margins.left + doc.margins.right) * PT;
       for (const px of [x, x + w]) out += line(px, 0, px, tick * 0.6) + line(px, H - tick * 0.6, px, H);
+      // The sheet number sits in the margin that is cut away, so a misfed back shows before it is cut.
+      if (sheet.sheet && x > 12) {
+        const label = sheet.side === 'seq' ? `Proof ${sheet.sheet}` : `Sheet ${sheet.sheet} ${sheet.side}`;
+        out += `<text transform="translate(${num(x - 4)} ${num(H / 2)}) rotate(-90)" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="6" fill="#777">${label}</text>`;
+      }
     }
+    // For printers that put the second side on upside down: turn the whole back round.
+    if (sheet.side === 'back' && doc.print.turnBacks) out = `<g transform="rotate(180 ${num(W / 2)} ${num(H / 2)})">${out}</g>`;
     const size = screen ? '' : ` width="${doc.paper.w}in" height="${doc.paper.h}in"`;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(W)} ${num(H)}"${size}>${out}</svg>`;
   }

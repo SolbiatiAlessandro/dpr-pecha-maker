@@ -292,11 +292,11 @@ const PdfRead = (() => {
     });
   }
 
-  async function ocrWorker() {
+  async function ocrWorker(logger) {
     const base = new URL('vendor/ocr/', document.baseURI).href;
     if (!window.Tesseract) await loadScript(base + 'tesseract.min.js');
     return window.Tesseract.createWorker('bod', 1, {
-      workerPath: base + 'worker.min.js', corePath: base, langPath: base, gzip: true, workerBlobURL: false,
+      workerPath: base + 'worker.min.js', corePath: base, langPath: base, gzip: true, workerBlobURL: false, logger,
     });
   }
 
@@ -311,17 +311,23 @@ const PdfRead = (() => {
   }
 
   // Returns the Tibetan lines of each requested page, indexed by page number.
+  // Progress goes out as (page, pages, stage, part done of this run), with the OCR's own progress within a page.
   async function ocrPdf(data, numPages, onProgress, wanted, scale = OCR_SCALES[0]) {
     const pdfjs = await loadLibrary();
-    if (onProgress) onProgress(0, numPages, 'load');
-    const worker = await ocrWorker();
+    const list = wanted || Array.from({ length: numPages }, (_, i) => i + 1);
+    const stage = scale === OCR_SCALES[0] ? 'ocr' : 'ocr2';
+    let at = 0;
+    const tell = part => { if (onProgress) onProgress(list[at], numPages, stage, (at + part) / list.length); };
+    // The first run loads the OCR; a second, closer look reuses the cached files.
+    if (onProgress) onProgress(list[0], numPages, stage === 'ocr' ? 'load' : stage, 0);
+    const worker = await ocrWorker(m => { if (m.status === 'recognizing text' && typeof m.progress === 'number' && at < list.length) tell(m.progress); });
     const task = pdfjs.getDocument({ data, isEvalSupported: false, verbosity: 0 });
     const pdf = await task.promise;
     const pages = {};
-    const list = wanted || Array.from({ length: numPages }, (_, i) => i + 1);
     const canvas = document.createElement('canvas');
-    for (const n of list) {
-      if (onProgress) onProgress(n, numPages, 'ocr');
+    for (at = 0; at < list.length; at++) {
+      const n = list[at];
+      tell(0);
       const page = await pdf.getPage(n);
       const viewport = page.getViewport({ scale });
       canvas.width = viewport.width; canvas.height = viewport.height;
@@ -342,7 +348,7 @@ const PdfRead = (() => {
     const seen = { legacy: new Set(), latin: new Set() };
     const pages = [];
     for (let n = 1; n <= pdf.numPages; n++) {
-      if (onProgress) onProgress(n, pdf.numPages);
+      if (onProgress) onProgress(n, pdf.numPages, 'text', n / pdf.numPages);
       const page = await pdf.getPage(n);
       pages.push(await readPage(page, table, seen));
       page.cleanup();

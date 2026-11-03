@@ -51,6 +51,17 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   const sh = Engine.impose(doc, pages);
   assert.deepStrictEqual(sh[0].slots.map(p => p && p.n), [1, 3, 5]);
   assert.deepStrictEqual(sh[1].slots.map(p => p && p.n), [6, 4, 2]);
+  // one side per run: fronts, then backs; the test print is sheet 1 only; reversed backs for printers that stack the other way
+  const nums = s => s.slots.map(p => p && p.n);
+  assert.deepStrictEqual(Engine.impose(doc, pages, { pass: 'fronts' }).map(s => s.side), ['front', 'front']);
+  assert.deepStrictEqual(Engine.impose(doc, pages, { pass: 'backs' }).map(nums), [[6, 4, 2], [null, null, 8]]);
+  assert.deepStrictEqual(Engine.impose(doc, pages, { pass: 'backs', firstOnly: true }).map(nums), [[6, 4, 2]]);
+  doc.print.reverseBacks = true;
+  assert.deepStrictEqual(Engine.impose(doc, pages, { pass: 'backs' }).map(s => s.sheet), [2, 1]);
+  assert.deepStrictEqual(Engine.impose(doc, pages).map(s => s.sheet), [1, 1, 2, 2]);
+  doc.print.reverseBacks = false;
+  doc.print.sides = 'manual';
+  assert.deepStrictEqual(Engine.impose(doc, pages).map(s => s.side), ['front', 'back', 'front', 'back']);
   doc.print.stack = true;
   assert.deepStrictEqual(Engine.impose(doc, pages)[0].slots.map(p => p && p.n), [1, 5, null].map((x, i) => (i === 2 ? null : x)));
 }
