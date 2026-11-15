@@ -1,4 +1,4 @@
-# DPR Pecha Maker
+# Nalandabodhi Pecha Maker
 
 Drop a PDF of a Tibetan text and get it back as a traditional pecha, ready to print. Adjust the boxes,
 yi-go, folio numbers and margin notes, then print to paper or PDF. Pasted text, typed Wylie and old

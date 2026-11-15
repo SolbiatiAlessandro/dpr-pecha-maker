@@ -1,4 +1,4 @@
-<title>DPR Pecha Maker</title>
+<title>Nalandabodhi Pecha Maker</title>
 <meta name="description" content="Turn a PDF of a Tibetan text into a traditional pecha, ready to print.">
 <style>
 /*FONTS*/
@@ -32,7 +32,8 @@ header {
 }
 .mark { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
 .mark b { font: 400 25px/1.2 var(--tib); }
-.mark span { letter-spacing: .08em; font-size: 12px; text-transform: uppercase; opacity: .85; }
+.mark a { color: inherit; letter-spacing: .08em; font-size: 12px; text-transform: uppercase; opacity: .85; text-decoration: none; }
+.mark a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
 .btn {
   display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(247, 241, 229, .4); background: transparent; color: inherit;
   padding: 6px 12px; border-radius: 3px; cursor: pointer; white-space: nowrap;
@@ -137,6 +138,12 @@ header {
 @keyframes flags-run { to { background-position: 80px 0; } }
 @media (prefers-reduced-motion: reduce) { .progress.wait span { animation: none; } }
 .blessing { margin: 6px 0 0; font: 400 19px/1.4 var(--tib); color: var(--gold); opacity: .8; }
+.nalandabodhi-link { color: #dfe7ea; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.nalandabodhi-link:hover { color: #fff; }
+.site-credit { margin: 0; color: #b9c8d1; font-size: 12px; text-align: center; }
+.site-credit .dharma { color: var(--gold); font-size: 16px; vertical-align: -1px; }
+.site-credit a { color: inherit; text-underline-offset: 3px; }
+.site-credit a:hover { color: #fff; }
 details summary { cursor: pointer; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); font-weight: 700; }
 details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 
@@ -166,7 +173,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <span class="drop-side l" aria-hidden="true"><i lang="bo">དཔེ་ཆ།</i><i lang="bo">གཅིག</i></span>
       <span class="drop-main">
         <b lang="bo">དཔེ་ཆ།</b>
-        <h1>DPR Pecha Maker</h1>
+        <h1>Nalandabodhi Pecha Maker</h1>
         <p>Drop a PDF of a Tibetan text here. It comes back as a pecha, ready to print.</p>
         <span class="btn primary">Choose a PDF</span>
       </span>
@@ -174,6 +181,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     </span></span>
     <input id="openFile" type="file" accept=".pdf,.pxp,.pxc,.pxt,.pecha,.json,.txt" hidden>
   </label>
+  <a class="nalandabodhi-link" href="https://nalandabodhi.org/" target="_blank" rel="noopener">Visit Nalandabodhi</a>
   <div class="status-wrap">
     <div id="startStatus" role="status"></div>
     <div class="progress" id="startProgress" role="progressbar" aria-label="Reading the PDF" aria-valuemin="0" aria-valuemax="100" hidden><span></span></div>
@@ -184,11 +192,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     <button id="resume" type="button" hidden>Continue your last pecha</button>
   </div>
   <p class="blessing" lang="bo" title="Tashi delek">བཀྲ་ཤིས་བདེ་ལེགས།</p>
+  <p class="site-credit">Made with <span class="dharma" role="img" aria-label="Dharma wheel">☸</span> by Alessandro Solbiati and Yudi Xia · Feedback or requests: alessandro dot solbiati at gmail dot com</p>
 </section>
 
 <div class="app" id="work" hidden>
   <header>
-    <div class="mark"><b lang="bo">དཔེ་ཆ།</b><span>DPR Pecha Maker</span></div>
+    <div class="mark"><b lang="bo">དཔེ་ཆ།</b><a href="https://nalandabodhi.org/" target="_blank" rel="noopener">Nalandabodhi Pecha Maker</a></div>
     <button class="btn" id="newDoc" type="button">New pecha</button>
     <button class="btn" id="saveDoc" type="button">Save</button>
     <button class="btn primary" id="printBtn" type="button">Print or save PDF</button>

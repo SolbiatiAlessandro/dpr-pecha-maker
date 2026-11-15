@@ -454,7 +454,7 @@ function noteSample() {
     note.textContent = 'Your work stays in this browser. Use Save to keep a copy.';
   }
   $('otherWrap').hidden = !(source && source.result.hasOther);
-  $('credits').textContent = 'DPR Pecha Maker is an independent web tool. It opens files made with PechaMaker by Frederick W. Johnson and is not affiliated with it. Typefaces: Jomolhari and Noto Serif Tibetan.';
+  $('credits').innerHTML = '<a href="https://nalandabodhi.org/" target="_blank" rel="noopener">Nalandabodhi Pecha Maker</a> is an independent web tool. It opens files made with PechaMaker by Frederick W. Johnson and is not affiliated with it. Typefaces: Jomolhari and Noto Serif Tibetan. Feedback or requests: alessandro dot solbiati at gmail dot com.';
 }
 
 function docFromPdf(result, keepOther) {

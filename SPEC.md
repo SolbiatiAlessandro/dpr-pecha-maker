@@ -1,4 +1,4 @@
-# DPR Pecha Maker: functional spec
+# Nalandabodhi Pecha Maker: functional spec
 
 A browser tool that turns a PDF of a Tibetan text into traditional pecha pages ready to print. The feature set
 follows the public documentation of PechaMaker (Windows, 2004-2018, by Frederick W. Johnson): its

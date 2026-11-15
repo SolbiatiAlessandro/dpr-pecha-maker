@@ -1,6 +1,6 @@
 # Notices
 
-**PechaMaker** is copyright Frederick W. Johnson. DPR Pecha Maker is an independent project and is not
+**PechaMaker** is copyright Frederick W. Johnson. Nalandabodhi Pecha Maker is an independent project and is not
 affiliated with it. It contains no PechaMaker code, documentation, sample files or fonts. It reads
 PechaMaker files so that existing work stays usable.
 
