@@ -288,6 +288,19 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(line[2].x > line[1].x + line[1].w);
 }
 
+// Number label typefaces are independent of the document body and survive reusable settings.
+{
+  const doc = Engine.defaultDoc(); doc.text = 'body'; doc.counts.title = 0;
+  doc.folio.font = 'Noto Serif Tibetan'; doc.pageNum.font = 'Jomolhari';
+  const r = Engine.run(doc, measure), svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
+  assert(svg.includes(`font-family="'Noto Serif Tibetan','Noto Serif Tibetan',serif">${Folio.words(1)}`));
+  assert(svg.includes(`font-family="'Jomolhari','Noto Serif Tibetan',serif">1</text>`));
+  const saved = Documents.apply(Engine.defaultDoc(), Documents.artifact(doc, 'annotations'), Engine);
+  assert.strictEqual(saved.folio.font, 'Noto Serif Tibetan'); assert.strictEqual(saved.pageNum.font, 'Jomolhari');
+  const old = JSON.parse(JSON.stringify(doc)); delete old.folio.font; delete old.pageNum.font;
+  const restored = Documents.normalize(old, Engine); assert.strictEqual(restored.folio.font, ''); assert.strictEqual(restored.pageNum.font, 'Georgia');
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

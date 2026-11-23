@@ -48,8 +48,8 @@ const Engine = (() => {
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       yigo: { enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
-      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90 },
-      pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom' },
+      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
+      pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
       notes: {
         outLeft: 0, outRight: 0,
         sets: {
@@ -351,7 +351,7 @@ const Engine = (() => {
   }
 
   function sideText(x, y, s, size, doc, anchor, angle = -90) {
-    return `<text transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})" font-size="${num(size)}" text-anchor="${anchor}">${esc(s)}</text>`;
+    return `<text transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})" font-size="${num(size)}" text-anchor="${anchor}" font-family="${esc(doc.font)}">${esc(s)}</text>`;
   }
 
   function drawBoxes(p, doc) {
@@ -440,14 +440,15 @@ const Engine = (() => {
       const number = p.folioNumber === undefined ? fo.start + (p.n - 1) / 2 : p.folioNumber;
       const isLast = p.sectionLastFolio === undefined ? (p.n + 1) / 2 >= folioCount : p.sectionLastFolio;
       const label = fo.rhino || Folio.words(number) + (fo.jyon && isLast ? Folio.JYON : '');
-      const x = O.x0 + fo.inset * PT + asc(fo.size).ascent;
-      out += sideText(x, midY, label, fo.size, doc, 'middle', fo.angle === undefined ? -90 : fo.angle);
+      const folioDoc = fo.font ? {...doc, font: `'${fo.font}','Noto Serif Tibetan',serif`} : doc;
+      const x = O.x0 + fo.inset * PT + measure.head(folioDoc, fo.size).ascent;
+      out += sideText(x, midY, label, fo.size, folioDoc, 'middle', fo.angle === undefined ? -90 : fo.angle);
     }
     const pn = doc.pageNum;
     if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {
       const x = O.x1 - pn.inset * PT - 2;
       const center = pn.position === 'center', angle = pn.angle === undefined ? -90 : pn.angle;
-      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="Georgia,'Times New Roman',serif">${pn.start + p.n - 1}</text>`;
+      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="${esc(pn.font ? `'${pn.font}','Noto Serif Tibetan',serif` : doc.font)}">${pn.start + p.n - 1}</text>`;
     }
     return out;
   }

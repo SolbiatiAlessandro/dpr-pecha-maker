@@ -170,6 +170,7 @@ function buildPanels() {
   ]);
   fill($('folioFields'), [
     { path: 'folio.start', label: 'First folio (0 hides them)', step: 1, min: 0 },
+    { path: 'folio.font', label: 'Folio font', type: 'select', wide: true, options: [['', 'Use document font'], ...FONTS.map(f => [f, f])] },
     { path: 'folio.size', label: 'Size, pt', step: 1, min: 6 },
     { path: 'folio.inset', label: 'Inset from box, in', step: 0.01, min: 0 },
     { path: 'folio.onTitle', label: 'Show on Title pages', type: 'check' },
@@ -180,6 +181,7 @@ function buildPanels() {
   fill($('pageNumFields'), [
     { path: 'pageNum.on', label: 'Show page numbers', type: 'check' },
     { path: 'pageNum.start', label: 'First page', step: 1, min: 0 },
+    { path: 'pageNum.font', label: 'Page number font', type: 'select', wide: true, options: [['Georgia', 'Western serif'], ...FONTS.map(f => [f, f])] },
     { path: 'pageNum.size', label: 'Size, pt', step: 1, min: 5 },
     { path: 'pageNum.onTitle', label: 'Show on Title pages', type: 'check' },
     { path: 'pageNum.firstTitle', label: 'Include the first Title page', type: 'check' },

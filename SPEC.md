@@ -156,3 +156,8 @@ at role changes; the original attribute state resumes after the selection. Parti
 format-code selections expand to whole tokens. No selection inserts a continuing formatting mark.
 This follows the original guide section 4.3.1 attribute-preservation semantics; it is not a
 claim of identical native editing interaction. The whole-text size override still takes precedence.
+
+Folio labels and Arabic page numbers have independent font selections. Folios default to
+the document font; Arabic numbers default to Western serif. Number font choices persist
+in full documents and annotation presets. Available web typefaces are substitutes; native
+legacy font identities and exact metrics remain a compatibility limitation.
