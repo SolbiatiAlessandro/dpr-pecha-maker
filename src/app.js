@@ -325,6 +325,23 @@ function buildPrintPanel() {
   updatePrintSteps();
 }
 
+function buildCharacterPicker() {
+  const font=$('characterFont').value, group=$('characterGroup').value;
+  $('characterGrid').style.fontFamily=font==='noto' ? 'Noto Serif Tibetan' : 'Jomolhari';
+  $('characterGrid').replaceChildren(...TibetanCharacters.filter(c=>c.group===group).map(c=>{
+    const button=document.createElement('button'); button.type='button'; button.className='btn';
+    button.textContent=(c.combining?'ཀ':'')+c.text;
+    button.style.fontFamily='inherit';
+    const name=c.name+' (U+'+c.text.codePointAt(0).toString(16).toUpperCase()+')';
+    button.title=name; button.setAttribute('aria-label',name);
+    button.addEventListener('click',()=>{
+      const input=$('text'), result=TextFormat.insertCharacter(input.value,input.selectionStart,input.selectionEnd,c.text,font,Engine);
+      input.value=result.text; setEditingText(result.text); input.focus({preventScroll:true}); input.setSelectionRange(result.cursor,result.cursor); schedule();
+    });
+    return button;
+  }));
+}
+
 function buildTypePanel() {
   segment($('typeSeg'), [['title', 'Title'], ['fancy', 'Fancy'], ['body', 'Body']], currentType, v => { currentType = v; buildTypePanel(); });
   const p = `types.${currentType}`;
@@ -858,6 +875,9 @@ function init() {
   });
   let resizing = null;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
+  $('characterGroup').addEventListener('change',buildCharacterPicker);
+  $('characterFont').addEventListener('change',buildCharacterPicker);
+  buildCharacterPicker();
   const params = new URLSearchParams(location.search);
   setView('pages', true);
   if (params.has('sample')) setDoc(sampleDoc(), true); else showStart();

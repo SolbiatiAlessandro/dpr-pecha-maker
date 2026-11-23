@@ -44,6 +44,19 @@ const TextFormat = (() => {
     const opening = `{${codes}}`, restore = `{${entries.map(([k]) => token(k, old[k])).join(' ')}}`;
     return {text: text.slice(0, start) + opening + selected + restore + text.slice(end), start: start + opening.length, end: start + opening.length + selected.length};
   }
-  return {apply};
+  function insertCharacter(text, start, end, character, font, Engine) {
+    const collapsed=start===end;
+    for(const m of text.matchAll(/\{[^{}\n]*\}/g)) {
+      const right=m.index+m[0].length;
+      if(collapsed && start>m.index && start<right){start=end=right;break;}
+      if(start>m.index && start<right)start=m.index;
+      if(end>m.index && end<right)end=right;
+    }
+    const replaced=text.slice(0,start)+character+text.slice(end);
+    if(!font)return {text:replaced,cursor:start+character.length};
+    const result=apply(replaced,start,start+character.length,{font},Engine);
+    return {text:result.text,cursor:result.end};
+  }
+  return {apply,insertCharacter};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

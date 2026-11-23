@@ -348,3 +348,23 @@ and unsupported center reporting. Chrome file-picker QA showed a right text-side
 page image and subsequently opened the older-format fixture with just its inline
 image and yi-go placement. Real Windows image specimens and pixel-level output
 comparison are still unavailable: this entire import path remains experimental.
+
+### Unicode character selection
+
+The character picker implements the documented CharSelect workflow with Unicode
+Tibetan characters grouped by letters, subjoined forms, marks, signs and numbers.
+A supported typeface can be applied to the inserted character while preserving
+surrounding font and other attributes. Selection is replaced; insertion inside
+a visible formatting token moves to its boundary. Combining glyph examples use
+ka as a display base; only the actual mark is inserted. This replaces the original
+legacy font-code charts with Unicode and does not expose arbitrary installed fonts.
+Chrome QA inserted ka and vowel i, verified text contains only the actual chosen
+characters, and confirmed repeated clicks do not scroll away from the palette.
+Initial dotted-circle samples displayed missing-glyph boxes; using ka fixed them.
+Tests verify replacement, surrounding style/font restoration and atomic tokens.
+
+Static image sizing clarification: original Ignore DPI uses source pixels as
+reference-screen logical units and rounds scaled dimensions to integers. Its
+ordinary path also rounds to reference-display logical units before scaling.
+The web continues to use96CSS pixels/inch; exact display-dependent native
+rounding is not reproduced. There is no universal hardcoded Windows96DPI fallback.

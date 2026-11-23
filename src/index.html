@@ -100,6 +100,8 @@ header {
 .leaf svg { display: block; width: 100%; height: auto; background: var(--folio); box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .28); }
 .leaf.sheet svg { background: #fff; }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
+#characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
+#characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 3px; z-index: 30; max-width: 90vw; }
 #printRoot { display: none; }
 
@@ -158,7 +160,9 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 }
 @media print {
   html, body { background: #fff; height: auto; }
-  .app, .start, #toast { display: none !important; }
+  .app, .start, #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
+#characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
+#toast { display: none !important; }
   #printRoot { display: block; }
   .sheet-print { break-after: page; break-inside: avoid; overflow: hidden; }
   .sheet-print svg { display: block; }
@@ -258,7 +262,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="btn" type="button" id="copyImage">Copy inline image at text cursor</button>
         <button class="btn" type="button" id="moveImage">Move inline image to text cursor</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
-        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Check every position and size; unsupported records are reported.</p>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; Windows uses reference-display units, so exact sizing can differ. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Check every position and size; unsupported records are reported.</p>
       </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
@@ -281,6 +285,15 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         </div>
       </details>
       <p class="source" id="sampleNote"></p>
+      <details id="characterPicker">
+        <summary>Choose Tibetan characters</summary>
+        <div class="grid">
+          <div class="field"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
+          <div class="field"><label for="characterFont">Typeface</label><select id="characterFont"><option value="">Keep text font</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select></div>
+        </div>
+        <div id="characterGrid" aria-label="Tibetan character choices"></div>
+        <p class="hint">Choose a character to insert at the text cursor or replace selected text. Combining marks are shown on ཀ to make them readable; only the chosen mark is inserted. These are Unicode characters, not legacy Windows font codes.</p>
+      </details>
       <p class="source" id="credits"></p>
       <details>
         <summary>Reuse text, layouts and annotations</summary>

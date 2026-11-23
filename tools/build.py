@@ -7,7 +7,7 @@ import base64
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ["vendor/jsewts.js", "src/legacy-table.js", "src/folio.js", "src/images.js", "src/engine.js", "src/text-format.js", "src/rtf.js", "src/documents.js", "src/pxp.js", "src/pdfread.js", "src/sample.js", "src/app.js"]
+SCRIPTS = ["vendor/jsewts.js", "src/legacy-table.js", "src/folio.js", "src/images.js", "src/engine.js", "src/text-format.js", "src/characters.js", "src/rtf.js", "src/documents.js", "src/pxp.js", "src/pdfread.js", "src/sample.js", "src/app.js"]
 FONTS = [
     ("Jomolhari", "fonts/jomolhari-tibetan.woff2", "U+0F00-0FFF"),
     ("Jomolhari", "fonts/jomolhari-latin.woff2", "U+0000-00FF,U+2000-206F"),

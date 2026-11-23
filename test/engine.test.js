@@ -644,4 +644,17 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   assert(Math.abs(r.pages[0].lineBaselines[0]-r.pages[0].boxes.T.y0-.375*72)<.001);
 }
 
+// Character picking replaces the selection, inserts only the real mark, and preserves surrounding style.
+{
+  const TextFormat=require('../src/text-format.js'), chars=require('../src/characters.js');
+  assert(chars.some(c=>c.text==='ི' && c.combining));
+  const r=TextFormat.insertCharacter('{b font:serif}AB',14,15,'ཀ','noto',Engine);
+  const runs=Engine.parseStream(r.text,false).filter(x=>x.k==='text');
+  assert.strictEqual(runs.map(x=>x.s).join(''),'ཀB');
+  assert.strictEqual(runs[0].style.font,'noto'); assert(runs[0].style.bold);
+  assert.strictEqual(runs.at(-1).style.font,'serif'); assert(runs.at(-1).style.bold);
+  const mark=TextFormat.insertCharacter('ཀ',1,1,'ི','',Engine);assert.strictEqual(mark.text,'ཀི');
+  assert.strictEqual(TextFormat.insertCharacter('A{28}B',3,3,'ཀ','',Engine).text,'A{28}ཀB');
+  assert(!chars.some(c=>c.text==='◌'));
+}
 console.log('ok');
