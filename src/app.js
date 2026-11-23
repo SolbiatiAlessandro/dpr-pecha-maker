@@ -329,6 +329,7 @@ function buildNotePanel() {
   const base = `notes.sets.${noteSide.replace('.', '|')}`;
   const slot = (key, label) => [
     { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
+    { path: `${base}.${key}.rich`, label: 'Use formatting marks in this note', type: 'check' },
     { path: `${base}.${key}.size`, label: 'Size, pt', step: 1, min: 5 },
     { path: `${base}.${key}.inset`, label: 'Inset, in', step: 0.01, min: 0 },
   ];

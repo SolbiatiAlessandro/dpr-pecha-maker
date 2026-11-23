@@ -360,6 +360,25 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(Engine.pageSvg(r.pages[2], doc, measure, r.folioCount).includes('data-image-id="p1"'));
 }
 
+// Margin notes retain mixed style/font/color runs independently of main-text sizing.
+{
+  const doc = Engine.defaultDoc(); doc.text = 'body'; doc.counts = {title: 0, fancy: 0}; doc.textSize = 80;
+  doc.folio.start = 0; doc.pageNum.on = false;
+  doc.notes.sets['body.front'].inL = {...Engine.noteSlot('{b}Bold{/b} {font:noto #b03020 18}ཀ་', 13), rich: true};
+  const r = Engine.run(doc, measure), svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
+  assert(svg.includes('font-weight="700">Bold</text>')); assert(svg.includes('fill="#b03020">ཀ་</text>'));
+  assert(svg.includes('font-size="18"')); assert(!svg.includes('{font:noto'));
+  assert(svg.includes('font-size="13"')); // global body80 does not override annotation size13
+  const saved = Documents.apply(Engine.defaultDoc(), Documents.artifact(doc, 'annotations'), Engine);
+  assert.deepStrictEqual(saved.notes.sets['body.front'].inL, doc.notes.sets['body.front'].inL);
+  doc.notes.sets['body.front'].inL.rich = false;
+  const plain = Engine.pageSvg(Engine.run(doc, measure).pages[0], doc, measure, 1);
+  assert(plain.includes('{b}Bold{/b}'), 'old plain annotations keep literal braces');
+  const events = [{t:'code', op:0x20, a:1}, {t:'code', op:0x23, a:1}, {t:'text', s:'Tib'}, {t:'code', op:0x20,a:0}, {t:'text',s:'Latin'}];
+  const converted = Pxp.eventsToText(events, id => id === 1, true);
+  assert(converted.includes('{font:jomolhari}{b}Tib{font:serif}Latin'));
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

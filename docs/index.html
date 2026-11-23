@@ -302,7 +302,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still missing: native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still missing: native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, and original-format file export. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -327,7 +327,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <h3>End line</h3><div class="grid" id="dzogFields"></div>
       <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
       <h3>Page numbers</h3><div class="grid" id="pageNumFields"></div>
-      <h3>Margin notes</h3>
+      <h3>Margin notes</h3><p class="hint">For mixed formatting, enable formatting marks in a note. Use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {18}size, {#b03020}colour, and {font:noto} or {font:serif}. {size} returns to the note’s size. Main-text size changes do not resize notes.</p>
       <div class="field wide"><label for="noteSide">Notes for</label><select id="noteSide"></select></div>
       <div class="grid" id="noteFields"></div>
     </div>
@@ -2369,7 +2369,7 @@ const Engine = (() => {
     fontSize: 23, ...over,
   });
 
-  const noteSlot = (text = '', size = 13, inset = 0.1) => ({ on: !!text, text, size, inset });
+  const noteSlot = (text = '', size = 13, inset = 0.1) => ({ on: !!text, text, size, inset, rich: false });
   const noteSet = (over = {}) => ({
     inL: noteSlot(), inB: noteSlot(), inR: noteSlot(), outL: noteSlot(), outR: noteSlot(), ...over,
   });
@@ -2810,27 +2810,46 @@ const Engine = (() => {
     return `<path d="M${num(T.x0)} ${num(y1)}H${num(x)}V${num(y0)}H${num(T.x1)}" ${stroke}/>`;
   }
 
+  function annotationRuns(slot, doc, measure) {
+    const source = slot.rich ? parseStream(slot.text, false).filter(it => it.k === 'text') : [{s: slot.text, style: {}}];
+    return source.map(it => {
+      const s = it.s.replace(/[\u2028\r\n\t]/g, ' '), f = fontFor({...doc, textSize: null}, it, slot.size);
+      return {s, f, color: it.style.color, width: measure(s, f), head: measure.head({...doc, font: f.family}, f.size)};
+    });
+  }
+  function richSideText(x, y, slot, doc, measure, anchor) {
+    if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor);
+    const runs = annotationRuns(slot, doc, measure), width = runs.reduce((sum, r) => sum + r.width, 0);
+    let cursor = anchor === 'middle' ? -width / 2 : anchor === 'end' ? -width : 0;
+    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color); cursor += r.width; return part; }).join('');
+    return `<g transform="translate(${num(x)} ${num(y)}) rotate(-90)">${text}</g>`;
+  }
+
   function drawMargins(p, doc, measure, folioCount) {
     const { O, w, h } = p.boxes;
     const sourceSet = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
     const set = { ...sourceSet };
     if (p.sectionName && doc.sectionLabels) {
-      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, text: p.sectionName };
-      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, text: p.sectionName };
+      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, rich: false, text: p.sectionName };
+      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, rich: false, text: p.sectionName };
     }
     let out = '';
     const asc = size => measure.head(doc, size);
     const pad = 9;
     const midY = (O.y0 + O.y1) / 2;
+    const metrics = slot => {
+      const heads = slot.rich ? annotationRuns(slot, doc, measure).map(r => r.head) : [asc(slot.size)];
+      return {ascent: Math.max(0, ...heads.map(h => h.ascent)), descent: Math.max(0, ...heads.map(h => h.descent))};
+    };
     const inX = (slot, right) => {
-      const m = asc(slot.size);
+      const m = metrics(slot);
       return right ? O.x1 - slot.inset * PT - m.descent : O.x0 + slot.inset * PT + m.ascent;
     };
-    if (set.inL.on && set.inL.text) out += sideText(inX(set.inL), O.y0 + pad, set.inL.text, set.inL.size, doc, 'end');
-    if (set.inB.on && set.inB.text) out += sideText(inX(set.inB), O.y1 - pad, set.inB.text, set.inB.size, doc, 'start');
-    if (set.inR.on && set.inR.text) out += sideText(inX(set.inR, true), midY, set.inR.text, set.inR.size, doc, 'middle');
-    if (set.outL.on && set.outL.text) out += sideText(set.outL.inset * PT + asc(set.outL.size).ascent, midY, set.outL.text, set.outL.size, doc, 'middle');
-    if (set.outR.on && set.outR.text) out += sideText(w - set.outR.inset * PT - asc(set.outR.size).descent, midY, set.outR.text, set.outR.size, doc, 'middle');
+    if (set.inL.on && set.inL.text) out += richSideText(inX(set.inL), O.y0 + pad, set.inL, doc, measure, 'end');
+    if (set.inB.on && set.inB.text) out += richSideText(inX(set.inB), O.y1 - pad, set.inB, doc, measure, 'start');
+    if (set.inR.on && set.inR.text) out += richSideText(inX(set.inR, true), midY, set.inR, doc, measure, 'middle');
+    if (set.outL.on && set.outL.text) out += richSideText(set.outL.inset * PT + metrics(set.outL).ascent, midY, set.outL, doc, measure, 'middle');
+    if (set.outR.on && set.outR.text) out += richSideText(w - set.outR.inset * PT - metrics(set.outR).descent, midY, set.outR, doc, measure, 'middle');
 
     const fo = doc.folio;
     const folioStart = p.sectionFolioStart === undefined ? fo.start : p.sectionFolioStart;
@@ -3215,8 +3234,8 @@ const Pxp = (() => {
   const TIB_SCALE = 0.75;   // TibetanMachine is drawn smaller on its em than Jomolhari
 
   // Events to the {code} text the engine reads. Colours and sizes carry over as the file has them.
-  function eventsToText(ev, isTibetanFont) {
-    let out = '', written = null, raw = null, font = 0;
+  function eventsToText(ev, isTibetanFont, fontMarks = false) {
+    let out = fontMarks ? (isTibetanFont(0) ? '{font:jomolhari}' : '{font:serif}') : '', written = null, raw = null, font = 0;
     for (const e of ev) {
       if (e.t === 'text') {
         const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
@@ -3225,7 +3244,7 @@ const Pxp = (() => {
       }
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
-      else if (e.op === 0x20) font = e.a;
+      else if (e.op === 0x20) { font = e.a; if (fontMarks) out += isTibetanFont(font) ? '{font:jomolhari}' : '{font:serif}'; }
       else if (e.op === 0x21) raw = e.b;
       else if (e.op === 0x22) {
         const hex = [e.a, e.b, e.d].map(c => c.toString(16).padStart(2, '0')).join('');
@@ -3243,6 +3262,11 @@ const Pxp = (() => {
   function plainText(bytes, fonts, table) {
     if (!bytes || !bytes.length) return '';
     return decodeStream(bytes, fonts, table).ev.filter(e => e.t === 'text').map(e => e.s).join('').trim();
+  }
+
+  function richText(bytes, fonts, table) {
+    if (!bytes || !bytes.length) return '';
+    return eventsToText(decodeStream(bytes, fonts, table).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -3321,13 +3345,13 @@ const Pxp = (() => {
     d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
-        const text = plainText(raw[`${name}[${i}].s`], p.fonts, table);
-        return { on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
+        const text = richText(raw[`${name}[${i}].s`], p.fonts, table);
+        return { rich: true, on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
       };
       const set = Engine.noteSet({ inL: slot('AnnoInL', 0.1), inR: slot('AnnoInR', 0.1), outL: slot('AnnoOutL', 0.1), outR: slot('AnnoOutR', 0.1) });
       if (i % 2 === 0) {
-        const below = plainText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table);
-        set.inB = { on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
+        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table);
+        set.inB = { rich: true, on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
       }
       d.notes.sets[key] = set;
     });
@@ -4106,6 +4130,7 @@ function buildNotePanel() {
   const base = `notes.sets.${noteSide.replace('.', '|')}`;
   const slot = (key, label) => [
     { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
+    { path: `${base}.${key}.rich`, label: 'Use formatting marks in this note', type: 'check' },
     { path: `${base}.${key}.size`, label: 'Size, pt', step: 1, min: 5 },
     { path: `${base}.${key}.inset`, label: 'Inset, in', step: 0.01, min: 0 },
   ];

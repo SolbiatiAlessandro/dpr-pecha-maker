@@ -124,8 +124,8 @@ const Pxp = (() => {
   const TIB_SCALE = 0.75;   // TibetanMachine is drawn smaller on its em than Jomolhari
 
   // Events to the {code} text the engine reads. Colours and sizes carry over as the file has them.
-  function eventsToText(ev, isTibetanFont) {
-    let out = '', written = null, raw = null, font = 0;
+  function eventsToText(ev, isTibetanFont, fontMarks = false) {
+    let out = fontMarks ? (isTibetanFont(0) ? '{font:jomolhari}' : '{font:serif}') : '', written = null, raw = null, font = 0;
     for (const e of ev) {
       if (e.t === 'text') {
         const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
@@ -134,7 +134,7 @@ const Pxp = (() => {
       }
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
-      else if (e.op === 0x20) font = e.a;
+      else if (e.op === 0x20) { font = e.a; if (fontMarks) out += isTibetanFont(font) ? '{font:jomolhari}' : '{font:serif}'; }
       else if (e.op === 0x21) raw = e.b;
       else if (e.op === 0x22) {
         const hex = [e.a, e.b, e.d].map(c => c.toString(16).padStart(2, '0')).join('');
@@ -152,6 +152,11 @@ const Pxp = (() => {
   function plainText(bytes, fonts, table) {
     if (!bytes || !bytes.length) return '';
     return decodeStream(bytes, fonts, table).ev.filter(e => e.t === 'text').map(e => e.s).join('').trim();
+  }
+
+  function richText(bytes, fonts, table) {
+    if (!bytes || !bytes.length) return '';
+    return eventsToText(decodeStream(bytes, fonts, table).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -230,13 +235,13 @@ const Pxp = (() => {
     d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
-        const text = plainText(raw[`${name}[${i}].s`], p.fonts, table);
-        return { on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
+        const text = richText(raw[`${name}[${i}].s`], p.fonts, table);
+        return { rich: true, on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
       };
       const set = Engine.noteSet({ inL: slot('AnnoInL', 0.1), inR: slot('AnnoInR', 0.1), outL: slot('AnnoOutL', 0.1), outR: slot('AnnoOutR', 0.1) });
       if (i % 2 === 0) {
-        const below = plainText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table);
-        set.inB = { on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
+        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table);
+        set.inB = { rich: true, on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
       }
       d.notes.sets[key] = set;
     });

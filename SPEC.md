@@ -181,3 +181,12 @@ Images are painted after box lines. Absent box anchors are disabled; missing-pag
 placements remain stored and show a warning. Right-clicking an image opens its controls;
 the image picker also selects overlapping images. Exact rounding, overlap conventions,
 and native page identity after restructuring remain Windows-comparison work.
+
+### Mixed margin annotations
+
+Each annotation slot has an explicit formatting-marks option. Older plain annotations
+retain literal braces. Enabled notes render multiple font/style/colour/size runs on one
+rotated baseline, with anchoring measured across the combined runs. Main-text global
+size does not affect them. Supported native annotation codes are retained on import,
+with Tibetan and Western fonts mapped to available web substitutes. Unknown native
+formatting and exact legacy font metrics remain verification work.

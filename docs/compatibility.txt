@@ -10,7 +10,7 @@ AVAILABLE IN THE WEB APP
 - Paper dimensions and orientation, four margins, top/center placement and pages per sheet.
 - Independent Tibetan folio and Arabic page starting numbers, title visibility, Jyon, fixed folio phrase, independent number fonts, sizes and insets.
 - Arabic bottom/center placement and label rotation; extra Tibetan label rotation choices.
-- Static margin annotations for page type and front/back, with plain text, size and inset.
+- Static margin annotations for page type and front/back, with optional mixed font/style/colour/size formatting and inset.
 - Left/right/center/justified text, font size and colour, bold/italic/underline/strike formatting marks, hard returns, hard page breaks and fixed shad.
 - One tab interval with tab-aligned text, plus independent Tibetan baseline adjustment.
 - Automatic yi-go, Rinchen/Yang shad options, and final dzog thik. Exact edge behavior is still being compared.
@@ -29,7 +29,7 @@ PARTIAL COMPATIBILITY
 - PXP import: five public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
-- Annotations: plain text only, not mixed-font/colour/style runs.
+- Annotations: mixed runs use visible formatting marks rather than the original rich-text paste interface. Known native annotation formatting codes are imported; exact legacy fonts and all codes remain unverified.
 - Templates: web .pecha JSON files only; they are not Windows .pxt/.pxc/.pxa files. Layout saves do not contain text or annotations; annotation saves contain numbering.
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
 

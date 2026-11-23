@@ -14,7 +14,7 @@ const Engine = (() => {
     fontSize: 23, ...over,
   });
 
-  const noteSlot = (text = '', size = 13, inset = 0.1) => ({ on: !!text, text, size, inset });
+  const noteSlot = (text = '', size = 13, inset = 0.1) => ({ on: !!text, text, size, inset, rich: false });
   const noteSet = (over = {}) => ({
     inL: noteSlot(), inB: noteSlot(), inR: noteSlot(), outL: noteSlot(), outR: noteSlot(), ...over,
   });
@@ -455,27 +455,46 @@ const Engine = (() => {
     return `<path d="M${num(T.x0)} ${num(y1)}H${num(x)}V${num(y0)}H${num(T.x1)}" ${stroke}/>`;
   }
 
+  function annotationRuns(slot, doc, measure) {
+    const source = slot.rich ? parseStream(slot.text, false).filter(it => it.k === 'text') : [{s: slot.text, style: {}}];
+    return source.map(it => {
+      const s = it.s.replace(/[\u2028\r\n\t]/g, ' '), f = fontFor({...doc, textSize: null}, it, slot.size);
+      return {s, f, color: it.style.color, width: measure(s, f), head: measure.head({...doc, font: f.family}, f.size)};
+    });
+  }
+  function richSideText(x, y, slot, doc, measure, anchor) {
+    if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor);
+    const runs = annotationRuns(slot, doc, measure), width = runs.reduce((sum, r) => sum + r.width, 0);
+    let cursor = anchor === 'middle' ? -width / 2 : anchor === 'end' ? -width : 0;
+    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color); cursor += r.width; return part; }).join('');
+    return `<g transform="translate(${num(x)} ${num(y)}) rotate(-90)">${text}</g>`;
+  }
+
   function drawMargins(p, doc, measure, folioCount) {
     const { O, w, h } = p.boxes;
     const sourceSet = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
     const set = { ...sourceSet };
     if (p.sectionName && doc.sectionLabels) {
-      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, text: p.sectionName };
-      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, text: p.sectionName };
+      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, rich: false, text: p.sectionName };
+      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, rich: false, text: p.sectionName };
     }
     let out = '';
     const asc = size => measure.head(doc, size);
     const pad = 9;
     const midY = (O.y0 + O.y1) / 2;
+    const metrics = slot => {
+      const heads = slot.rich ? annotationRuns(slot, doc, measure).map(r => r.head) : [asc(slot.size)];
+      return {ascent: Math.max(0, ...heads.map(h => h.ascent)), descent: Math.max(0, ...heads.map(h => h.descent))};
+    };
     const inX = (slot, right) => {
-      const m = asc(slot.size);
+      const m = metrics(slot);
       return right ? O.x1 - slot.inset * PT - m.descent : O.x0 + slot.inset * PT + m.ascent;
     };
-    if (set.inL.on && set.inL.text) out += sideText(inX(set.inL), O.y0 + pad, set.inL.text, set.inL.size, doc, 'end');
-    if (set.inB.on && set.inB.text) out += sideText(inX(set.inB), O.y1 - pad, set.inB.text, set.inB.size, doc, 'start');
-    if (set.inR.on && set.inR.text) out += sideText(inX(set.inR, true), midY, set.inR.text, set.inR.size, doc, 'middle');
-    if (set.outL.on && set.outL.text) out += sideText(set.outL.inset * PT + asc(set.outL.size).ascent, midY, set.outL.text, set.outL.size, doc, 'middle');
-    if (set.outR.on && set.outR.text) out += sideText(w - set.outR.inset * PT - asc(set.outR.size).descent, midY, set.outR.text, set.outR.size, doc, 'middle');
+    if (set.inL.on && set.inL.text) out += richSideText(inX(set.inL), O.y0 + pad, set.inL, doc, measure, 'end');
+    if (set.inB.on && set.inB.text) out += richSideText(inX(set.inB), O.y1 - pad, set.inB, doc, measure, 'start');
+    if (set.inR.on && set.inR.text) out += richSideText(inX(set.inR, true), midY, set.inR, doc, measure, 'middle');
+    if (set.outL.on && set.outL.text) out += richSideText(set.outL.inset * PT + metrics(set.outL).ascent, midY, set.outL, doc, measure, 'middle');
+    if (set.outR.on && set.outR.text) out += richSideText(w - set.outR.inset * PT - metrics(set.outR).descent, midY, set.outR, doc, measure, 'middle');
 
     const fo = doc.folio;
     const folioStart = p.sectionFolioStart === undefined ? fo.start : p.sectionFolioStart;
