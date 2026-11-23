@@ -13,7 +13,7 @@ AVAILABLE IN THE WEB APP
 - Static margin annotations for page type and front/back, with optional mixed font/style/colour, one size per annotation position, and inset.
 - Optional font kerning where the browser supports matching canvas measurement and SVG rendering. Native font metrics remain unverified.
 - Left/right/center/justified text, font size and colour, bold/italic/underline/strike formatting marks, hard returns, hard page breaks and fixed shad.
-- One tab interval with tab-aligned text, shared line baselines for mixed-size text, independent Tibetan raise, and nonprinting baseline/page-type-colour guides. Native baseline-offset import and historical font metrics still need comparison.
+- One tab interval with tab-aligned text, shared line baselines for mixed-size text, independent Tibetan raise, and nonprinting baseline/page-type-colour guides. Native page-type first-baseline offsets now import from BaseLineAdj; historical font metrics still need comparison.
 - Automatic yi-go, Rinchen/Yang shad options, and final dzog thik with separate segment heights and inch/whitespace-percent rise controls. Exact edge behavior and whitespace endpoints still need Windows comparison.
 - Duplex/manual/proof print preparation, reversed back rows, optional reverse back sheets, cut marks and test-sheet mode. Physical printer calibration remains necessary.
 - Browser autosave, full web document save/open, separate web layout/content/annotation files. New text and text/PDF/RTF imports retain annotations, yi-go and fixed folio phrase.
@@ -25,13 +25,13 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - Reversible whole-main-text size override that preserves fonts, bold and colours.
 - Configurable root/commentary/heading styles. No fixed tradition-specific bold mapping.
 - Ordered texts within a volume, independent Tibetan starts, continuous Arabic page numbers, section side names and text reordering.
-- Each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Restarting Title/Fancy layouts is an explicit per-text choice.
+- In pecha mode each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Full-page mode starts a new page without a blank back. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
 - Full-page (non-pecha) mode reflows within paper margins, with separate line height and first baseline, one page per sheet, and yi-go after the first page. Pecha frames/labels are retained but hidden; original label interactions and native font/print equivalence still need verification.
 - RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
 - Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
-- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Recognized native image-data tails are excluded from body text with an explicit missing-image warning. No binary-format round trip is promised.
+- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Textual native image-header1.1 imports embedded PNG inline images and image yi-go experimentally. Framing/reference tests and browser import QA use synthetic specimens; no real native image specimen has been verified. Import notes remain visible above the preview during the session. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
 - Annotations: mixed runs use visible formatting marks rather than the original rich-text paste interface. Known native annotation formatting codes are imported; exact legacy fonts and all codes remain unverified.
@@ -39,7 +39,7 @@ PARTIAL COMPATIBILITY
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
 
 NOT IMPLEMENTED YET
-- Native Windows image-block import/export and exact original clipboard image semantics.
+- Native fixed-page image anchor codes, older binary1.0 image headers, native image export, and exact original clipboard image semantics.
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Exact original compact-view controls.
