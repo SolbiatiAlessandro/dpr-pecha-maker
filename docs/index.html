@@ -2403,7 +2403,7 @@ const Engine = (() => {
       },
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       assets: [], images: [],
-      yigo: { image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
+      yigo: { rich: false, ignoreColor: true, image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
       folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
@@ -2592,8 +2592,15 @@ const Engine = (() => {
       const p = place({s: '', gap: 'none', spaces: 0, style: atoms[start].style, image: yigoImage});
       p.x = 0; items.push(p); x = p.w; yigoCount = 1;
     } else if (yigo) {
-      for (const a of splitAtoms(doc.yigo.text)) {
-        const p = place({ ...a, style: atoms[start].style });
+      const firstStyle = atoms[start].style;
+      const firstSize = fontFor(doc, atoms[start], sizeDefault).size;
+      const yiAtoms = doc.yigo.rich
+        ? atomize(parseStream(doc.yigo.text, false).filter(it => it.k === 'text'), doc, measure).filter(a => !a.hr && !a.tab)
+        : splitAtoms(doc.yigo.text);
+      for (const a of yiAtoms) {
+        const style = doc.yigo.rich ? {...a.style, role: null, size: firstSize,
+          color: doc.yigo.ignoreColor ? firstStyle.color : a.style.color} : firstStyle;
+        const p = place({ ...a, style });
         p.x = x + prevGap; x = p.x + p.w; prevGap = p.gapW;
         items.push(p); yigoCount++;
       }
@@ -4153,7 +4160,9 @@ function buildPanels() {
   fill($('yigoFields'), [
     { path: 'yigo.image', label: 'Yi-go source', type: 'select', wide: true, options: [['', 'Text yi-go'], ...doc.images.filter(p => p.kind === 'yigo').map((p, i) => [p.id, `Image ${i + 1}`])] },
     { path: 'yigo.enabled', label: 'Add a yi-go on the front of each folio', type: 'check' },
-    { path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true },
+    ...(doc.yigo.rich ? [{ path: 'yigo.text', label: 'Custom yi-go text and formatting marks', type: 'text', wide: true }] : [{ path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true }]),
+    { path: 'yigo.rich', label: 'Use formatting marks in custom yi-go', type: 'check', onChange: buildPanels },
+    { path: 'yigo.ignoreColor', label: 'Match yi-go colour to the first character', type: 'check' },
     { path: 'yigo.fancyStart', label: 'Start on the first Fancy page', type: 'check' },
     { path: 'yigo.title2', label: 'Also on Title pages after the first', type: 'check' },
   ]);

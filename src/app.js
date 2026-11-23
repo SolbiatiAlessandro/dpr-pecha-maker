@@ -156,7 +156,9 @@ function buildPanels() {
   fill($('yigoFields'), [
     { path: 'yigo.image', label: 'Yi-go source', type: 'select', wide: true, options: [['', 'Text yi-go'], ...doc.images.filter(p => p.kind === 'yigo').map((p, i) => [p.id, `Image ${i + 1}`])] },
     { path: 'yigo.enabled', label: 'Add a yi-go on the front of each folio', type: 'check' },
-    { path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true },
+    ...(doc.yigo.rich ? [{ path: 'yigo.text', label: 'Custom yi-go text and formatting marks', type: 'text', wide: true }] : [{ path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true }]),
+    { path: 'yigo.rich', label: 'Use formatting marks in custom yi-go', type: 'check', onChange: buildPanels },
+    { path: 'yigo.ignoreColor', label: 'Match yi-go colour to the first character', type: 'check' },
     { path: 'yigo.fancyStart', label: 'Start on the first Fancy page', type: 'check' },
     { path: 'yigo.title2', label: 'Also on Title pages after the first', type: 'check' },
   ]);

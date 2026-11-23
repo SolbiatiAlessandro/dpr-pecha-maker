@@ -1,5 +1,5 @@
 WEB PECHA MAKER — FIRST-PASS COMPATIBILITY
-Updated 2026-11-22
+Updated 2026-11-23
 
 This is an independent Unicode web implementation inspired by the public Windows PechaMaker documentation. It is not an exact port, and no proprietary implementation or assets are reused. Original Windows runtime equivalence has not yet been verified. Different typefaces and shaping can produce different line and page breaks.
 
@@ -27,6 +27,8 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - Each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
+- RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
+- Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
 - PXP import: five public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
@@ -36,10 +38,10 @@ PARTIAL COMPATIBILITY
 
 NOT IMPLEMENTED YET
 - Native Windows image-block import/export and original image copy/move-reset semantics.
-- RTF import and TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
+- TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
-- Kerning switch, all dzog-thik vertical/percentage controls, yi-go colour-ignore option.
+- Kerning switch, all dzog-thik vertical/percentage controls.
 - Configurable timed recovery/revert controls, command-line imports, original New/Import default-retention behavior.
 - Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.

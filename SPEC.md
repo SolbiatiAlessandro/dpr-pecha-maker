@@ -213,3 +213,11 @@ and picture formats are skipped with warnings, and tables become tabs and lines.
 Multibyte legacy code pages, exact source font metrics, paragraph geometry, and
 nonuniform image scaling are not faithfully reproduced. This is partial RTF
 interchange, not verified equivalence to Windows PechaMaker's importer.
+
+### Rich yi-go controls
+
+Custom yi-go formatting marks preserve their own font, emphasis and colour. The
+font size always follows the first body character on that page. A colour-match
+checkbox follows that character's colour instead. Existing plain yi-go documents
+retain their previous inherited styling. This implements installed guide 2.0 §7.3
+semantics; native rich-text clipboard equivalence is still unverified.

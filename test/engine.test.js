@@ -432,6 +432,19 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
 
 }
 
+// Rich yi-go keeps its own typeface/emphasis but uses the first character's size.
+{
+  const d = Engine.defaultDoc(); d.counts = {title:0,fancy:0}; d.dzog.enabled=false;
+  d.text='{#123456 28}ཀ་'; d.yigo.rich=true; d.yigo.text='{font:noto b #b03020 10}༄༅།';
+  let line=Engine.run(d,measure).pages[0].lines[0];
+  assert(line.yigoCount > 0); assert.strictEqual(line.items[0].f.size,28);
+  assert.strictEqual(line.items[0].f.weight,700); assert(line.items[0].f.family.includes('Noto Serif Tibetan'));
+  assert.strictEqual(line.items[0].style.color,'#123456');
+  d.yigo.ignoreColor=false; line=Engine.run(d,measure).pages[0].lines[0];
+  assert.strictEqual(line.items[0].style.color,'#b03020');
+  d.textSize=36; assert.strictEqual(Engine.run(d,measure).pages[0].lines[0].items[0].f.size,36);
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);
