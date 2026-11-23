@@ -262,8 +262,8 @@ unimplemented. Native full-file loading continues to use the file's own settings
 Mixed font sizes now share the line's reference baseline; the independent Tibetan
 raise offsets Tibetan text only. Inline images and dzog-thik descent use the same
 reference. This corrects previous alignment by each run's top edge. The reference
-is still derived from the web page-type font metrics; exact native baseline-offset
-import and historical font metrics remain unverified.
+is still derived from the web page-type font metrics; historical font metrics remain unverified. Native baseline offsets are now
+imported explicitly as described below.
 Optional dashed baseline guides and red/green/blue Title/Fancy/Body frame hints
 apply only to screen SVGs. Printed SVGs retain configured frame colours and contain
 no baseline guides. Chrome QA verified mixed40pt/12pt text alignment and visible
@@ -316,3 +316,17 @@ and is excluded from print. Chrome QA verified the experimental-image warning
 remains visible with the imported image. This report is session UI, not saved
 document metadata. Inline Copy/Move UI QA also verified100% reset, default spacing,
 visible size doubling from50%, and relocation without an extra old text marker.
+
+### Page-type first baselines
+
+Title/Fancy/Body now have an explicit first-baseline distance from the innermost
+box. Native Type_n BaseLineAdj imports into this value rather than being discarded
+for automatic centering. Installed guide2.0 Fig21 labels this “Box to top Baseline”;
+Fig22 arrow3 ends at the baseline under Roman text, not the glyph top.
+The old nullable first-line-top setting remains compatible with saved web files.
+An explicit baseline takes precedence; clearing it restores the previous setting.
+Rendering and image text exclusions use the same baseline geometry. Tests verify
+fixed baseline across font-size changes, native import, template retention and
+legacy top-edge fallback. Chrome QA entered0.6in for Title, observed repositioning
+and disabled top-edge control, then cleared it to restore automatic placement.
+Exact historical glyph metrics and printer rounding remain unverified.

@@ -2397,7 +2397,7 @@ const Engine = (() => {
   const isYigMgo = c => /[༁-༊]/.test(c);
 
   const pageType = (over = {}) => ({
-    lines: 5, lineHeight: 0.40, top: null, side: 0.08, style: 'double', color: '#000000',
+    lines: 5, lineHeight: 0.40, top: null, baseline: null, side: 0.08, style: 'double', color: '#000000',
     sideIn: 0, sideOut: 0.42, insideOn: false, inside: 0.2, squeezeOn: false, squeeze: 0.1,
     fontSize: 23, ...over,
   });
@@ -2739,7 +2739,7 @@ const Engine = (() => {
         const h=Math.max(.1,doc.paper.h-doc.margins.top-doc.margins.bottom)*PT;
         const head=measure.head(doc,doc.textSize||type.fontSize);
         type={...type, style:'none', sideOut:0,sideIn:0,insideOn:false,squeezeOn:false,side:0,
-          lineHeight:doc.normal.lineHeight,top:doc.normal.baseline-head.ascent/PT,
+          lineHeight:doc.normal.lineHeight,baseline:doc.normal.baseline,top:null,
           lines:Math.max(1,Math.floor((h-doc.normal.baseline*PT-head.descent)/(doc.normal.lineHeight*PT))+1)};
       }
       const B = boxes(doc, type);
@@ -2752,7 +2752,7 @@ const Engine = (() => {
       const fillPage = estimate => {
         const lines = []; let next = startIndex;
         const head = measure.head(doc, doc.textSize || type.fontSize);
-        const startY = type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
+        const startY = type.baseline !== null && type.baseline !== undefined ? B.T.y0 + type.baseline * PT - head.ascent : type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
         for (let ln = 0; ln < type.lines && next < atoms.length; ln++) {
           let left = B.T.x0, right = B.T.x1;
           const top = startY + ln * type.lineHeight * PT;
@@ -2778,7 +2778,7 @@ const Engine = (() => {
         return {lines, next};
       };
       let result = fillPage(type.lines);
-      if (kind === 'title' && fixedImages.length && type.top === null) {
+      if (kind === 'title' && fixedImages.length && type.top === null && type.baseline === null) {
         let estimate = type.lines;
         for (let pass = 0; pass < 4 && result.lines.length !== estimate; pass++) {
           estimate = Math.max(1, result.lines.length); result = fillPage(estimate);
@@ -2833,7 +2833,7 @@ const Engine = (() => {
     const room = T.y1 - T.y0;
     const nLines = p.kind === 'title' ? Math.max(1, p.lines.length) : t.lines;   // a short last page starts where full pages do
     const block = (nLines - 1) * t.lineHeight * PT + head.height;
-    const start = t.top === null ? T.y0 + (room - block) / 2 : T.y0 + t.top * PT;
+    const start = t.baseline !== null && t.baseline !== undefined ? T.y0 + t.baseline * PT - head.ascent : t.top === null ? T.y0 + (room - block) / 2 : T.y0 + t.top * PT;
     let out = '';
     p.lineTops = []; p.lineBaselines = [];
     p.lines.forEach((line, ln) => {
@@ -3356,7 +3356,7 @@ const Documents = (() => {
     bound(d, 'tibetanRaise', -2, 2);
     if (d.textSize !== null) bound(d, 'textSize', 5, 200);
     for (const k of ['title', 'fancy']) bound(d.counts, k, 0, 1000, true);
-    for (const t of Object.values(d.types)) { bound(t, 'lines', 1, 100, true); bound(t, 'fontSize', 5, 200); bound(t, 'lineHeight', 0.05, 10); }
+    for (const t of Object.values(d.types)) { bound(t, 'lines', 1, 100, true); bound(t, 'fontSize', 5, 200); bound(t, 'lineHeight', 0.05, 10); if(t.baseline !== null) bound(t, 'baseline', 0, 30); }
     for (const r of Object.values(d.roles)) { bound(r, 'size', 5, 200); if (!['Jomolhari', 'Noto Serif Tibetan'].includes(r.font)) r.font = 'Jomolhari'; }
     if (!['', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.folio.font)) d.folio.font = '';
     if (!['Georgia', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.pageNum.font)) d.pageNum.font = 'Georgia';
@@ -3670,6 +3670,7 @@ const Pxp = (() => {
       if (kind !== 'body') { d.counts[kind] = Math.max(0, end - prevEnd); prevEnd = Math.max(prevEnd, end); }
       Object.assign(d.types[kind], {
         lines: num(s.LinesPerPage, 6), lineHeight: num(s.LineHeight, 0.38), top: null,
+        baseline: s.BaseLineAdj === undefined ? null : num(s.BaseLineAdj, 0.25),
         side: num(s.MarginSide, 0.05),
         style: ['none', 'single', 'double'][num(s.BoxLinestyle, 2)] || 'double',
         color: '#' + (s.BoxColor || '0x000000').slice(2).match(/../g).reverse().join(''),
@@ -4490,7 +4491,8 @@ function buildTypePanel() {
     { path: `${p}.lines`, label: 'Lines per page', step: 1, min: 1, max: 100 },
     { path: `${p}.fontSize`, label: 'Text size, pt', step: 1, min: 8 },
     { path: `${p}.lineHeight`, label: 'Line height, in', step: 0.01, min: 0.1 },
-    { path: `${p}.top`, label: 'Box to first line, in', step: 0.01, min: 0, nullable: true, placeholder: 'centred' },
+    { path: `${p}.baseline`, label: 'Box to first baseline, in', event: 'change', step: 0.01, min: 0, max: 30, nullable: true, placeholder: 'automatic', onChange: () => buildTypePanel() },
+    { path: `${p}.top`, label: 'Box to first line top, in', disabled: doc.types[currentType].baseline !== null, step: 0.01, min: 0, nullable: true, placeholder: 'centred' },
     { path: `${p}.side`, label: 'Box to text, in', step: 0.01, min: 0 },
     { path: `${p}.style`, label: 'Box lines', type: 'select', options: [['double', 'Double'], ['single', 'Single'], ['none', 'None']] },
     { path: `${p}.sideOut`, label: 'Outer side box, in', step: 0.02, min: 0 },

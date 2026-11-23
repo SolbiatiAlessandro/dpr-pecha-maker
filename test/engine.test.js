@@ -595,3 +595,27 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   console.log(f.padEnd(26), 'pages', pages.length, 'paper', doc.paper.w + 'x' + doc.paper.h, 'perSheet', doc.pecha.perSheet, 'title/fancy', doc.counts.title, doc.counts.fancy, 'yigo', JSON.stringify(doc.yigo.text));
 }
 console.log('ok');
+
+// An explicit first baseline stays fixed when font sizes change; old top-edge layouts still work.
+{
+  const d=Engine.defaultDoc(); d.counts={title:0,fancy:0}; d.text='Latin\nཀ་'; d.flow=false;
+  d.types.body.baseline=.5; d.types.body.top=.2;
+  let r=Engine.run(d,measure); Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  const y=r.pages[0].boxes.T.y0+.5*72;
+  assert(Math.abs(r.pages[0].lineBaselines[0]-y)<.001);
+  d.textSize=40; r=Engine.run(d,measure); Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  assert(Math.abs(r.pages[0].lineBaselines[0]-y)<.001);
+  assert(Math.abs(r.pages[0].lineBaselines[1]-y-d.types.body.lineHeight*72)<.001);
+  assert.strictEqual(Documents.apply(Engine.defaultDoc(),Documents.artifact(d,'template'),Engine).types.body.baseline,.5);
+  d.types.body.baseline=null; r=Engine.run(d,measure); Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  assert(Math.abs(r.pages[0].lineTops[0]-r.pages[0].boxes.T.y0-.2*72)<.001);
+}
+
+// Native page-type baseline is measured from the innermost box, not glyph top.
+{
+  const file=Buffer.from('.pxp\n[START NON-BODY]\n[END NON-BODY]\n[START TEMPLATE]\n[Type_0]\nPageType=Body\nBaseLineAdj=0.375\nInBoxEn=1\nInBox=0.2\n[END TEMPLATE]\nLatin','latin1');
+  const d=Pxp.load(file,'pxp',TABLE,Engine.defaultDoc(),Engine).doc; d.counts={title:0,fancy:0};
+  assert.strictEqual(d.types.body.baseline,.375);
+  const r=Engine.run(d,measure); Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  assert(Math.abs(r.pages[0].lineBaselines[0]-r.pages[0].boxes.T.y0-.375*72)<.001);
+}

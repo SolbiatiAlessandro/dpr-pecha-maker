@@ -9,7 +9,7 @@ const Engine = (() => {
   const isYigMgo = c => /[༁-༊]/.test(c);
 
   const pageType = (over = {}) => ({
-    lines: 5, lineHeight: 0.40, top: null, side: 0.08, style: 'double', color: '#000000',
+    lines: 5, lineHeight: 0.40, top: null, baseline: null, side: 0.08, style: 'double', color: '#000000',
     sideIn: 0, sideOut: 0.42, insideOn: false, inside: 0.2, squeezeOn: false, squeeze: 0.1,
     fontSize: 23, ...over,
   });
@@ -351,7 +351,7 @@ const Engine = (() => {
         const h=Math.max(.1,doc.paper.h-doc.margins.top-doc.margins.bottom)*PT;
         const head=measure.head(doc,doc.textSize||type.fontSize);
         type={...type, style:'none', sideOut:0,sideIn:0,insideOn:false,squeezeOn:false,side:0,
-          lineHeight:doc.normal.lineHeight,top:doc.normal.baseline-head.ascent/PT,
+          lineHeight:doc.normal.lineHeight,baseline:doc.normal.baseline,top:null,
           lines:Math.max(1,Math.floor((h-doc.normal.baseline*PT-head.descent)/(doc.normal.lineHeight*PT))+1)};
       }
       const B = boxes(doc, type);
@@ -364,7 +364,7 @@ const Engine = (() => {
       const fillPage = estimate => {
         const lines = []; let next = startIndex;
         const head = measure.head(doc, doc.textSize || type.fontSize);
-        const startY = type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
+        const startY = type.baseline !== null && type.baseline !== undefined ? B.T.y0 + type.baseline * PT - head.ascent : type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
         for (let ln = 0; ln < type.lines && next < atoms.length; ln++) {
           let left = B.T.x0, right = B.T.x1;
           const top = startY + ln * type.lineHeight * PT;
@@ -390,7 +390,7 @@ const Engine = (() => {
         return {lines, next};
       };
       let result = fillPage(type.lines);
-      if (kind === 'title' && fixedImages.length && type.top === null) {
+      if (kind === 'title' && fixedImages.length && type.top === null && type.baseline === null) {
         let estimate = type.lines;
         for (let pass = 0; pass < 4 && result.lines.length !== estimate; pass++) {
           estimate = Math.max(1, result.lines.length); result = fillPage(estimate);
@@ -445,7 +445,7 @@ const Engine = (() => {
     const room = T.y1 - T.y0;
     const nLines = p.kind === 'title' ? Math.max(1, p.lines.length) : t.lines;   // a short last page starts where full pages do
     const block = (nLines - 1) * t.lineHeight * PT + head.height;
-    const start = t.top === null ? T.y0 + (room - block) / 2 : T.y0 + t.top * PT;
+    const start = t.baseline !== null && t.baseline !== undefined ? T.y0 + t.baseline * PT - head.ascent : t.top === null ? T.y0 + (room - block) / 2 : T.y0 + t.top * PT;
     let out = '';
     p.lineTops = []; p.lineBaselines = [];
     p.lines.forEach((line, ln) => {

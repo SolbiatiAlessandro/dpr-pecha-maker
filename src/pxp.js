@@ -276,6 +276,7 @@ const Pxp = (() => {
       if (kind !== 'body') { d.counts[kind] = Math.max(0, end - prevEnd); prevEnd = Math.max(prevEnd, end); }
       Object.assign(d.types[kind], {
         lines: num(s.LinesPerPage, 6), lineHeight: num(s.LineHeight, 0.38), top: null,
+        baseline: s.BaseLineAdj === undefined ? null : num(s.BaseLineAdj, 0.25),
         side: num(s.MarginSide, 0.05),
         style: ['none', 'single', 'double'][num(s.BoxLinestyle, 2)] || 'double',
         color: '#' + (s.BoxColor || '0x000000').slice(2).match(/../g).reverse().join(''),
