@@ -103,7 +103,7 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 
 ## Not built yet
 
-Pictures in side boxes and inline images, RTF and TibetDoc import, OCR for woodblock-print scans, TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
+Native image import/export, full RTF fidelity and TibetDoc import, OCR for woodblock-print scans, TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
 tabs beyond a simple tab stop, editing directly on the page, undo beyond the browser's own.
 
 
@@ -199,4 +199,17 @@ ordinary shad. It excludes pecha layout, page-attached images, annotations, numb
 and automatic marks. Inline baseline adjustments and side spacing are not currently
 translated. Unicode uses signed UTF-16 escapes; supporting fonts must be available to
 the receiving editor. macOS textutil independently reads generated Tibetan, styles and
-colours. Full native RTF export equivalence and RTF import remain open.
+colours. Full native RTF export equivalence remains open.
+
+
+### RTF body import
+
+Opening RTF replaces body content while retaining the current page layout and margin
+annotations. It reads Unicode escapes, common single-byte code pages, grouped font,
+size, emphasis, colour and alignment, explicit page breaks, known legacy Tibetan font
+maps, and inline PNG pictures. Literal braces survive import and export. Embedded
+objects are never executed; external images are not fetched. Unsupported drawings
+and picture formats are skipped with warnings, and tables become tabs and lines.
+Multibyte legacy code pages, exact source font metrics, paragraph geometry, and
+nonuniform image scaling are not faithfully reproduced. This is partial RTF
+interchange, not verified equivalence to Windows PechaMaker's importer.

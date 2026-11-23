@@ -631,7 +631,11 @@ async function openFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
-    if (/\.px[pcta]$/.test(name)) {
+    if (name.endsWith('.rtf')) {
+      const result = Rtf.read(buf, Engine, LEGACY_TABLE, doc || Engine.defaultDoc());
+      setDoc(result.doc, false);
+      toast(result.warnings.length ? result.warnings.join(' ') : 'RTF body text and supported formatting imported. Current page layout and annotations kept.');
+    } else if (/\.px[pcta]$/.test(name)) {
       const { doc: d, unknown } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
       setDoc(d, false);
       toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);

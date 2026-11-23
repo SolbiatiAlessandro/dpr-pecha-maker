@@ -400,6 +400,38 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(imageRtf.includes('89504e470d0a1a0a'));
 }
 
+// RTF import: grouped state, Unicode fallback, hidden destinations, legacy mappings and PNGs.
+{
+  const Rtf = require('../src/rtf');
+  const textOf = doc => Engine.parseStream(doc.text, false).map(it => it.k === 'page' ? '\f' : it.s || '').join('');
+  const input = String.raw`{\rtf1\ansi\ansicpg1252\deff0{\fonttbl{\f0 Georgia;}{\f1 Noto Serif Tibetan;}}{\colortbl;\red176\green48\blue32;}A{\b B}C\f1\fs36\cf1\u3904?\uc2\u3851??\line D\page E{\info SECRET}{\*\unknown HIDDEN}{\field{\*\fldinst URL}{\fldrslt LINK}}\'80\{x\}}`;
+  const result = Rtf.read(input, Engine);
+  assert.strictEqual(textOf(result.doc), 'ABCཀ་\u2028D\fELINK€{x}');
+  const runs = Engine.parseStream(result.doc.text, false).filter(x=>x.k==='text');
+  assert(runs.some(x=>x.s==='B' && x.style.bold)); assert(runs.some(x=>x.s==='C' && !x.style.bold));
+  assert(runs.some(x=>x.s.includes('ཀ་') && x.style.font==='noto' && x.style.size===18 && x.style.color==='#b03020'));
+  assert.deepStrictEqual(result.warnings, []);
+  const legacy = Rtf.read(String.raw`{\rtf1{\fonttbl{\f0 LegacyTib;}}\f0\fs40 A}`, Engine, {LegacyTib:{65:'ཀ'}});
+  assert.strictEqual(textOf(legacy.doc), 'ཀ'); assert.strictEqual(Engine.parseStream(legacy.doc.text,false)[0].style.size,15);
+  const dual = Rtf.read(String.raw`{\rtf1{\upr{ANSI}{\*\ud\u3904?}}}`,Engine);
+  assert.strictEqual(textOf(dual.doc),'ཀ');
+  assert.throws(()=>Rtf.read('{\\rtf1 incomplete',Engine));
+  const doc = Engine.defaultDoc(); doc.text = '{b}Bold{/b} བཀྲ་ཤིས་{hs}\nNext{page}{lc}last{rc}';
+  const reopened = Rtf.read(Rtf.write(doc, Engine),Engine).doc;
+  assert.strictEqual(textOf(reopened), 'Bold བཀྲ་ཤིས་།\u2028Next\f{last}');
+  const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAc0lEQVR4nO3RMQ0AIBDAwFfCjP/gD2Qw9IbuTW7OXlf/mt8D9QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCg3QMFUIQOyQQsWgAAAABJRU5ErkJggg==','base64');
+  doc.text = '{image:i1}'; doc.assets = [{id:'a1',data:'data:image/png;base64,'+image.toString('base64'),width:96,height:48}];
+  doc.images = [PechaImages.placement({id:'i1',asset:'a1',scale:50})];
+  const retained = Engine.defaultDoc(); retained.paper.w = 17; retained.notes.sets['title.front'].inL.text = 'Keep note';
+  const imported = Rtf.read(Rtf.write(doc,Engine),Engine,{},retained);
+  assert.strictEqual(imported.doc.paper.w,17); assert.strictEqual(imported.doc.notes.sets['title.front'].inL.text,'Keep note');
+  assert.strictEqual(imported.doc.assets[0].data,doc.assets[0].data);
+  assert.strictEqual(imported.doc.images.length,1);
+  assert(Math.abs(PechaImages.dimensions(imported.doc,imported.doc.images[0]).w-36)<.01);
+  assert.deepStrictEqual(imported.warnings,[]);
+
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

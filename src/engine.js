@@ -84,6 +84,8 @@ const Engine = (() => {
         else if (tok === 'page') items.push({ k: 'page' });
         else if (/^image:[\w-]+$/.test(tok)) items.push({k: 'image', id: tok.slice(6), style: {...style}});
         else if (tok === 'hs') pushText(HARD_SHAD);
+        else if (tok === 'lc') pushText('{');
+        else if (tok === 'rc') pushText('}');
         else if (tok === 'b') style.bold = true;
         else if (tok === '/b') style.bold = false;
         else if (tok === 'bold') style.bold = null;

@@ -130,7 +130,7 @@ const Pxp = (() => {
       if (e.t === 'text') {
         const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
         if (v && v !== written) { out += `{${v}}`; written = v; }
-        out += e.s.replace(/[{}]/g, '');
+        out += e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
       }
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
