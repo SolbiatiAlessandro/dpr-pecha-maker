@@ -292,6 +292,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
           <button class="btn" type="button" id="savePart">Download selected settings</button>
+          <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
           <input id="partFile" type="file" accept=".pecha,.json,.pxt,.pxc,.pxa" hidden>
           <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
@@ -302,7 +303,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still missing: native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still missing: native image import/export, RTF import and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, and original-format file export. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -2991,7 +2992,7 @@ const Engine = (() => {
     return { pages, folioCount };
   }
 
-  return { PT, defaultDoc, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
+  return { PT, defaultDoc, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
 
@@ -3044,6 +3045,51 @@ const TextFormat = (() => {
   return {apply};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
+
+// Unicode RTF body export. Page layout, automatic labels and margin annotations are separate.
+const Rtf = (() => {
+  function escape(text) {
+    let out = '';
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i], n = text.charCodeAt(i);
+      if (c === '\\' || c === '{' || c === '}') out += '\\' + c;
+      else if (c === '\n' || c === '\u2028') out += '\\line\n';
+      else if (c === '\t') out += '\\tab ';
+      else if (n > 126 || n < 32) out += `\\u${n > 32767 ? n - 65536 : n}?`;
+      else out += c;
+    }
+    return out;
+  }
+  const hexColor = color => {
+    if (!color) return '14100e';
+    const s = color.slice(1); return s.length === 3 ? [...s].map(c => c + c).join('') : s;
+  };
+  function write(doc, Engine) {
+    const colors = [], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
+    sources.forEach((source, index) => {
+      if (index) body.push('\\page\n');
+      for (const run of Engine.parseStream(source, false)) {
+        if (run.k === 'page') { body.push('\\page\n'); continue; }
+        if (run.k === 'image') {
+          const p = doc.images.find(p => p.id === run.id && p.kind === 'inline'), r = p && PechaImages.dimensions(doc, p);
+          if (!r) continue;
+          const binary = atob(r.asset.data.split(',')[1]), hex = Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+          body.push(`{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${Math.round(r.w * 20)}\\pichgoal${Math.round(r.h * 20)}\n${hex}}`);
+          continue;
+        }
+        const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
+        if (!colors.includes(color)) colors.push(color);
+        const font = /^'Noto/.test(f.family) ? 1 : /^(Georgia|'Georgia)/.test(f.family) ? 2 : 0;
+        const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
+        body.push(`\\${align}\\f${font}\\fs${Math.round(f.size * 2)}\\b${f.weight > 400 ? 1 : 0}\\i${f.italic ? 1 : 0}\\ul${f.underline ? 1 : 0}\\strike${f.strike ? 1 : 0}\\cf${colors.indexOf(color) + 1} ` + escape(run.s.replace(/\uE00D/g, '།')));
+      }
+    });
+    const colorTable = colors.map(h => `\\red${parseInt(h.slice(0,2),16)}\\green${parseInt(h.slice(2,4),16)}\\blue${parseInt(h.slice(4,6),16)};`).join('');
+    return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl{\\f0\\fnil Jomolhari;}{\\f1\\fnil Noto Serif Tibetan;}{\\f2\\froman Georgia;}}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
+  }
+  return {write, escape};
+})();
+if (typeof module !== 'undefined') module.exports = Rtf;
 
 // Browser document files. These JSON formats are independent of Windows PechaMaker's formats.
 const Documents = (() => {
@@ -4565,6 +4611,11 @@ function init() {
     const prior = before && before.style;
     const restore = prior ? `{${prior.role || '/role'}}${prior.size ? `{${prior.size}}` : ''}${prior.bold === null ? '' : prior.bold ? '{b}' : '{/b}'}` : '{/role}';
     insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
+  });
+  $('exportRtf').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
+    const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
+    toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
   });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
   $('loadPart').addEventListener('click', () => $('partFile').click());

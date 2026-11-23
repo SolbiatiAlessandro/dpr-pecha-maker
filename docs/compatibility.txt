@@ -16,6 +16,7 @@ AVAILABLE IN THE WEB APP
 - Automatic yi-go, Rinchen/Yang shad options, and final dzog thik. Exact edge behavior is still being compared.
 - Duplex/manual/proof print preparation, reversed back rows, optional reverse back sheets, cut marks and test-sheet mode. Physical printer calibration remains necessary.
 - Browser autosave, full web document save/open, separate web layout/content/annotation files.
+- Unicode RTF body export with fonts/styles/colours and inline PNGs. Automatic marks, labels, page-attached images and pecha layout are excluded; inline image baseline/side spacing is not preserved by this exporter. RTF readers need suitable Tibetan fonts.
 
 ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - PDF extraction, legacy-font conversion where tables exist, Tibetan OCR and text repair.
@@ -35,7 +36,7 @@ PARTIAL COMPATIBILITY
 
 NOT IMPLEMENTED YET
 - Native Windows image-block import/export and original image copy/move-reset semantics.
-- RTF and TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
+- RTF import and TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
 - Kerning switch, all dzog-thik vertical/percentage controls, yi-go colour-ignore option.

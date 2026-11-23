@@ -190,3 +190,13 @@ rotated baseline, with anchoring measured across the combined runs. Main-text gl
 size does not affect them. Supported native annotation codes are retained on import,
 with Tibetan and Western fonts mapped to available web substitutes. Unknown native
 formatting and exact legacy font metrics remain verification work.
+
+### RTF body export
+
+The RTF download serializes source body text, effective font/size/style/colour, explicit
+hard returns/pages/tabs and inline PNGs with physical dimensions. Hard shad exports as
+ordinary shad. It excludes pecha layout, page-attached images, annotations, numbering
+and automatic marks. Inline baseline adjustments and side spacing are not currently
+translated. Unicode uses signed UTF-16 escapes; supporting fonts must be available to
+the receiving editor. macOS textutil independently reads generated Tibetan, styles and
+colours. Full native RTF export equivalence and RTF import remain open.

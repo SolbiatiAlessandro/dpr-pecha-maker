@@ -636,6 +636,6 @@ const Engine = (() => {
     return { pages, folioCount };
   }
 
-  return { PT, defaultDoc, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
+  return { PT, defaultDoc, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;

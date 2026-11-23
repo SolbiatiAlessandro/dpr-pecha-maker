@@ -379,6 +379,27 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(converted.includes('{font:jomolhari}{b}Tib{font:serif}Latin'));
 }
 
+// RTF body export preserves characters and formatting, excluding automatic labels.
+{
+  const Rtf = require('../src/rtf');
+  const doc = Engine.defaultDoc(); doc.text = '{b}Bold{/b} {#b03020 font:noto 18}ཀ་{hs}\nNext{page}Last';
+  doc.notes.sets['title.front'].inL.text = 'PRIVATE LABEL NOT BODY';
+  const output = Rtf.write(doc, Engine);
+  assert(output.startsWith(String.raw`{\rtf1\ansi`)); assert(output.includes(String.raw`\b1`)); assert(output.includes(String.raw`\f1\fs36`));
+  assert(output.includes(String.raw`\red176\green48\blue32;`)); assert(output.includes(String.raw`\u3853?`));
+  assert(!output.includes('PRIVATE LABEL')); assert(!output.includes(String.raw`\u-8179?`));
+  assert(output.includes(String.raw`\line`)); assert(output.includes(String.raw`\page`));
+  assert.strictEqual(Rtf.escape('\\{}😀'), String.raw`\\\{\}\u-10179?\u-8704?`);
+  doc.sections = [{text:'First'}, {text:'Second'}];
+  assert(Rtf.write(doc, Engine).includes(String.raw`First\page`));
+  doc.sections = []; doc.text = '{image:i1}';
+  doc.assets = [{id:'a1', data:'data:image/png;base64,iVBORw0KGgo=', width:96,height:48}];
+  doc.images = [PechaImages.placement({id:'i1',asset:'a1'})];
+  const imageRtf = Rtf.write(doc, Engine);
+  assert(imageRtf.includes(String.raw`\pngblip\picw96\pich48\picwgoal1440\pichgoal720`));
+  assert(imageRtf.includes('89504e470d0a1a0a'));
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

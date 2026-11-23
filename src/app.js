@@ -765,6 +765,11 @@ function init() {
     const restore = prior ? `{${prior.role || '/role'}}${prior.size ? `{${prior.size}}` : ''}${prior.bold === null ? '' : prior.bold ? '{b}' : '{/b}'}` : '{/role}';
     insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
   });
+  $('exportRtf').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
+    const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
+    toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
+  });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
   $('loadPart').addEventListener('click', () => $('partFile').click());
   $('partFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
