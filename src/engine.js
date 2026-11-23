@@ -66,7 +66,7 @@ const Engine = (() => {
 
   // Format codes sit in the text, as in PechaMaker: {c} {j} {l} {r} {30} {#b03020} {b} {/b} {i} {/i} {page}
   function parseStream(text, flow) {
-    const style = { align: 'j', size: null, color: null, bold: null, italic: false, underline: false, strike: false, role: null };
+    const style = { align: 'j', size: null, color: null, bold: null, italic: false, underline: false, strike: false, role: null, font: null };
     const items = [];
     const src = prepareBreaks(text || '', flow);
     const re = /\{([^{}\n]*)\}/g;
@@ -84,6 +84,9 @@ const Engine = (() => {
         else if (tok === 'hs') pushText(HARD_SHAD);
         else if (tok === 'b') style.bold = true;
         else if (tok === '/b') style.bold = false;
+        else if (tok === 'bold') style.bold = null;
+        else if (tok === 'font') style.font = null;
+        else if (/^font:(jomolhari|noto|serif)$/.test(tok)) style.font = tok.slice(5);
         else if (tok === 'i') style.italic = true;
         else if (tok === '/i') style.italic = false;
         else if (tok === 'u') style.underline = true;
@@ -152,6 +155,11 @@ const Engine = (() => {
     const atoms = [];
     for (const it of items) {
       if (it.k === 'page') { atoms.push({ page: true }); continue; }
+      // A style boundary must not swallow leading spaces in the next run.
+      const leading = /^[ \u00a0]+/.exec(it.s), previous = atoms.at(-1);
+      if (leading && previous && previous.s !== undefined) {
+        previous.gap = 'space'; previous.spaces += leading[0].length;
+      }
       for (const a of splitAtoms(it.s)) atoms.push({ ...a, style: it.style });
     }
     return atoms;
@@ -201,7 +209,7 @@ const Engine = (() => {
     const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
     return { size, weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
       italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
-      family: role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
+      family: st.font ? {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"}[st.font] : role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
   }
 
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {

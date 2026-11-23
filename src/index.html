@@ -231,6 +231,20 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
       <div class="chips" id="codes"></div>
       <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it.</p>
+      <details>
+        <summary>Format selected text</summary>
+        <p class="hint">Select text above. Change only the attributes you choose; blank fields keep mixed formatting. With no selection, formatting begins at the cursor. Whole-text size overrides individual sizes until cleared.</p>
+        <div class="grid">
+          <label for="selectionFont">Font</label><select id="selectionFont"><option value="">Keep fonts</option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option><option value="serif">Western serif</option></select>
+          <label for="selectionSize">Size (pt)</label><input id="selectionSize" type="number" min="4" max="200" placeholder="Keep sizes">
+          <label for="selectionColor">Colour</label><select id="selectionColor"><option value="">Keep colours</option><option value="#14100e">Black</option><option value="#b03020">Red</option></select>
+          <label for="selectionBold">Bold</label><select id="selectionBold"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
+          <label for="selectionItalic">Italic</label><select id="selectionItalic"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
+          <label for="selectionUnderline">Underline</label><select id="selectionUnderline"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
+          <label for="selectionStrike">Strikethrough</label><select id="selectionStrike"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
+        </div>
+        <button class="btn" type="button" id="applySelection">Apply chosen attributes</button>
+      </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
       <details>

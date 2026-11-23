@@ -26,7 +26,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 PARTIAL COMPATIBILITY
 - PXP import: five public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
-- Editing: uses text plus visible formatting marks. Not a full WYSIWYG selected-text font dialog or direct-page editor. Formatting buttons insert marks before a selection and do not erase it.
+- Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
 - Annotations: plain text only, not mixed-font/colour/style runs. Folio and Arabic fonts do not have independent font pickers.
 - Templates: web .pecha JSON files only; they are not Windows .pxt/.pxc/.pxa files. Layout saves do not contain text or annotations; annotation saves contain numbering.
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
@@ -38,7 +38,7 @@ NOT IMPLEMENTED YET
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
 - Kerning switch, all dzog-thik vertical/percentage controls, yi-go colour-ignore option.
 - Configurable timed recovery/revert controls, command-line imports, original New/Import default-retention behavior.
-- Typeover/format-code navigation, a full selected-text editing dialog and structured multilingual columns.
+- Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.
 
 STILL TO VERIFY AGAINST WINDOWS

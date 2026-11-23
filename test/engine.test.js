@@ -238,6 +238,54 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.deepStrictEqual(content.paper, target.paper); assert.strictEqual(content.folio.start, 17);
   assert.strictEqual(content.yigo.enabled, false);
   assert.strictEqual(JSON.stringify(target), snapshot, 'imports must not mutate current document');
+  const standalone = Buffer.from('; PechaMaker Template file. Pecha layout control settings.\n[File Version 0.5]\n[PageSetup]\nPaperSize.x=14000\nPaperSize.y=8500\n[PechaControl]\nPechaHeight=3\n');
+  const plainTemplate = Pxp.load(standalone, 'pxt', TABLE, target, Engine).doc;
+  assert.strictEqual(plainTemplate.paper.w, 14); assert.strictEqual(plainTemplate.pecha.height, 3);
+  assert.strictEqual(plainTemplate.text, target.text); assert.strictEqual(plainTemplate.folio.start, 8);
+
+}
+
+// Selected-attribute formatting preserves mixed roles/fonts/decorations and the following text.
+{
+  const TextFormat = require('../src/text-format.js');
+  const text = 'Before {root}A{b font:noto #b03020}B{commentary 17}C{/role} After';
+  const start = text.indexOf('{root}'), end = text.indexOf(' After');
+  const result = TextFormat.apply(text, start, end, {size: 31}, Engine);
+  const runs = Engine.parseStream(result.text, false).filter(x => x.k === 'text');
+  const original = Engine.parseStream(text, false).filter(x => x.k === 'text');
+  assert.deepStrictEqual(runs.map(x => x.s), original.map(x => x.s));
+  for (let i = 0; i < runs.length; i++) {
+    const expected = {...original[i].style}; if (i > 0 && i < runs.length - 1) expected.size = 31;
+    assert.deepStrictEqual(runs[i].style, expected);
+  }
+  const bold = TextFormat.apply(text, start, end, {bold: false, italic: true, font: 'serif'}, Engine);
+  const boldRuns = Engine.parseStream(bold.text, false).filter(x => x.k === 'text');
+  for (const r of boldRuns.slice(1, -1)) {
+    assert.strictEqual(r.style.bold, false); assert.strictEqual(r.style.italic, true); assert.strictEqual(r.style.font, 'serif');
+  }
+  assert.deepStrictEqual(boldRuns.at(-1).style, original.at(-1).style);
+  assert.deepStrictEqual(TextFormat.apply(text, start, end, {}, Engine), {text, start, end});
+  const caret = TextFormat.apply('AB', 1, 1, {underline: true}, Engine);
+  assert.strictEqual(caret.text, 'A{u}B'); assert.strictEqual(caret.start, caret.end);
+  const splitCode = TextFormat.apply('A{24}B', 3, 6, {size: 32}, Engine);
+  assert.strictEqual(splitCode.text, 'A{32}B{24}'); assert.strictEqual(Engine.parseStream(splitCode.text, false).at(-1).style.size, 32);
+  // Returning to inherited bold must retain future role configuration, not freeze false.
+  const inherited = TextFormat.apply('{root}ABC', 6, 7, {bold: true}, Engine);
+  assert.strictEqual(Engine.parseStream(inherited.text, false).at(-1).style.bold, null);
+}
+
+// Spaces after formatting boundaries remain visible, including repeated and all-space runs.
+{
+  const doc = Engine.defaultDoc();
+  const parse = text => Engine.atomize(Engine.parseStream(text, false), doc, measure);
+  const runs = parse('Before {b}Bold{/b} After');
+  assert.strictEqual(runs[1].gap, 'space'); assert.strictEqual(runs[1].spaces, 1);
+  const repeated = parse('A{b}  {/b} B');
+  assert.strictEqual(repeated[0].spaces, 3);
+  assert.strictEqual(parse('A{b}B')[0].gap, 'none', 'no synthetic spaces inside a word');
+  const r = layout('Before {b}Bold{/b} After', {flow: false});
+  const line = r.pages[0].lines[0].items;
+  assert(line[2].x > line[1].x + line[1].w);
 }
 
 const dir = process.argv[2];

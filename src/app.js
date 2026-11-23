@@ -646,6 +646,22 @@ function init() {
     [doc.paper.w, doc.paper.h] = e.target.value === 'portrait' ? [short, long] : [long, short];
     buildPanels(); schedule();
   });
+  $('applySelection').addEventListener('click', () => {
+    const attrs = {}, size = $('selectionSize').value;
+    if (size && (!Number.isFinite(+size) || +size < 4 || +size > 200)) { toast('Choose a text size from 4 to 200 pt.'); return; }
+    if (size) attrs.size = +size;
+    if ($('selectionFont').value) attrs.font = $('selectionFont').value;
+    if ($('selectionColor').value) attrs.color = $('selectionColor').value;
+    for (const key of ['bold', 'italic', 'underline', 'strike']) {
+      const value = $('selection' + key[0].toUpperCase() + key.slice(1)).value;
+      if (value) attrs[key] = value === 'on';
+    }
+    if (!Object.keys(attrs).length) { toast('Choose an attribute to change.'); return; }
+    const t = $('text'), result = TextFormat.apply(t.value, t.selectionStart, t.selectionEnd, attrs, Engine);
+    t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
+    setEditingText(t.value); schedule();
+    toast('Chosen attributes applied; other formatting kept.');
+  });
   $('rolePick').addEventListener('change', buildRolePanel);
   $('applyRole').addEventListener('click', () => {
     const t = $('text'), a = t.selectionStart, b = t.selectionEnd, role = $('rolePick').value;

@@ -107,6 +107,11 @@ const Pxp = (() => {
     const eNB = indexOf(b, '[END NON-BODY]');
     const sT = indexOf(b, '[START TEMPLATE]');
     const eT = indexOf(b, '[END TEMPLATE]');
+    // Standalone template files use the INI layout without the document's font/body wrapper.
+    // The original executable exposes this template heading and File Version section.
+    if (sNB < 0 && sT < 0 && indexOf(b, '[PageSetup]') >= 0 && indexOf(b, '[PechaControl]') >= 0) {
+      return {version: '', fonts: {}, nonBody: {values: {}, raw: {}}, template: parseIni(LAT(b, 0, b.length)), body: b.subarray(b.length)};
+    }
     if (!/^\.px[pcta]$/.test(LAT(b, 0, 4)) && sNB < 0) throw new Error('Not a PechaMaker file');
     const fonts = parseFonts(LAT(b, 0, sNB < 0 ? 200 : sNB));
     const nb = sNB >= 0 ? parseNonBody(b, sNB + 17, eNB) : { values: {}, raw: {} };

@@ -146,3 +146,13 @@ PXC loads content, annotations, numbering and text-processing options while reta
 PXA loads annotations and numbering while retaining content and page layout. PXP replaces the document.
 These scopes follow the original guide section 3; the native partial-file framing is experimental
 until actual Windows exports are tested. Synthetic scope regressions are not a fidelity claim.
+
+### Selected text attributes
+
+The selection panel changes only explicitly chosen font/size/colour/bold/italic/underline/strike
+attributes. Unspecified attributes, role identity and alignment survive mixed selections.
+Selected attributes override matching marks within the selection, including size/bold resets
+at role changes; the original attribute state resumes after the selection. Partial visible
+format-code selections expand to whole tokens. No selection inserts a continuing formatting mark.
+This follows the original guide section 4.3.1 attribute-preservation semantics; it is not a
+claim of identical native editing interaction. The whole-text size override still takes precedence.
