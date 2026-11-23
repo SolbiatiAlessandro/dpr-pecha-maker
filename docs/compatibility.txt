@@ -28,6 +28,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - Each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
+- Full-page (non-pecha) mode reflows within paper margins, with separate line height and first baseline, one page per sheet, and yi-go after the first page. Pecha frames/labels are retained but hidden; original label interactions and native font/print equivalence still need verification.
 - RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
 - Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
 - PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Recognized native image-data tails are excluded from body text with an explicit missing-image warning. No binary-format round trip is promised.
@@ -41,7 +42,7 @@ NOT IMPLEMENTED YET
 - Native Windows image-block import/export and exact original clipboard image semantics.
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
-- Non-pecha page mode and exact original compact-view controls.
+- Exact original compact-view controls.
 - Configurable timed recovery/revert controls, command-line imports, original Close/startup-defaults workflow.
 - Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.

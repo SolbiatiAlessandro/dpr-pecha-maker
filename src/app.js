@@ -143,13 +143,18 @@ function buildPanels() {
     {path:'display.hintColors',label:'Colour boxes by page type on screen',type:'check'},
   ]);
   fill($('paperFields'), [
+    {path:'pecha.mode',label:'Pecha mode (turn off for full pages)',type:'check',onChange:buildPanels},
+    ...(doc.pecha.mode === false ? [
+      {path:'normal.lineHeight',label:'Full-page line height, in',min:.05,max:10,step:.01},
+      {path:'normal.baseline',label:'Full-page first baseline below top margin, in',min:0,max:10,step:.01},
+    ] : []),
     { path: 'paper.name', label: 'Paper', type: 'select', options: Object.keys(PAPERS).map(k => [k, k]), onChange: v => { if (PAPERS[v]) { [doc.paper.w, doc.paper.h] = PAPERS[v]; buildPanels(); } } },
-    { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8, onChange: v => { if (v > 1) { doc.pecha.placement = 'center'; $('f_pecha_placement').value = 'center'; } } },
-    { path: 'pecha.placement', label: 'Vertical placement', type: 'select', wide: true, options: [['center', 'Centered between margins'], ['top', 'Single pecha at top margin']], onChange: v => { if (v === 'top') { doc.pecha.perSheet = 1; buildPanels(); } } },
+    { path: 'pecha.perSheet', disabled: doc.pecha.mode === false, label: 'Pecha per sheet', step: 1, min: 1, max: 8, onChange: v => { if (v > 1) { doc.pecha.placement = 'center'; $('f_pecha_placement').value = 'center'; } } },
+    { path: 'pecha.placement', disabled: doc.pecha.mode === false, label: 'Vertical placement', type: 'select', wide: true, options: [['center', 'Centered between margins'], ['top', 'Single pecha at top margin']], onChange: v => { if (v === 'top') { doc.pecha.perSheet = 1; buildPanels(); } } },
     { path: 'fontName', label: 'Typeface', type: 'select', wide: true, options: FONTS.map(f => [f, f]), onChange: v => { doc.font = `'${v}','Noto Serif Tibetan',serif`; } },
     { path: 'paper.w', label: 'Sheet width, in', step: 0.01, min: 3, onChange: () => { doc.paper.name = 'Custom'; } },
     { path: 'paper.h', label: 'Sheet height, in', step: 0.01, min: 2, onChange: () => { doc.paper.name = 'Custom'; } },
-    { path: 'pecha.height', label: 'Pecha height, in', step: 0.05, min: 0.5 },
+    { path: 'pecha.height', disabled: doc.pecha.mode === false, label: 'Pecha height, in', step: 0.05, min: 0.5 },
     { path: 'margins.left', label: 'Left margin, in', step: 0.05, min: 0 },
     { path: 'margins.right', label: 'Right margin, in', step: 0.05, min: 0 },
     { path: 'margins.top', label: 'Top margin, in', step: 0.05, min: 0 },
@@ -362,7 +367,7 @@ function updatePrintSteps() {
   const res = latest;
   if (!res || !doc) return;
   const mode = doc.print.sides;
-  const all = Math.ceil(res.folioCount / doc.pecha.perSheet);
+  const all = Math.ceil(res.folioCount / (doc.pecha.mode === false ? 1 : doc.pecha.perSheet));
   const n = doc.print.firstOnly ? Math.min(1, all) : all;
   const count = `${n} ${n === 1 ? 'sheet' : 'sheets'}`;
   const edge = doc.paper.w >= doc.paper.h ? 'long' : 'short';
@@ -394,7 +399,7 @@ function updatePrintSteps() {
 function flipFigure(res) {
   const [front, back] = Engine.impose(doc, res.pages, { pass: 'duplex', firstOnly: true });
   if (!front || !back) return '';
-  const rows = doc.pecha.perSheet, rowH = 15, W = 104, H = rows * rowH + 8, gap = 64;
+  const rows = doc.pecha.mode === false ? 1 : doc.pecha.perSheet, rowH = 15, W = 104, H = rows * rowH + 8, gap = 64;
   const tints = ['#ecc978', '#a9c2d3', '#eaa58f', '#b3cfa8', '#d5c4ea', '#f1bccb', '#bfe3de', '#f2d8a7'];
   const pages = s => s.slots.filter(Boolean).map(p => p.n).join(', ');
   const sheet = (s, x0, label) => {
@@ -442,7 +447,7 @@ function render() {
   if (view === 'pages') {
     for (const p of res.pages.slice(0, PREVIEW_PAGES)) {
       const folio = Math.ceil(p.n / 2);
-      const tag = p.blank ? `Page ${p.n} · blank back before the next text` : `Page ${p.n} · ${p.kind} · ${p.sectionName ? `${p.sectionName} · text folio ${p.folioNumber}` : `folio ${folio}`} ${p.front ? 'front' : 'back'}`;
+      const tag = doc.pecha.mode === false ? `Page ${p.n}${p.sectionName ? ' · '+p.sectionName : ''}` : p.blank ? `Page ${p.n} · blank back before the next text` : `Page ${p.n} · ${p.kind} · ${p.sectionName ? `${p.sectionName} · text folio ${p.folioNumber}` : `folio ${folio}`} ${p.front ? 'front' : 'back'}`;
       leaf(tag.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), Engine.pageSvg(p, doc, measure, res.folioCount));
     }
   } else {
@@ -459,9 +464,14 @@ function render() {
   }
   host.replaceChildren(frag);
   const paperSheets = sheets.filter(s => s.side !== 'back').length;
-  $('stats').textContent = `${res.pages.length} pages · ${res.folioCount} folios · ${paperSheets} ${paperSheets === 1 ? 'sheet' : 'sheets'} of ${doc.paper.name === 'Custom' ? 'paper' : doc.paper.name}`;
+  $('stats').textContent = `${res.pages.length} pages · ${doc.pecha.mode === false ? '' : res.folioCount+' folios · '}${paperSheets} ${paperSheets === 1 ? 'sheet' : 'sheets'} of ${doc.paper.name === 'Custom' ? 'paper' : doc.paper.name}`;
   const badWidth = res.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0);
-  $('warn').textContent = !Engine.fits(doc) ? 'The pecha do not fit between the top and bottom margins. Reduce their height or number per sheet.' : badWidth ? 'The boxes and side margins leave no space for text.' : '';
+  const clippedTop = doc.pecha.mode === false && res.pages.some(p => p.lines[0]?.items.some(a => {
+    const tib = /^[\u0f00-\u0fff]/.test(a.s);
+    const extent = a.image ? a.image.above*72+(a.image.addTibetan ? doc.tibetanRaise*72 : 0) : measure.head({...doc,font:a.f.family},a.f.size,tib).ascent+(tib ? doc.tibetanRaise*72 : 0);
+    return extent > doc.normal.baseline*72;
+  }));
+  $('warn').textContent = clippedTop ? 'The first line extends above the page. Increase the full-page first-baseline setting.' : !Engine.fits(doc) ? 'The pecha do not fit between the top and bottom margins. Reduce their height or number per sheet.' : badWidth ? 'The boxes and side margins leave no space for text.' : '';
   $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   updatePrintSteps();
   persist();

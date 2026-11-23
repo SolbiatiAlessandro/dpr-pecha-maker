@@ -286,3 +286,20 @@ kerning data still differ from the historical Windows fonts. Chrome QA verifies
 the enabled checkbox changes state and renders a large Latin test without errors;
 exact spacing differences are not claimed from that visual check.
 API reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fontKerning
+
+### Full-page mode
+
+Disabling Pecha mode uses the full paper area between margins, with separate fixed
+line height and first-baseline distance. Pecha page counts/frames/labels are retained
+for switching back but are not drawn. Sheet imposition uses one page per side.
+Yi-go is suppressed only on the first document page; sections start new pages
+without forced blank folio backs in this mode. Native PechaMode, LineControl
+LineHeight and BaseLnAdjTM settings import into this model.
+The web default first-baseline distance is0.6in to fit its Unicode fonts; importing
+a smaller historical value may require increasing it. A first-line extent warning
+helps detect clipping. Source: installed guide2.0 pp9,22,29; exact original label
+interactions and native font/print fidelity still require Windows comparison.
+Chrome sample QA:5pecha pages become2full pages; initial0.3in default clipped large
+Unicode title glyphs, corrected to0.6in; frames disappear, title text fully visible,
+print-sheet view shows one front/back sheet. Regression checks geometry, baseline,
+yi-go eligibility, section starts, print dimensions/margins and mode restoration.

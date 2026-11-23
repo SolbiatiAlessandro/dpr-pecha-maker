@@ -182,10 +182,13 @@ const Pxp = (() => {
       d.paper = { name: 'Custom', w, h };
       d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000,
         top: num(S['PageMargin.top'], 0) / 1000, bottom: num(S['PageMargin.bottom'], 0) / 1000 };
+      d.pecha.mode = on(S.PechaMode,true);
       d.pecha.perSheet = num(S.PechaPagesPerSheet, 1);
       d.pecha.placement = on(S.PechaPagesCentered, true) ? 'center' : 'top';
     }
     if (t.LineControl) {
+      d.normal.lineHeight = num(t.LineControl.LineHeight,.38);
+      d.normal.baseline = num(t.LineControl.BaseLnAdjTM,.3);
       d.tabWidth = num(t.LineControl.TabWidth, d.tabWidth);
       d.tibetanRaise = num(t.LineControl.TibFontAdj, d.tibetanRaise);
     }
@@ -264,7 +267,7 @@ const Pxp = (() => {
     const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
     if (extension === 'pxp') { imported.sections = []; imported.assets = []; imported.images = []; imported.yigo.image = ''; return result; }
     if (extension === 'pxt') {
-      for (const key of ['paper', 'margins', 'pecha', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
+      for (const key of ['paper', 'margins', 'pecha', 'normal', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
       if (parsed.template.PechaAnnotation) {
         for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];

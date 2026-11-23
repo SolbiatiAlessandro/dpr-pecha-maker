@@ -40,7 +40,8 @@ const Engine = (() => {
       display: { baselines: false, hintColors: false },
       paper: { name: 'A4', w: 11.69, h: 8.27 },
       margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
-      pecha: { height: 2.55, dlt: 0.03, perSheet: 3, placement: 'center' },
+      normal: { lineHeight: .38, baseline: .6 },
+      pecha: { mode: true, height: 2.55, dlt: 0.03, perSheet: 3, placement: 'center' },
       counts: { title: 1, fancy: 2 },
       types: {
         title: pageType({ lines: 2, lineHeight: 0.5, fontSize: 25, sideIn: 0.42, sideOut: 0.72, insideOn: true, inside: 0.32, squeezeOn: true, squeeze: 0.14 }),
@@ -180,6 +181,11 @@ const Engine = (() => {
 
   function boxes(doc, type) {
     const w = (doc.paper.w - doc.margins.left - doc.margins.right) * PT;
+    if (doc.pecha.mode === false) {
+      const h = Math.max(.1,doc.paper.h-doc.margins.top-doc.margins.bottom)*PT;
+      const rect={x0:0,y0:0,x1:w,y1:h};
+      return {w,h,O:rect,I:rect,T:rect,d:0,lx1:0,lx2:0,rx1:w,rx2:w};
+    }
     const h = doc.pecha.height * PT;
     const sq = type.squeezeOn ? type.squeeze * PT : 0;
     const O = { x0: sq + doc.notes.outLeft * PT, y0: sq, x1: w - sq - doc.notes.outRight * PT, y1: h - sq };
@@ -198,6 +204,7 @@ const Engine = (() => {
   }
 
   function typeOfPage(doc, n) {
+    if (doc.pecha.mode === false) return 'body';
     const { title, fancy } = doc.counts;
     if (n <= title) return 'title';
     if (n <= title + fancy) return 'fancy';
@@ -208,6 +215,7 @@ const Engine = (() => {
 
   function yigoWanted(doc, n, kind, isFirstFancy) {
     if (!doc.yigo.enabled) return false;
+    if (doc.pecha.mode === false) return n + (doc.pageOffset || 0) > 1;
     if (kind === 'title') return doc.yigo.title2 && n > 1;
     if (kind === 'fancy' && !doc.yigo.fancyStart) return false;
     if (isFirstFancy) return true;
@@ -338,7 +346,14 @@ const Engine = (() => {
     do {
       const n = pages.length + 1;
       const kind = typeOfPage(doc, n);
-      const type = doc.types[kind];
+      let type = doc.types[kind];
+      if (doc.pecha.mode === false) {
+        const h=Math.max(.1,doc.paper.h-doc.margins.top-doc.margins.bottom)*PT;
+        const head=measure.head(doc,doc.textSize||type.fontSize);
+        type={...type, style:'none', sideOut:0,sideIn:0,insideOn:false,squeezeOn:false,side:0,
+          lineHeight:doc.normal.lineHeight,top:doc.normal.baseline-head.ascent/PT,
+          lines:Math.max(1,Math.floor((h-doc.normal.baseline*PT-head.descent)/(doc.normal.lineHeight*PT))+1)};
+      }
       const B = boxes(doc, type);
       const W = B.T.x1 - B.T.x0;
       const isFirstFancy = kind === 'fancy' && firstFancy;
@@ -492,6 +507,7 @@ const Engine = (() => {
   }
 
   function drawMargins(p, doc, measure, folioCount) {
+    if (doc.pecha.mode === false) return '';
     const { O, w, h } = p.boxes;
     const sourceSet = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
     const set = { ...sourceSet };
@@ -568,7 +584,7 @@ const Engine = (() => {
   // A pecha leaf is read by turning it over its top edge, so the backs of a sheet run in reverse row order.
   // pass: 'duplex' (both sides, alternating), 'fronts' or 'backs' (one side per run through the printer), or 'sequence'.
   function impose(doc, pages, opts = {}) {
-    const n = doc.pecha.perSheet;
+    const n = doc.pecha.mode === false ? 1 : doc.pecha.perSheet;
     const mode = opts.pass || (doc.print.sides === 'manual' ? 'duplex' : doc.print.sides);
     const folios = Math.ceil(pages.length / 2);
     const sheetsNeeded = Math.ceil(folios / n);
@@ -595,6 +611,7 @@ const Engine = (() => {
   }
 
   function sheetSvg(sheet, doc, measure, folioCount, screen) {
+    if (doc.pecha.mode === false) doc={...doc, pecha:{...doc.pecha,perSheet:1,height:Math.max(.1,doc.paper.h-doc.margins.top-doc.margins.bottom),placement:'top'},print:{...doc.print,cutMarks:false}};
     const W = doc.paper.w * PT, H = doc.paper.h * PT, n = doc.pecha.perSheet;
     // Mirror vertical margins on backs so a top-edge turn aligns every front with its back.
     const back = sheet.side === 'back';
@@ -625,6 +642,7 @@ const Engine = (() => {
   }
 
   function fits(doc) {
+    if (doc.pecha.mode === false) return doc.paper.h > doc.margins.top+doc.margins.bottom && doc.paper.w > doc.margins.left+doc.margins.right;
     return doc.pecha.perSheet * doc.pecha.height <= doc.paper.h - (doc.margins.top || 0) - (doc.margins.bottom || 0) + 1e-6;
   }
 
@@ -633,7 +651,7 @@ const Engine = (() => {
       const pages = [];
       doc.sections.forEach((section, index) => {
         // Each text begins on the front of a new leaf. A blank back is a real volume page.
-        if (pages.length % 2) {
+        if (doc.pecha.mode !== false && pages.length % 2) {
           const type = doc.types.body;
           pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
         }

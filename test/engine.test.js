@@ -549,6 +549,25 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(Documents.apply(Engine.defaultDoc(),Documents.artifact(d,'template'),Engine).kerning,false);
 }
 
+// Non-pecha mode uses full margins, common fixed baselines, no frames and no first-page yi-go.
+{
+  const d=Engine.defaultDoc(); d.pecha.mode=false; d.normal.baseline=.3; d.text='ཀ་{page}ཁ་'; d.flow=false;
+  d.paper={name:'Test',w:8.5,h:11}; d.margins={left:1,right:1,top:1,bottom:1};
+  const r=Engine.run(d,measure); assert.strictEqual(r.pages.length,2);
+  assert.strictEqual(r.pages[0].boxes.w,6.5*72); assert.strictEqual(r.pages[0].boxes.h,9*72);
+  assert.strictEqual(r.pages[0].lines[0].yigoCount,0); assert(r.pages[1].lines[0].yigoCount>0);
+  const svg=Engine.pageSvg(r.pages[0],d,measure,r.folioCount); assert(!svg.includes('<rect'));
+  assert(Math.abs(r.pages[0].lineBaselines[0]-.3*72)<.01);
+  const sheets=Engine.impose(d,r.pages); assert(sheets.every(s=>s.slots.length===1));
+  const print=Engine.sheetSvg(sheets[0],d,measure,r.folioCount,false);
+  assert(print.includes('translate(72 72)')); assert(print.includes('height="11in"'));
+  assert(!print.includes('<rect'));
+  d.sections=[{text:'ཀ་',name:'A'},{text:'ཁ་',name:'B'}];
+  assert(Engine.run(d,measure).pages[1].lines[0].yigoCount>0);
+  assert.strictEqual(Engine.run(d,measure).pages.length,2);
+  d.pecha.mode=true; assert(Engine.run(d,measure).pages.some(p=>p.blank));
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);
