@@ -29,6 +29,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - In pecha mode each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Full-page mode starts a new page without a blank back. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
+- Revert restores the session open/full-Save checkpoint after confirmation. Full Save captures it when invoked, even if its download is cancelled. This does not reread an external file or retain earlier checkpoints across reloads. Browser recovery still stores recent edits automatically.
 - Preview navigation: Go to Page uses document page numbers; Ctrl+G/Command+G focuses its field. Previous/Next browse all preview batches. Printing still includes the complete document. Native editor cursor behavior is not reproduced.
 - Character selection: a Unicode Tibetan palette groups letters, subjoined forms, marks, signs and numbers, with optional supported typeface choice. It inserts at the cursor or replaces selection while preserving surrounding formatting. It does not reproduce legacy font-code charts or all Windows-installed fonts.
 - Full-page (non-pecha) mode reflows within paper margins, with separate line height and first baseline, one page per sheet, and yi-go after the first page. Pecha frames/labels are retained but hidden; original label interactions and native font/print equivalence still need verification.
@@ -46,7 +47,7 @@ NOT IMPLEMENTED YET
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps and locked keyboard mode.
 
-- Configurable timed recovery/revert controls, command-line imports, original Close/startup-defaults workflow.
+- Configurable timed recovery, command-line imports, original Close/startup-defaults workflow.
 - Typeover, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.
 

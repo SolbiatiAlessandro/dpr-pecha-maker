@@ -403,3 +403,15 @@ marks is a web-editor adaptation rather than native exposed-code rendering.
 Tests cover selection boundaries, adjacent marks, end-of-document, CRLF, page
 break preservation and empty selection. Chrome QA navigated bold/end-bold and
 back, then removed a selected line break while preserving formatting/page break.
+
+### Session revert checkpoint
+
+Opening/loading/resuming a document captures a deep copy. Full Save refreshes
+the checkpoint when the command is invoked, even if the browser download is
+subsequently cancelled; partial-setting downloads do not. Revert confirms
+discard, restores the checkpoint and source context, retains import warnings,
+and updates browser recovery. It does not reread the file on disk or persist
+the earlier checkpoint across reloads. This is partial native Revert equivalence.
+Chrome QA saved a disposable document, changed it, cancelled revert (edits
+retained), then confirmed revert (saved text restored). Regression verifies
+checkpoint and restored document are independent copies including text sections.

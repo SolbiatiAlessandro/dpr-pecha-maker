@@ -668,4 +668,13 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
     {text:'A\nB{b}C{page}DE',start:2,end:14});
   assert.deepStrictEqual(f.removeReturns('A\nB',1,1),{text:'A\nB',start:1,end:1});
 }
+{
+  const d=Engine.defaultDoc(); d.text='Checkpoint'; d.sections=[{name:'One',text:'Original'}];
+  const saved=Documents.artifact(d,'document');
+  d.sections[0].text='Edited'; d.text='Changed';
+  const reverted=Documents.normalize(saved,Engine);
+  assert.strictEqual(reverted.text,'Checkpoint'); assert.strictEqual(reverted.sections[0].text,'Original');
+  reverted.sections[0].text='Edited again';
+  assert.strictEqual(saved.sections[0].text,'Original');
+}
 console.log('ok');

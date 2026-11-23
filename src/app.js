@@ -10,7 +10,7 @@ const PRINT_MODES = [['duplex', 'Two-sided printer'], ['manual', 'One side at a 
 
 const PREVIEW_PAGES = 24;
 
-let previewStart = 0;
+let previewStart = 0, savedCheckpoint = null;
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
 let sectionIndex = 0, imageId = '', storageWarningShown = false;
@@ -618,6 +618,7 @@ function setDoc(d, sample, src = null) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  savedCheckpoint = {doc: Documents.artifact(d, 'document'), isSample: sample, source: src};
   reportImport([]);
   sectionIndex = 0;
   previewStart = 0;
@@ -729,6 +730,7 @@ function saveFile(kind = 'document') {
   a.href = url; a.download = kind === 'document' ? 'pecha.pecha' : `pecha-${kind}.pecha`;
   a.click();
   URL.revokeObjectURL(url);
+  if (kind === 'document') savedCheckpoint = {doc: Documents.artifact(doc, 'document'), isSample, source};
   toast(`Saved ${a.download} to your downloads.`);
 }
 
@@ -894,6 +896,16 @@ function init() {
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
   $('saveDoc').addEventListener('click', () => saveFile());
+  $('revertDoc').addEventListener('click', () => {
+    if (!savedCheckpoint) return;
+    if (!confirm('Discard changes since this document was opened or the full Save command was last used? This cannot be undone.')) return;
+    const warnings = [...$('importMessages').children].map(li => li.textContent);
+    const checkpoint = savedCheckpoint;
+    setDoc(checkpoint.doc, checkpoint.isSample, checkpoint.source);
+    reportImport(warnings);
+    persist();
+    toast('Restored the opened document or full-Save checkpoint.');
+  });
   $('printBtn').addEventListener('click', openPrintPanel);
   for (const [id, direction] of [['previousPreview', -1], ['nextPreview', 1]]) {
     $(id).addEventListener('click', () => {
