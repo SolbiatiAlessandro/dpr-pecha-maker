@@ -248,7 +248,7 @@ const Pxp = (() => {
     const base = current ? JSON.parse(JSON.stringify(current)) : Engine.defaultDoc();
     const parsed = parse(u8, table);
     const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
-    if (extension === 'pxp') { imported.sections = []; return result; }
+    if (extension === 'pxp') { imported.sections = []; imported.assets = []; imported.images = []; imported.yigo.image = ''; return result; }
     if (extension === 'pxt') {
       for (const key of ['paper', 'margins', 'pecha', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
       if (parsed.template.PechaAnnotation) {
@@ -265,7 +265,7 @@ const Pxp = (() => {
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
       }
       if (extension === 'pxc') {
-        base.text = imported.text; base.sections = []; base.flow = false;
+        base.text = imported.text; base.sections = []; base.flow = false; base.assets = []; base.images = []; imported.yigo.image = '';
         for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
       }
     } else throw new Error('Unknown PechaMaker file type');

@@ -252,6 +252,19 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         </div>
         <button class="btn" type="button" id="applySelection">Apply chosen attributes</button>
       </details>
+      <details>
+        <summary>Images</summary>
+        <p class="hint">Images are embedded in your saved document as PNG. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
+        <label for="newImageKind">Add as</label><select id="newImageKind"><option value="inline">Inline at cursor</option><option value="yigo">Automatic yi-go</option></select>
+        <button class="btn" type="button" id="addImage">Choose image</button>
+        <input type="file" id="imageFile" accept="image/png,image/jpeg,image/webp" hidden>
+        <label for="imagePick">Edit image</label><select id="imagePick"></select>
+        <div class="grid" id="imageFields"></div>
+        <p class="hint" id="imageWarning" role="status"></p>
+        <button class="btn" type="button" id="exportImage">Download PNG</button>
+        <button class="btn" type="button" id="deleteImage">Remove image</button>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page-attached images and native-file image imports are still in development.</p>
+      </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
       <details>
@@ -289,7 +302,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still missing: inline and page-attached images, image yi-go, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still missing: page-attached images, native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -2278,6 +2291,56 @@ const Folio = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Folio;
 
+// Embedded PNG assets and independent placements. No image URLs are fetched by the renderer.
+const PechaImages = (() => {
+  const anchors = ['outer-left', 'inner-left', 'text-left', 'text-right', 'inner-right', 'outer-right'];
+  const clamp = (v, lo, hi, fallback) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : fallback;
+  function placement(over = {}) {
+    return {id: '', asset: '', kind: 'inline', page: 1, anchor: 'text-left', scale: 100,
+      dpi: 96, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
+  }
+  function normalize(input) {
+    const assets = [], images = [], seen = new Set();
+    for (const a of (Array.isArray(input.assets) ? input.assets : []).slice(0, 200)) {
+      if (!a || typeof a.id !== 'string' || !/^[\w-]+$/.test(a.id) || seen.has(a.id)) continue;
+      if (typeof a.data !== 'string' || a.data.length > 12000000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(a.data)) continue;
+      assets.push({id: a.id, data: a.data, width: clamp(a.width, 1, 20000, 1), height: clamp(a.height, 1, 20000, 1)}); seen.add(a.id);
+    }
+    seen.clear();
+    for (const x of (Array.isArray(input.images) ? input.images : []).slice(0, 1000)) {
+      if (!x || typeof x.id !== 'string' || !/^[\w-]+$/.test(x.id) || seen.has(x.id) || !assets.some(a => a.id === x.asset)) continue;
+      const p = placement({id: x.id, asset: x.asset, kind: ['inline','page','yigo'].includes(x.kind) ? x.kind : 'inline'});
+      p.anchor = anchors.includes(x.anchor) ? x.anchor : 'text-left';
+      p.page = Math.round(clamp(x.page, 1, 3000, 1)); p.scale = clamp(x.scale, p.kind === 'page' ? 20 : 10, 200, 100);
+      p.dpi = clamp(x.dpi, 10, 2400, 96); p.ignoreDpi = x.ignoreDpi === true; p.addTibetan = x.addTibetan === true;
+      for (const k of ['above','down','inward']) p[k] = clamp(x[k], -30, 30, p[k]);
+      for (const k of ['space','margin']) p[k] = clamp(x[k], 0, 20, p[k]);
+      images.push(p); seen.add(p.id);
+    }
+    return {assets, images};
+  }
+  function dimensions(doc, p) {
+    const asset = doc.assets.find(a => a.id === p.asset);
+    if (!asset) return null;
+    const factor = 72 / (p.ignoreDpi ? 96 : p.dpi) * p.scale / 100;
+    return {asset, w: asset.width * factor, h: asset.height * factor};
+  }
+  function pngDpi(bytes) {
+    if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 8; i + 12 <= bytes.length;) {
+      const len = view.getUint32(i); if (i + 12 + len > bytes.length) break;
+      if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9 && bytes[i + 16] === 1) {
+        const density = view.getUint32(i + 8) * .0254; return density > 0 ? density : null;
+      }
+      i += len + 12;
+    }
+    return null;
+  }
+  return {anchors, placement, normalize, dimensions, pngDpi};
+})();
+if (typeof module !== 'undefined') module.exports = PechaImages;
+
 // Pecha layout engine: text stream -> atoms -> lines -> pages -> SVG -> sheets.
 // All geometry is in points (72 per inch). Stored settings are in inches, like the printed page.
 const Engine = (() => {
@@ -2326,7 +2389,8 @@ const Engine = (() => {
         body: pageType(),
       },
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
-      yigo: { enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
+      assets: [], images: [],
+      yigo: { image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
       folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
@@ -2361,6 +2425,7 @@ const Engine = (() => {
         else if (tok === 'l' || tok === 'left') style.align = 'l';
         else if (tok === 'r' || tok === 'right') style.align = 'r';
         else if (tok === 'page') items.push({ k: 'page' });
+        else if (/^image:[\w-]+$/.test(tok)) items.push({k: 'image', id: tok.slice(6), style: {...style}});
         else if (tok === 'hs') pushText(HARD_SHAD);
         else if (tok === 'b') style.bold = true;
         else if (tok === '/b') style.bold = false;
@@ -2435,6 +2500,11 @@ const Engine = (() => {
     const atoms = [];
     for (const it of items) {
       if (it.k === 'page') { atoms.push({ page: true }); continue; }
+      if (it.k === 'image') {
+        const placement = doc.images.find(p => p.id === it.id && p.kind === 'inline');
+        if (placement && PechaImages.dimensions(doc, placement)) atoms.push({s: '', gap: 'none', spaces: 0, style: it.style, image: placement});
+        continue;
+      }
       // A style boundary must not swallow leading spaces in the next run.
       const leading = /^[ \u00a0]+/.exec(it.s), previous = atoms.at(-1);
       if (leading && previous && previous.s !== undefined) {
@@ -2497,11 +2567,16 @@ const Engine = (() => {
     let i = start, x = 0, prevGap = 0, hard = false, pageBreak = false, hasTab = false, yigoCount = 0;
     const place = a => {
       const f = fontFor(doc, a, sizeDefault);
-      const w = measure(a.s, f);
+      const imageSize = a.image && PechaImages.dimensions(doc, a.image);
+      const w = imageSize ? imageSize.w + a.image.space * PT * 2 : measure(a.s, f);
       const gapW = a.gap === 'space' ? Math.max(measure(' ', f), f.size * 0.42) * Math.max(1, a.spaces) : 0;
       return { ...a, f, w, gapW };
     };
-    if (yigo) {
+    const yigoImage = yigo && doc.images.find(p => p.id === doc.yigo.image && p.kind === 'yigo');
+    if (yigoImage && PechaImages.dimensions(doc, yigoImage)) {
+      const p = place({s: '', gap: 'none', spaces: 0, style: atoms[start].style, image: yigoImage});
+      p.x = 0; items.push(p); x = p.w; yigoCount = 1;
+    } else if (yigo) {
       for (const a of splitAtoms(doc.yigo.text)) {
         const p = place({ ...a, style: atoms[start].style });
         p.x = x + prevGap; x = p.x + p.w; prevGap = p.gapW;
@@ -2668,6 +2743,13 @@ const Engine = (() => {
       const top = start + ln * t.lineHeight * PT;
       p.lineTops.push(top);
       for (const a of line.items) {
+        if (a.image) {
+          const im = PechaImages.dimensions(doc, a.image);
+          const baseline = top + measure.head(doc, a.f.size).ascent;
+          const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
+          out += `<image x="${num(T.x0 + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          continue;
+        }
         const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
         out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
@@ -2922,6 +3004,8 @@ const Documents = (() => {
     if (!input || input.version !== 1 || typeof input.text !== 'string') throw new Error('Not a web pecha document');
     if (Array.isArray(input.sections) && input.sections.length > 200) throw new Error('Too many texts in this volume');
     const d = merge(Engine.defaultDoc(), input);
+    Object.assign(d, PechaImages.normalize(input));
+    if (!d.images.some(p => p.id === d.yigo.image && p.kind === 'yigo')) d.yigo.image = '';
     d.sections = Array.isArray(input.sections) ? input.sections.map((s, i) => ({
       name: typeof s.name === 'string' ? s.name : `Text ${i + 1}`,
       text: typeof s.text === 'string' ? s.text : '',
@@ -2945,15 +3029,16 @@ const Documents = (() => {
   }
   function artifact(doc, kind) {
     if (kind === 'document') return clone(doc);
-    const keys = kind === 'template' ? layoutKeys : kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    const keys = kind === 'template' ? layoutKeys : kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections', 'assets', 'images'];
     return { format: 'web-pecha-part', version: 1, kind, settings: Object.fromEntries(keys.map(k => [k, clone(doc[k])])) };
   }
   function apply(current, saved, Engine) {
     if (saved.format !== 'web-pecha-part') return normalize(saved, Engine);
     if (saved.version !== 1 || !['template', 'annotations', 'content'].includes(saved.kind)) throw new Error('Unknown pecha file');
-    const keys = saved.kind === 'template' ? layoutKeys : saved.kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    const keys = saved.kind === 'template' ? layoutKeys : saved.kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections', 'assets', 'images'];
     const combined = clone(current || Engine.defaultDoc());
     for (const k of keys) if (saved.settings && Object.hasOwn(saved.settings, k)) combined[k] = saved.settings[k];
+    if (saved.kind === 'template' && !combined.images.some(p => p.id === combined.yigo.image)) combined.yigo.image = '';
     return normalize(combined, Engine);
   }
   return { normalize, artifact, apply };
@@ -3210,7 +3295,7 @@ const Pxp = (() => {
     const base = current ? JSON.parse(JSON.stringify(current)) : Engine.defaultDoc();
     const parsed = parse(u8, table);
     const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
-    if (extension === 'pxp') { imported.sections = []; return result; }
+    if (extension === 'pxp') { imported.sections = []; imported.assets = []; imported.images = []; imported.yigo.image = ''; return result; }
     if (extension === 'pxt') {
       for (const key of ['paper', 'margins', 'pecha', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
       if (parsed.template.PechaAnnotation) {
@@ -3227,7 +3312,7 @@ const Pxp = (() => {
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
       }
       if (extension === 'pxc') {
-        base.text = imported.text; base.sections = []; base.flow = false;
+        base.text = imported.text; base.sections = []; base.flow = false; base.assets = []; base.images = []; imported.yigo.image = '';
         for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
       }
     } else throw new Error('Unknown PechaMaker file type');
@@ -3660,7 +3745,7 @@ const PREVIEW_PAGES = 24;
 
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
-let sectionIndex = 0;
+let sectionIndex = 0, imageId = '', storageWarningShown = false;
 const editingText = () => doc.sections.length ? doc.sections[sectionIndex].text : doc.text;
 function setEditingText(value) { if (doc.sections.length) doc.sections[sectionIndex].text = value; else doc.text = value; }
 
@@ -3771,6 +3856,7 @@ function segment(host, options, active, onPick) {
 // ---------- panels ----------
 
 function buildPanels() {
+  buildImagePanel();
   $('text').value = editingText();
   buildSectionPanel();
   $('flow').checked = doc.flow;
@@ -3801,6 +3887,7 @@ function buildPanels() {
   ]);
   buildTypePanel();
   fill($('yigoFields'), [
+    { path: 'yigo.image', label: 'Yi-go source', type: 'select', wide: true, options: [['', 'Text yi-go'], ...doc.images.filter(p => p.kind === 'yigo').map((p, i) => [p.id, `Image ${i + 1}`])] },
     { path: 'yigo.enabled', label: 'Add a yi-go on the front of each folio', type: 'check' },
     { path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true },
     { path: 'yigo.fancyStart', label: 'Start on the first Fancy page', type: 'check' },
@@ -3842,6 +3929,53 @@ function buildPanels() {
   ns.value = noteSide;
   buildNotePanel();
   buildPrintPanel();
+}
+
+function buildImagePanel() {
+  const picker = $('imagePick');
+  if (!doc.images.some(p => p.id === imageId)) imageId = doc.images[0]?.id || '';
+  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : 'Inline'} image`; return o; }));
+  picker.value = imageId;
+  $('exportImage').disabled = $('deleteImage').disabled = !imageId;
+  const i = doc.images.findIndex(p => p.id === imageId);
+  if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
+  const p = `images.${i}`;
+  fill($('imageFields'), [
+    {path: `${p}.scale`, label: 'Scale, %', min: 10, max: 200, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
+    {path: `${p}.above`, label: 'Top above baseline, in', min: -30, max: 30, step: .01},
+    {path: `${p}.addTibetan`, label: 'Also apply Tibetan baseline adjustment', type: 'check'},
+    {path: `${p}.space`, label: 'Blank space on each side, in', min: 0, max: 20, step: .01},
+  ]);
+  updateImageWarning();
+}
+function updateImageWarning() {
+  const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+  $('imageWarning').textContent = size && size.h > 2 * Math.min(...Object.values(doc.types).map(t => t.lineHeight)) * 72
+    ? 'This image is taller than twice a configured line height and may overlap nearby lines. Reduce its scale or increase line spacing.' : '';
+}
+async function addImage(file) {
+  if (!file || !['image/png','image/jpeg','image/webp'].includes(file.type)) { toast('Choose a PNG, JPEG or WebP image.'); return; }
+  if (file.size > 8000000) { toast('Choose an image smaller than 8 MB.'); return; }
+  if (doc.images.length >= 1000 || doc.assets.length >= 200) { toast('This document has reached its image limit.'); return; }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    if (img.naturalWidth * img.naturalHeight > 16000000) throw new Error('Choose an image with fewer than 16 million pixels.');
+    const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0); const data = canvas.toDataURL('image/png');
+    if (data.length > 12000000) throw new Error('The converted PNG is too large. Use a smaller image.');
+    let asset = doc.assets.find(a => a.data === data);
+    if (!asset) { asset = {id: 'a' + crypto.randomUUID(), data, width: canvas.width, height: canvas.height}; doc.assets.push(asset); }
+    const kind = $('newImageKind').value;
+    const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
+    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
+    doc.images.push(p); imageId = p.id;
+    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
+    buildPanels(); toast('Image embedded in this document.');
+  } catch (e) { toast(e.message || 'Could not read this image.'); }
+  finally { URL.revokeObjectURL(url); }
 }
 
 function buildSectionPanel() {
@@ -4061,7 +4195,7 @@ function openPrintPanel() {
 // ---------- storage and files ----------
 
 function persist() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); } catch (e) { /* private window: nothing to keep */ }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); storageWarningShown = false; } catch (e) { if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.'); storageWarningShown = true; }
 }
 
 function restore() {
@@ -4311,6 +4445,22 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
     toast('Chosen attributes applied; other formatting kept.');
+  });
+  $('addImage').addEventListener('click', () => $('imageFile').click());
+  $('imageFile').addEventListener('change', e => { addImage(e.target.files[0]); e.target.value = ''; });
+  $('imagePick').addEventListener('change', e => { imageId = e.target.value; buildImagePanel(); });
+  $('exportImage').addEventListener('click', () => {
+    const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+    if (!size) return; const a = document.createElement('a'); a.href = size.asset.data; a.download = 'pecha-image.png'; a.click();
+  });
+  $('deleteImage').addEventListener('click', () => {
+    const id = imageId; if (!id) return;
+    const strip = text => text.split(`{image:${id}}`).join('');
+    doc.text = strip(doc.text); for (const s of doc.sections) s.text = strip(s.text);
+    doc.images = doc.images.filter(p => p.id !== id);
+    doc.assets = doc.assets.filter(a => doc.images.some(p => p.asset === a.id));
+    if (doc.yigo.image === id) doc.yigo.image = '';
+    $('text').value = editingText(); buildPanels(); schedule();
   });
   $('rolePick').addEventListener('change', buildRolePanel);
   $('applyRole').addEventListener('click', () => {

@@ -12,7 +12,7 @@ const PREVIEW_PAGES = 24;
 
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
-let sectionIndex = 0;
+let sectionIndex = 0, imageId = '', storageWarningShown = false;
 const editingText = () => doc.sections.length ? doc.sections[sectionIndex].text : doc.text;
 function setEditingText(value) { if (doc.sections.length) doc.sections[sectionIndex].text = value; else doc.text = value; }
 
@@ -123,6 +123,7 @@ function segment(host, options, active, onPick) {
 // ---------- panels ----------
 
 function buildPanels() {
+  buildImagePanel();
   $('text').value = editingText();
   buildSectionPanel();
   $('flow').checked = doc.flow;
@@ -153,6 +154,7 @@ function buildPanels() {
   ]);
   buildTypePanel();
   fill($('yigoFields'), [
+    { path: 'yigo.image', label: 'Yi-go source', type: 'select', wide: true, options: [['', 'Text yi-go'], ...doc.images.filter(p => p.kind === 'yigo').map((p, i) => [p.id, `Image ${i + 1}`])] },
     { path: 'yigo.enabled', label: 'Add a yi-go on the front of each folio', type: 'check' },
     { path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true },
     { path: 'yigo.fancyStart', label: 'Start on the first Fancy page', type: 'check' },
@@ -194,6 +196,53 @@ function buildPanels() {
   ns.value = noteSide;
   buildNotePanel();
   buildPrintPanel();
+}
+
+function buildImagePanel() {
+  const picker = $('imagePick');
+  if (!doc.images.some(p => p.id === imageId)) imageId = doc.images[0]?.id || '';
+  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : 'Inline'} image`; return o; }));
+  picker.value = imageId;
+  $('exportImage').disabled = $('deleteImage').disabled = !imageId;
+  const i = doc.images.findIndex(p => p.id === imageId);
+  if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
+  const p = `images.${i}`;
+  fill($('imageFields'), [
+    {path: `${p}.scale`, label: 'Scale, %', min: 10, max: 200, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
+    {path: `${p}.above`, label: 'Top above baseline, in', min: -30, max: 30, step: .01},
+    {path: `${p}.addTibetan`, label: 'Also apply Tibetan baseline adjustment', type: 'check'},
+    {path: `${p}.space`, label: 'Blank space on each side, in', min: 0, max: 20, step: .01},
+  ]);
+  updateImageWarning();
+}
+function updateImageWarning() {
+  const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+  $('imageWarning').textContent = size && size.h > 2 * Math.min(...Object.values(doc.types).map(t => t.lineHeight)) * 72
+    ? 'This image is taller than twice a configured line height and may overlap nearby lines. Reduce its scale or increase line spacing.' : '';
+}
+async function addImage(file) {
+  if (!file || !['image/png','image/jpeg','image/webp'].includes(file.type)) { toast('Choose a PNG, JPEG or WebP image.'); return; }
+  if (file.size > 8000000) { toast('Choose an image smaller than 8 MB.'); return; }
+  if (doc.images.length >= 1000 || doc.assets.length >= 200) { toast('This document has reached its image limit.'); return; }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    if (img.naturalWidth * img.naturalHeight > 16000000) throw new Error('Choose an image with fewer than 16 million pixels.');
+    const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0); const data = canvas.toDataURL('image/png');
+    if (data.length > 12000000) throw new Error('The converted PNG is too large. Use a smaller image.');
+    let asset = doc.assets.find(a => a.data === data);
+    if (!asset) { asset = {id: 'a' + crypto.randomUUID(), data, width: canvas.width, height: canvas.height}; doc.assets.push(asset); }
+    const kind = $('newImageKind').value;
+    const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
+    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
+    doc.images.push(p); imageId = p.id;
+    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
+    buildPanels(); toast('Image embedded in this document.');
+  } catch (e) { toast(e.message || 'Could not read this image.'); }
+  finally { URL.revokeObjectURL(url); }
 }
 
 function buildSectionPanel() {
@@ -413,7 +462,7 @@ function openPrintPanel() {
 // ---------- storage and files ----------
 
 function persist() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); } catch (e) { /* private window: nothing to keep */ }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); storageWarningShown = false; } catch (e) { if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.'); storageWarningShown = true; }
 }
 
 function restore() {
@@ -663,6 +712,22 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
     toast('Chosen attributes applied; other formatting kept.');
+  });
+  $('addImage').addEventListener('click', () => $('imageFile').click());
+  $('imageFile').addEventListener('change', e => { addImage(e.target.files[0]); e.target.value = ''; });
+  $('imagePick').addEventListener('change', e => { imageId = e.target.value; buildImagePanel(); });
+  $('exportImage').addEventListener('click', () => {
+    const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+    if (!size) return; const a = document.createElement('a'); a.href = size.asset.data; a.download = 'pecha-image.png'; a.click();
+  });
+  $('deleteImage').addEventListener('click', () => {
+    const id = imageId; if (!id) return;
+    const strip = text => text.split(`{image:${id}}`).join('');
+    doc.text = strip(doc.text); for (const s of doc.sections) s.text = strip(s.text);
+    doc.images = doc.images.filter(p => p.id !== id);
+    doc.assets = doc.assets.filter(a => doc.images.some(p => p.asset === a.id));
+    if (doc.yigo.image === id) doc.yigo.image = '';
+    $('text').value = editingText(); buildPanels(); schedule();
   });
   $('rolePick').addEventListener('change', buildRolePanel);
   $('applyRole').addEventListener('click', () => {

@@ -1,5 +1,6 @@
 // Run: node test/engine.test.js [folder of .pxp samples]
 const assert = require('assert'), fs = require('fs'), path = require('path');
+global.PechaImages = require('../src/images.js');
 global.Folio = require('../src/folio.js');
 const Engine = require('../src/engine.js'), Pxp = require('../src/pxp.js'), TABLE = require('../src/legacy-table.js');
 const { SAMPLE_TEXT } = require('../src/sample.js');
@@ -299,6 +300,35 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(saved.folio.font, 'Noto Serif Tibetan'); assert.strictEqual(saved.pageNum.font, 'Jomolhari');
   const old = JSON.parse(JSON.stringify(doc)); delete old.folio.font; delete old.pageNum.font;
   const restored = Documents.normalize(old, Engine); assert.strictEqual(restored.folio.font, ''); assert.strictEqual(restored.pageNum.font, 'Georgia');
+}
+
+// Embedded image dimensions, baseline placement, reflow and safe persistence.
+{
+  const doc = Engine.defaultDoc(); doc.counts = {title: 0, fancy: 0}; doc.yigo.enabled = false; doc.dzog.enabled = false;
+  doc.assets = [{id: 'asset1', data: 'data:image/png;base64,iVBORw0KGgo=', width: 96, height: 48}];
+  doc.images = [PechaImages.placement({id: 'inline1', asset: 'asset1', dpi: 96, space: .1, above: .2})];
+  doc.text = 'before{image:inline1}after';
+  let r = Engine.run(doc, measure), line = r.pages[0].lines[0];
+  assert.strictEqual(line.items[1].image.id, 'inline1'); assert.strictEqual(line.items[1].w, 86.4);
+  let svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
+  assert(svg.includes('width="72" height="36" href="data:image/png;base64,'));
+  const y = +svg.match(/<image x="[^"]+" y="([^"]+)"/)[1];
+  doc.tibetanRaise = .1; doc.images[0].addTibetan = true;
+  r = Engine.run(doc, measure); svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
+  assert(Math.abs(y - +svg.match(/<image x="[^"]+" y="([^"]+)"/)[1] - 7.2) < .01);
+  doc.images[0].scale = 50; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 36);
+  doc.images[0].dpi = 192; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 18);
+  doc.images[0].ignoreDpi = true; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 36);
+  const saved = Documents.apply(Engine.defaultDoc(), Documents.artifact(doc, 'content'), Engine);
+  assert.deepStrictEqual(saved.assets, doc.assets); assert.deepStrictEqual(saved.images, doc.images);
+  const bad = {...doc, assets: [{...doc.assets[0], data: 'https://example.com/private.png'}]};
+  assert.strictEqual(Documents.normalize(bad, Engine).images.length, 0);
+  assert(!Engine.pageSvg(Engine.run(Documents.normalize(bad, Engine), measure).pages[0], Documents.normalize(bad, Engine), measure, 1).includes('<image'));
+  // Automatic image yi-go follows the same page eligibility and does not change source text.
+  doc.images[0].kind = 'yigo'; doc.yigo.image = 'inline1'; doc.yigo.enabled = true; doc.text = 'ཀ་{page}ཁ་{page}ག་';
+  r = Engine.run(doc, measure);
+  assert(r.pages[0].lines[0].items[0].image); assert(!r.pages[1].lines[0].items[0].image); assert(r.pages[2].lines[0].items[0].image);
+  assert.strictEqual(doc.text, 'ཀ་{page}ཁ་{page}ག་');
 }
 
 const dir = process.argv[2];

@@ -161,3 +161,16 @@ Folio labels and Arabic page numbers have independent font selections. Folios de
 the document font; Arabic numbers default to Western serif. Number font choices persist
 in full documents and annotation presets. Available web typefaces are substitutes; native
 legacy font identities and exact metrics remain a compatibility limitation.
+
+### Embedded images
+
+Inline images use `{image:id}` tokens and reflow as atomic items with explicit space on
+each side. PNG/JPEG/WebP input is converted to embedded PNG; repeated identical PNG
+data shares one asset. Independent placements store scale, resolution, distance of the
+top above the baseline, optional Tibetan baseline adjustment, and side spacing.
+Image yi-go uses the same eligibility rules as text yi-go. PNG pHYs density is read;
+missing density and Ignore DPI use 96 DPI, an explicit web convention still awaiting
+Windows comparison. Full and content saves retain assets and placements; templates
+contain no image bytes. Browser-storage failures prompt the user to Save.
+Page-attached rendering, native image-block formats and original copy/move reset
+semantics remain open. Uploaded image data stays in the browser/local saved document.

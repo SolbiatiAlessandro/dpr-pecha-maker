@@ -46,7 +46,8 @@ const Engine = (() => {
         body: pageType(),
       },
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
-      yigo: { enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
+      assets: [], images: [],
+      yigo: { image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
       folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
@@ -81,6 +82,7 @@ const Engine = (() => {
         else if (tok === 'l' || tok === 'left') style.align = 'l';
         else if (tok === 'r' || tok === 'right') style.align = 'r';
         else if (tok === 'page') items.push({ k: 'page' });
+        else if (/^image:[\w-]+$/.test(tok)) items.push({k: 'image', id: tok.slice(6), style: {...style}});
         else if (tok === 'hs') pushText(HARD_SHAD);
         else if (tok === 'b') style.bold = true;
         else if (tok === '/b') style.bold = false;
@@ -155,6 +157,11 @@ const Engine = (() => {
     const atoms = [];
     for (const it of items) {
       if (it.k === 'page') { atoms.push({ page: true }); continue; }
+      if (it.k === 'image') {
+        const placement = doc.images.find(p => p.id === it.id && p.kind === 'inline');
+        if (placement && PechaImages.dimensions(doc, placement)) atoms.push({s: '', gap: 'none', spaces: 0, style: it.style, image: placement});
+        continue;
+      }
       // A style boundary must not swallow leading spaces in the next run.
       const leading = /^[ \u00a0]+/.exec(it.s), previous = atoms.at(-1);
       if (leading && previous && previous.s !== undefined) {
@@ -217,11 +224,16 @@ const Engine = (() => {
     let i = start, x = 0, prevGap = 0, hard = false, pageBreak = false, hasTab = false, yigoCount = 0;
     const place = a => {
       const f = fontFor(doc, a, sizeDefault);
-      const w = measure(a.s, f);
+      const imageSize = a.image && PechaImages.dimensions(doc, a.image);
+      const w = imageSize ? imageSize.w + a.image.space * PT * 2 : measure(a.s, f);
       const gapW = a.gap === 'space' ? Math.max(measure(' ', f), f.size * 0.42) * Math.max(1, a.spaces) : 0;
       return { ...a, f, w, gapW };
     };
-    if (yigo) {
+    const yigoImage = yigo && doc.images.find(p => p.id === doc.yigo.image && p.kind === 'yigo');
+    if (yigoImage && PechaImages.dimensions(doc, yigoImage)) {
+      const p = place({s: '', gap: 'none', spaces: 0, style: atoms[start].style, image: yigoImage});
+      p.x = 0; items.push(p); x = p.w; yigoCount = 1;
+    } else if (yigo) {
       for (const a of splitAtoms(doc.yigo.text)) {
         const p = place({ ...a, style: atoms[start].style });
         p.x = x + prevGap; x = p.x + p.w; prevGap = p.gapW;
@@ -388,6 +400,13 @@ const Engine = (() => {
       const top = start + ln * t.lineHeight * PT;
       p.lineTops.push(top);
       for (const a of line.items) {
+        if (a.image) {
+          const im = PechaImages.dimensions(doc, a.image);
+          const baseline = top + measure.head(doc, a.f.size).ascent;
+          const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
+          out += `<image x="${num(T.x0 + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          continue;
+        }
         const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
         out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }

@@ -20,6 +20,8 @@ const Documents = (() => {
     if (!input || input.version !== 1 || typeof input.text !== 'string') throw new Error('Not a web pecha document');
     if (Array.isArray(input.sections) && input.sections.length > 200) throw new Error('Too many texts in this volume');
     const d = merge(Engine.defaultDoc(), input);
+    Object.assign(d, PechaImages.normalize(input));
+    if (!d.images.some(p => p.id === d.yigo.image && p.kind === 'yigo')) d.yigo.image = '';
     d.sections = Array.isArray(input.sections) ? input.sections.map((s, i) => ({
       name: typeof s.name === 'string' ? s.name : `Text ${i + 1}`,
       text: typeof s.text === 'string' ? s.text : '',
@@ -43,15 +45,16 @@ const Documents = (() => {
   }
   function artifact(doc, kind) {
     if (kind === 'document') return clone(doc);
-    const keys = kind === 'template' ? layoutKeys : kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    const keys = kind === 'template' ? layoutKeys : kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections', 'assets', 'images'];
     return { format: 'web-pecha-part', version: 1, kind, settings: Object.fromEntries(keys.map(k => [k, clone(doc[k])])) };
   }
   function apply(current, saved, Engine) {
     if (saved.format !== 'web-pecha-part') return normalize(saved, Engine);
     if (saved.version !== 1 || !['template', 'annotations', 'content'].includes(saved.kind)) throw new Error('Unknown pecha file');
-    const keys = saved.kind === 'template' ? layoutKeys : saved.kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    const keys = saved.kind === 'template' ? layoutKeys : saved.kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections', 'assets', 'images'];
     const combined = clone(current || Engine.defaultDoc());
     for (const k of keys) if (saved.settings && Object.hasOwn(saved.settings, k)) combined[k] = saved.settings[k];
+    if (saved.kind === 'template' && !combined.images.some(p => p.id === combined.yigo.image)) combined.yigo.image = '';
     return normalize(combined, Engine);
   }
   return { normalize, artifact, apply };
