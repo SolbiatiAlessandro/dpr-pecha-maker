@@ -439,8 +439,13 @@ Raw streams retain embedded NUL/control bytes; out-of-block lengths are rejected
 Synthetic regression covers two compactfonts, rich bold text, independent counter
 starts and retained body/layout. Chrome imported an original synthetic specimen,
 visibly showing its Latin annotation, folio23/page401, preserved body and warning.
-No real native PXA export fixture has been obtained; implicit TCC references remain
-unresolved and explicitly warned. This is not a validated native round trip.
+No real native PXA export fixture has been obtained. Subsequent static loader
+and family-switch evidence shows implicit TCC slots0–4 inherit the current family;
+changing families registers five font names without rewriting annotation/body
+streams. The reader normalizes those slots using the existing TibetanMachine
+conversion tables, an inferred common encoding with unverified full glyph coverage.
+Source typeface cannot be recovered from the header and an explicit warning remains.
+Unknown converted annotation/yi-go glyphs also now trigger an import warning. This is not a validated native round trip.
 
 ### Close versus New
 

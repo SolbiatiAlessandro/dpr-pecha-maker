@@ -15,6 +15,11 @@ const Pxp = (() => {
   function parseFonts(head) {
     const fonts = {};
     const annotationHeader = /^\.pxa 0\.1 u1 u2 u3 u4 (\d+) (\d+) /.exec(head);
+    if (annotationHeader && +annotationHeader[1]) {
+      // Native PXA inherits five TCC slots; family switching replaces fonts without rewriting streams.
+      // Normalize their shared legacy encoding with the independently maintained conversion tables.
+      for (let i=0;i<5;i++) fonts[i] = i ? 'TibetanMachineSkt'+i : 'TibetanMachine';
+    }
     const list = annotationHeader ? head.slice(annotationHeader[0].length) : head.replace(/^.*?u4 \d+ \d+ \d+ /s, '');
     const re = /(\d+) \d+ ([^\0]+)\0/g;
     let m;
@@ -262,7 +267,7 @@ const Pxp = (() => {
     if (p.version.startsWith('.pxa 0.1')) {
       nativeImages.warnings.push('Native annotation-file import is experimental; exact legacy rendering still needs original-app verification.');
       const head=LAT(u8 instanceof Uint8Array ? u8 : new Uint8Array(u8),0,100);
-      if (/^\.pxa 0\.1 u1 u2 u3 u4 [1-9]/.test(head)) nativeImages.warnings.push('Implicit TCC font references are not yet resolved. Check all Tibetan annotations against the original.');
+      if (/^\.pxa 0\.1 u1 u2 u3 u4 [1-9]/.test(head)) nativeImages.warnings.push('Inherited TCC font slots use the TibetanMachine conversion tables. Check Tibetan glyphs and appearance against the original; the source typeface is not recorded.');
     }
     d.assets=nativeImages.assets; d.images=nativeImages.images; d.yigo.image='';
     if(on(v.YigoImageEn,false)) {
@@ -270,6 +275,7 @@ const Pxp = (() => {
       if(source){const yi={...source,id:'native-yigo',kind:'yigo'};d.images.push(yi);d.yigo.image=yi.id;}
     }
     const { ev, unknown } = decodeStream(p.body, p.fonts, table);
+    if (Object.values(raw).some(bytes => Object.keys(decodeStream(bytes,p.fonts,table).unknown).length)) nativeImages.warnings.push('Some annotation or yi-go characters could not be converted. Check these marks against the original.');
     if(ev.some(e=>e.t==='image'&&!d.images.some(p=>p.id==='native-inline-'+e.index))) nativeImages.warnings.push('Some inline image references could not be recovered.');
     d.text = eventsToText(ev, id => !!table[p.fonts[id]]).replace(/\s+$/, '');
     d.flow = false;

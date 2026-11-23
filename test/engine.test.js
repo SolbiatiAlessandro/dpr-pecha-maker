@@ -706,4 +706,14 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const invalid=Buffer.from('.pxa 0.1 u1 u2 u3 u4 0 0 \n[START NON-BODY]\nAnnoInL[0].slen=99999\nAnnoInL[0].s=\nx\n[END NON-BODY]\n');
   assert.throws(()=>Pxp.parse(invalid,TABLE),/length/);
 }
+{
+  const raw=Buffer.from([107,17,32,1,0,0,17,65]);
+  const file=Buffer.concat([Buffer.from('.pxa 0.1 u1 u2 u3 u4 1 0 \n[START NON-BODY]\nAnnoInL[0].en=1\nAnnoInL[0].slen='+raw.length+'\nAnnoInL[0].s=\n'),raw,Buffer.from('\n[END NON-BODY]\n')]);
+  const parsed=Pxp.parse(file,TABLE);
+  assert.strictEqual(parsed.fonts[0],'TibetanMachine'); assert.strictEqual(parsed.fonts[4],'TibetanMachineSkt4');
+  const result=Pxp.load(file,'pxa',TABLE,Engine.defaultDoc(),Engine);
+  assert(result.doc.notes.sets['title.front'].inL.text.includes(TABLE.TibetanMachine[107]));
+  assert(result.doc.notes.sets['title.front'].inL.text.includes(TABLE.TibetanMachineSkt1[65]));
+  assert(result.warnings.some(w=>/source typeface is not recorded/.test(w)));
+}
 console.log('ok');
