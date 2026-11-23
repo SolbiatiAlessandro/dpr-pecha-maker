@@ -470,6 +470,24 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(Math.abs(upper-+drawing.match(/V([\d.]+)/)[1]-3.6)<.01);
 }
 
+// Image copies share pixels, reset placement, and move correctly between text sections.
+{
+  const d=Engine.defaultDoc(); d.text='a{image:i1}b';
+  d.images=[PechaImages.placement({id:'i1',asset:'a1',dpi:150,scale:30,above:1,space:1})];
+  let r=PechaImages.transferInline(d,'i1','i2',0,d.text.length,false);
+  assert.strictEqual(d.text,'a{image:i1}b{image:i2}');
+  assert.strictEqual(r.placement.scale,100); assert.strictEqual(r.placement.space,.03);
+  assert.strictEqual(r.placement.dpi,150); assert.strictEqual(r.placement.asset,'a1');
+  r=PechaImages.transferInline(d,'i1','i3',0,d.text.length,true);
+  assert.strictEqual(d.text,'ab{image:i2}{image:i3}'); assert.strictEqual(r.cursor,d.text.length);
+  d.sections=[{text:d.text},{text:'Second'}];
+  PechaImages.transferInline(d,'i3','i4',1,0,true);
+  assert.strictEqual(d.sections[0].text,'ab{image:i2}'); assert.strictEqual(d.sections[1].text,'{image:i4}Second');
+  assert(!d.images.some(p=>p.id==='i3'));
+  PechaImages.transferInline(d,'i4','i5',1,3,true);
+  assert.strictEqual(d.sections[1].text,'{image:i5}Second');
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

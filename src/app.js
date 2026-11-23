@@ -210,6 +210,7 @@ function buildImagePanel() {
   picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : p.kind === 'page' ? 'Page' : 'Inline'} image`; return o; }));
   picker.value = imageId;
   $('exportImage').disabled = $('deleteImage').disabled = !imageId;
+  $('copyImage').disabled = $('moveImage').disabled = !doc.images.some(p => p.id === imageId && p.kind === 'inline');
   const i = doc.images.findIndex(p => p.id === imageId);
   if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
   const p = `images.${i}`, image = doc.images[i];
@@ -756,6 +757,15 @@ function init() {
     const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
     if (!size) return; const a = document.createElement('a'); a.href = size.asset.data; a.download = 'pecha-image.png'; a.click();
   });
+  for (const [button, move] of [['copyImage',false],['moveImage',true]]) {
+    $(button).addEventListener('click', () => {
+      const result = PechaImages.transferInline(doc,imageId,'i'+crypto.randomUUID(),sectionIndex,$('text').selectionStart,move);
+      if (!result) { toast('Unable to place another inline image.'); return; }
+      imageId=result.placement.id; $('text').value=editingText();
+      $('text').focus(); $('text').setSelectionRange(result.cursor,result.cursor);
+      buildPanels(); schedule(); toast('Image placed with default spacing and 100% scale.');
+    });
+  }
   $('deleteImage').addEventListener('click', () => {
     const id = imageId; if (!id) return;
     const strip = text => text.split(`{image:${id}}`).join('');

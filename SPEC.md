@@ -232,3 +232,13 @@ HexactF, VLAdjF and VRAdjF fields are imported. Figure18 of installed guide2.0
 explicitly labels the percentage as whitespace; interpreting its endpoint as the
 right text boundary follows Figure17 and still needs numerical Windows comparison.
 The 98% straight-line rule and blank-only first-line suppression follow section7.2.
+
+### Inline image copy/move
+
+Explicit image-panel commands insert at the active text cursor, share the embedded
+PNG asset, and reset scale to100% and spacing/baseline controls to web defaults. A
+move removes prior references, including in other volume sections. The source DPI
+is retained. Cursor positions inside formatting tokens advance to the token end.
+This follows guide2.0 section9.1's reset rule; native clipboard operation and exact
+Windows default spacing remain unverified. Copying raw text tokens still shares
+the existing placement rather than creating a new placement.

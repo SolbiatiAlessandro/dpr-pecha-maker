@@ -262,6 +262,8 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div class="grid" id="imageFields"></div>
         <p class="hint" id="imageWarning" role="status"></p>
         <button class="btn" type="button" id="exportImage">Download PNG</button>
+        <button class="btn" type="button" id="copyImage">Copy inline image at text cursor</button>
+        <button class="btn" type="button" id="moveImage">Move inline image to text cursor</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
         <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page images stay on the chosen volume page number when text changes. Native-file image imports are still in development.</p>
       </details>
@@ -2320,6 +2322,30 @@ const PechaImages = (() => {
     }
     return {assets, images};
   }
+  // Copy/move inline placement, sharing embedded pixels and resetting layout controls.
+  function transferInline(doc, id, newId, section, cursor, move = false) {
+    const original = doc.images.find(p => p.id === id && p.kind === 'inline');
+    if (!original || doc.images.some(p => p.id === newId) || doc.images.length >= 1000) return null;
+    const target = doc.sections.length ? doc.sections[section] : doc;
+    if (!target) return null;
+    const token = `{image:${id}}`;
+    cursor = Math.max(0, Math.min(target.text.length, cursor));
+    for (const m of target.text.matchAll(/\{[^}]*\}/g)) {
+      if (cursor > m.index && cursor < m.index + m[0].length) { cursor = m.index + m[0].length; break; }
+    }
+    if (move) {
+      const before = target.text.slice(0, cursor);
+      cursor -= before.length - before.split(token).join('').length;
+      doc.text = doc.text.split(token).join('');
+      for (const s of doc.sections) s.text = s.text.split(token).join('');
+      doc.images = doc.images.filter(p => p.id !== id);
+    }
+    const added = placement({id:newId, asset:original.asset, dpi:original.dpi});
+    doc.images.push(added);
+    const inserted = `{image:${newId}}`;
+    target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
+    return {placement:added, cursor:cursor+inserted.length};
+  }
   function dimensions(doc, p) {
     const asset = doc.assets.find(a => a.id === p.asset);
     if (!asset) return null;
@@ -2350,7 +2376,7 @@ const PechaImages = (() => {
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -4230,6 +4256,7 @@ function buildImagePanel() {
   picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : p.kind === 'page' ? 'Page' : 'Inline'} image`; return o; }));
   picker.value = imageId;
   $('exportImage').disabled = $('deleteImage').disabled = !imageId;
+  $('copyImage').disabled = $('moveImage').disabled = !doc.images.some(p => p.id === imageId && p.kind === 'inline');
   const i = doc.images.findIndex(p => p.id === imageId);
   if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
   const p = `images.${i}`, image = doc.images[i];
@@ -4776,6 +4803,15 @@ function init() {
     const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
     if (!size) return; const a = document.createElement('a'); a.href = size.asset.data; a.download = 'pecha-image.png'; a.click();
   });
+  for (const [button, move] of [['copyImage',false],['moveImage',true]]) {
+    $(button).addEventListener('click', () => {
+      const result = PechaImages.transferInline(doc,imageId,'i'+crypto.randomUUID(),sectionIndex,$('text').selectionStart,move);
+      if (!result) { toast('Unable to place another inline image.'); return; }
+      imageId=result.placement.id; $('text').value=editingText();
+      $('text').focus(); $('text').setSelectionRange(result.cursor,result.cursor);
+      buildPanels(); schedule(); toast('Image placed with default spacing and 100% scale.');
+    });
+  }
   $('deleteImage').addEventListener('click', () => {
     const id = imageId; if (!id) return;
     const strip = text => text.split(`{image:${id}}`).join('');

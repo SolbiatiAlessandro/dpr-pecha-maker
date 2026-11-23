@@ -26,6 +26,30 @@ const PechaImages = (() => {
     }
     return {assets, images};
   }
+  // Copy/move inline placement, sharing embedded pixels and resetting layout controls.
+  function transferInline(doc, id, newId, section, cursor, move = false) {
+    const original = doc.images.find(p => p.id === id && p.kind === 'inline');
+    if (!original || doc.images.some(p => p.id === newId) || doc.images.length >= 1000) return null;
+    const target = doc.sections.length ? doc.sections[section] : doc;
+    if (!target) return null;
+    const token = `{image:${id}}`;
+    cursor = Math.max(0, Math.min(target.text.length, cursor));
+    for (const m of target.text.matchAll(/\{[^}]*\}/g)) {
+      if (cursor > m.index && cursor < m.index + m[0].length) { cursor = m.index + m[0].length; break; }
+    }
+    if (move) {
+      const before = target.text.slice(0, cursor);
+      cursor -= before.length - before.split(token).join('').length;
+      doc.text = doc.text.split(token).join('');
+      for (const s of doc.sections) s.text = s.text.split(token).join('');
+      doc.images = doc.images.filter(p => p.id !== id);
+    }
+    const added = placement({id:newId, asset:original.asset, dpi:original.dpi});
+    doc.images.push(added);
+    const inserted = `{image:${newId}}`;
+    target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
+    return {placement:added, cursor:cursor+inserted.length};
+  }
   function dimensions(doc, p) {
     const asset = doc.assets.find(a => a.id === p.asset);
     if (!asset) return null;
@@ -56,6 +80,6 @@ const PechaImages = (() => {
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;

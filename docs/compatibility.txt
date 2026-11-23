@@ -5,7 +5,7 @@ This is an independent Unicode web implementation inspired by the public Windows
 
 AVAILABLE IN THE WEB APP
 - Fixed page images: six box/text-side anchors, shifts, text exclusion margin and per-page assignment. Anchor coordinates and text overlap rules still need Windows comparison.
-- Embedded PNG inline images and image yi-go, scale/DPI, baseline adjustment, side spacing and PNG download. PNG metadata is read; absent/ignored DPI uses a documented web default of 96, not a verified Windows convention.
+- Embedded PNG inline images and image yi-go, scale/DPI, baseline adjustment, side spacing and PNG download. Explicit inline copy/move commands share embedded pixels and reset spacing/scale; raw text-token clipboard edits do not. PNG metadata is read; absent/ignored DPI uses a documented web default of 96, not a verified Windows convention.
 - Title/Fancy/Body page types, opening counts, lines, fixed line heights, box styles, colours, margins and insets.
 - Paper dimensions and orientation, four margins, top/center placement and pages per sheet.
 - Independent Tibetan folio and Arabic page starting numbers, title visibility, Jyon, fixed folio phrase, independent number fonts, sizes and insets.
@@ -37,7 +37,7 @@ PARTIAL COMPATIBILITY
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
 
 NOT IMPLEMENTED YET
-- Native Windows image-block import/export and original image copy/move-reset semantics.
+- Native Windows image-block import/export and exact original clipboard image semantics.
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
