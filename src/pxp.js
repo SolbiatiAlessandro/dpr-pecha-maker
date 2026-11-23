@@ -126,8 +126,8 @@ const Pxp = (() => {
       body: b.subarray(bodyStart, hasImageBlock ? imageStart : b.length) };
   }
 
-  // Independent reader for observed textual image-header version 1.1.
-  // Page anchor codes and older binary headers remain unsupported.
+  // Independent reader for observed image-header versions 1.0 and 1.1.
+  // Unsupported record sizes and page anchor codes are reported explicitly.
   function readImages(block) {
     const assets=[], images=[], warnings=[];
     if (!block) return {assets,images,warnings};
@@ -136,7 +136,25 @@ const Pxp = (() => {
     let pos=0, phase='', record={}, payload=null; const groups={IINFO:[],LIINFO:[],PIINFO:[]};
     const line=()=>{let end=pos;while(end<block.length && block[end]!==10)end++;const value=LAT(block,pos,end).replace(/\r$/,'');pos=end+1;return value;};
     if (line()==='') {} else pos=0;
-    if (line()!=='[START IMAGES] 1.1') {warnings.push('This native image-header version is not supported.');return {assets,images,warnings};}
+    const version=line();
+    if (!['[START IMAGES] 1.0','[START IMAGES] 1.1'].includes(version)) {warnings.push('This native image-header version is not supported.');return {assets,images,warnings};}
+    if(version.endsWith('1.0')) {
+      // Version 1.0 uses fixed little-endian records between textual count lines.
+      // Only the observed complete record sizes are supported; never guess older layouts.
+      try {
+        const number=key=>{const text=line();if(!text.startsWith(key+'=') || !/^\d+$/.test(text.slice(key.length+1)))throw 0;return +text.slice(key.length+1);};
+        const records=(prefix,kind,size,read)=>{
+          if(number(prefix+'_SizeOf')!==size)throw 0;
+          const count=number(prefix+'Count');if(count>1000 || pos+count*size>block.length)throw 0;
+          for(let index=0;index<count;index++,pos+=size)groups[kind][index]=read(new DataView(block.buffer,block.byteOffset+pos,size));
+          if(line()!=='')throw 0;
+        };
+        records('ImageInfo','IINFO',28,v=>({imageOffset:v.getUint32(0,true),compSize:v.getUint32(8,true),
+          dibXDPI:v.getUint16(24,true),dibYDPI:v.getUint16(26,true)}));
+        records('LineImageInfo','LIINFO',40,v=>({iInfoIndex:v.getUint16(0,true),ignoreImgDPI:v.getInt32(4,true),
+          scale:v.getInt32(8,true),sideSp_float:v.getFloat64(20,true),yAdj_float:v.getFloat64(28,true),addTFA:v.getInt32(36,true)}));
+      } catch {warnings.push('Unsupported or incomplete native 1.0 image records were skipped.');return {assets,images,warnings};}
+    }
     let count=0;
     while(pos<block.length && count++<40000) {
       const text=line();
@@ -173,7 +191,19 @@ const Pxp = (() => {
         dpi:source.dibXDPI>0?source.dibXDPI:96,ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
         above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
     });
-    if(groups.PIINFO.some(Boolean))warnings.push('Native fixed-page image anchors are not yet imported.');
+    const nativeAnchors={0:'outer-left',1:'inner-left',2:'text-left',4:'text-right',5:'inner-right',6:'outer-right'};
+    groups.PIINFO.forEach((info,index)=>{
+      if(!info || !assetIds.has(info.iInfoIndex))return;
+      if(!nativeAnchors[info.slot] || !Number.isInteger(info.pageNbr) || info.pageNbr<1 || info.pageNbr>3000) {
+        warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
+      }
+      const source=groups.IINFO[info.iInfoIndex];
+      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
+      images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
+        page:info.pageNbr,anchor:nativeAnchors[info.slot],dpi:source.dibXDPI>0?source.dibXDPI:96,
+        ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
+        inward:info.xAdj_float||0,margin:info.xMar_float||0}));
+    });
     return {assets,images,warnings:[...new Set(warnings)]};
   }
 

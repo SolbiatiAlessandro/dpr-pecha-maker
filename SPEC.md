@@ -275,7 +275,8 @@ excludes that tail from decoded body text. An independent experimental reader no
 handles textual image-header version 1.1: embedded PNG assets, inline placement
 references and image yi-go. It validates payload bounds and caps image dimensions,
 then carries scale, DPI, baseline adjustment and side spacing into the web model.
-Older binary image headers, fixed-page anchor codes and native export remain open.
+Version1.0 records and six fixed-page anchors are now supported experimentally
+as detailed below; native export remains open.
 Framing and inline-reference indexing were checked by local static inspection.
 Regression fixtures are synthetic: no real Windows image specimen is available,
 so this is not verified native interoperability. Chrome QA imported a synthetic
@@ -330,3 +331,20 @@ fixed baseline across font-size changes, native import, template retention and
 legacy top-edge fallback. Chrome QA entered0.6in for Title, observed repositioning
 and disabled top-edge control, then cleared it to restore automatic placement.
 Exact historical glyph metrics and printer rounding remain unverified.
+
+### Expanded experimental native image reader
+
+Version1.0 supports only the observed28-byte asset and40-byte inline records,
+with explicit bounds and record-size checks. Version1.1 imports fixed-page images
+using slots0/1/2 for outer/inner/text left and4/5/6 for text/inner/outer right.
+Slot3 is a hidden native center option with a drawing branch; it is reported and
+skipped here. Page numbers are one-based document pages; inward/downward shifts
+retain their positive direction. Assets remain shared across placements.
+These mappings come from read-only serializer, dialog and drawing inspection;
+the independent reader does not reuse native implementation code or assets.
+Synthetic regression fixtures cover equivalent1.0/1.1 inline output, rejected
+record sizes, all six anchors, preserved page/shift/margin values, asset sharing
+and unsupported center reporting. Chrome file-picker QA showed a right text-side
+page image and subsequently opened the older-format fixture with just its inline
+image and yi-go placement. Real Windows image specimens and pixel-level output
+comparison are still unavailable: this entire import path remains experimental.

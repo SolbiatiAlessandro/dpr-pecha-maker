@@ -31,7 +31,7 @@ PARTIAL COMPATIBILITY
 - Full-page (non-pecha) mode reflows within paper margins, with separate line height and first baseline, one page per sheet, and yi-go after the first page. Pecha frames/labels are retained but hidden; original label interactions and native font/print equivalence still need verification.
 - RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
 - Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
-- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Textual native image-header1.1 imports embedded PNG inline images and image yi-go experimentally. Framing/reference tests and browser import QA use synthetic specimens; no real native image specimen has been verified. Import notes remain visible above the preview during the session. No binary-format round trip is promised.
+- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Textual native image-header1.1 imports embedded PNG inline, yi-go and fixed-page images experimentally; version1.0 supports the observed28-byte asset/40-byte inline records. Six page anchors and one-based physical page numbers follow static format evidence. Framing/reference tests and browser import QA use synthetic specimens; no real native image specimen has been verified. Import notes remain visible above the preview during the session. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
 - Annotations: mixed runs use visible formatting marks rather than the original rich-text paste interface. Known native annotation formatting codes are imported; exact legacy fonts and all codes remain unverified.
@@ -39,7 +39,7 @@ PARTIAL COMPATIBILITY
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
 
 NOT IMPLEMENTED YET
-- Native fixed-page image anchor codes, older binary1.0 image headers, native image export, and exact original clipboard image semantics.
+- Native image export, unobserved older record sizes, hidden native centered-page-image slot3, and exact original clipboard image semantics.
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Exact original compact-view controls.

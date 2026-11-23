@@ -585,6 +585,31 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(Pxp.load(file,'pxc',TABLE,current,Engine).doc.paper.w,17);
   const bad=Buffer.from(file);const at=bad.indexOf('imageOffset=0');bad[at+'imageOffset='.length]=57;
   assert.strictEqual(Pxp.load(bad,'pxp',TABLE,current,Engine).doc.assets.length,0);
+  const iinfo=Buffer.alloc(28),linfo=Buffer.alloc(40);
+  iinfo.writeUInt32LE(png.length,8);iinfo.writeUInt16LE(96,24);iinfo.writeUInt16LE(96,26);
+  linfo.writeInt32LE(50,8);linfo.writeDoubleLE(.1,20);linfo.writeDoubleLE(.25,28);linfo.writeInt32LE(1,36);
+  const old=Buffer.concat([head,Buffer.from([0x13,0,0,0,0,0x13]),
+    Buffer.from(' after\n[START IMAGES] 1.0\nImageInfo_SizeOf=28\nImageInfoCount=1\n'),iinfo,
+    Buffer.from('\nLineImageInfo_SizeOf=40\nLineImageInfoCount=1\n'),linfo,
+    Buffer.from('\nImages_totalBytes='+png.length+'\n'),png]);
+  const pageRecords=[0,1,2,3,4,5,6].map((slot,index)=>'iInfoIndex=0\nscale=50\nignoreImgDPI=0\nyAdj_float=0.2\nxAdj_float=0.3\nxMar_float=0.1\npageNbr=2\nslot='+slot+'\n[END PIINFO '+index+']\n').join('');
+  const pageMeta=Buffer.from(meta.toString('latin1').replace('PageImageInfoCount=0\n','PageImageInfoCount=7\n'+pageRecords),'latin1');
+  const pageFile=Buffer.concat([head,Buffer.from([0x13,0,0,0,0,0x13]),pageMeta,png]);
+  const pageResult=Pxp.load(pageFile,'pxp',TABLE,current,Engine);
+  const placements=pageResult.doc.images.filter(p=>p.kind==='page');
+  assert.deepStrictEqual(placements.map(p=>p.anchor),PechaImages.anchors);
+  assert(placements.every(p=>p.page===2 && p.down===.2 && p.inward===.3 && p.margin===.1));
+  assert(pageResult.warnings.some(s=>s.includes('anchor or page number')));
+  assert.strictEqual(pageResult.doc.assets.length,1);
+  const oldResult=Pxp.load(old,'pxp',TABLE,current,Engine);
+  assert.deepStrictEqual(oldResult.doc.assets,result.doc.assets);
+  assert.deepStrictEqual(oldResult.doc.images,result.doc.images);
+  assert.strictEqual(oldResult.doc.text,result.doc.text);
+  const wrongSize=Buffer.from(old);wrongSize[wrongSize.indexOf('SizeOf=28')+7]=55;
+  const unsupported=Pxp.load(wrongSize,'pxp',TABLE,current,Engine);
+  assert.strictEqual(unsupported.doc.assets.length,0);
+  assert(unsupported.warnings.some(s=>s.includes('1.0 image records')));
+
 }
 
 const dir = process.argv[2];
@@ -594,7 +619,6 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   assert.strictEqual(unknown, 0, f);
   console.log(f.padEnd(26), 'pages', pages.length, 'paper', doc.paper.w + 'x' + doc.paper.h, 'perSheet', doc.pecha.perSheet, 'title/fancy', doc.counts.title, doc.counts.fancy, 'yigo', JSON.stringify(doc.yigo.text));
 }
-console.log('ok');
 
 // An explicit first baseline stays fixed when font sizes change; old top-edge layouts still work.
 {
@@ -619,3 +643,5 @@ console.log('ok');
   const r=Engine.run(d,measure); Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
   assert(Math.abs(r.pages[0].lineBaselines[0]-r.pages[0].boxes.T.y0-.375*72)<.001);
 }
+
+console.log('ok');
