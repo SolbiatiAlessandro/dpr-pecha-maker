@@ -561,10 +561,10 @@ async function openFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
-    if (/\.px[pct]$/.test(name)) {
-      const { doc: d, unknown } = Pxp.toDoc(buf, LEGACY_TABLE, Engine.defaultDoc(), Engine);
+    if (/\.px[pcta]$/.test(name)) {
+      const { doc: d, unknown } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
       setDoc(d, false);
-      toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name} and converted it to Unicode.`);
+      toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);
     } else if (/\.(pecha|json)$/.test(name)) {
       setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
       toast(`Opened ${file.name}.`);

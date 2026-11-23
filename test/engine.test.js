@@ -215,6 +215,31 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.deepStrictEqual(reused.sections, doc.sections);
 }
 
+// Original partial-file scopes: changing a template cannot replace a volume's content.
+// Synthetic public-format fixture tests scope mechanics, not native-file fidelity.
+{
+  const fixture = ext => Buffer.from(`.${ext} 0.5 0 u1 u2 u3 u4 0 0 0 \n[START NON-BODY]\niNiT FolioStartNum=17\niNiT PageStartNum=201\niNiT Yigo.en=0\n[END NON-BODY]\n[START TEMPLATE]\n[PageSetup]\nPaperSize.x=14000\nPaperSize.y=8500\nPageOrientation=2\nPechaPagesCentered=0\n[LineControl]\nTabWidth=0.75\nTibFontAdj=0.1\n[END TEMPLATE]\nImported text`, 'latin1');
+  const target = Engine.defaultDoc(); target.text = 'Keep text'; target.folio.start = 8;
+  target.sections = [{name: 'Keep section', text: 'Section text', folioStart: 3, restartLayout: true}];
+  target.folio.rhino = 'old phrase';
+  const snapshot = JSON.stringify(target);
+  const template = Pxp.load(fixture('pxt'), 'pxt', TABLE, target, Engine).doc;
+  assert.strictEqual(template.text, target.text); assert.deepStrictEqual(template.sections, target.sections);
+  assert.strictEqual(template.folio.start, 8); assert.strictEqual(template.folio.rhino, 'old phrase');
+  assert.strictEqual(template.paper.w, 14); assert.strictEqual(template.pecha.placement, 'top');
+  assert.strictEqual(template.tabWidth, .75); assert.strictEqual(template.tibetanRaise, .1);
+  const annotations = Pxp.load(fixture('pxa'), 'pxa', TABLE, target, Engine).doc;
+  assert.strictEqual(annotations.text, target.text); assert.deepStrictEqual(annotations.sections, target.sections);
+  assert.deepStrictEqual(annotations.paper, target.paper); assert.strictEqual(annotations.folio.start, 17);
+  assert.strictEqual(annotations.pageNum.start, 201); assert.strictEqual(annotations.yigo.enabled, target.yigo.enabled);
+  assert.strictEqual(annotations.folio.rhino, '', 'disabled imported phrase must clear an old phrase');
+  const content = Pxp.load(fixture('pxc'), 'pxc', TABLE, target, Engine).doc;
+  assert.strictEqual(content.text, 'Imported text'); assert.deepStrictEqual(content.sections, []);
+  assert.deepStrictEqual(content.paper, target.paper); assert.strictEqual(content.folio.start, 17);
+  assert.strictEqual(content.yigo.enabled, false);
+  assert.strictEqual(JSON.stringify(target), snapshot, 'imports must not mutate current document');
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

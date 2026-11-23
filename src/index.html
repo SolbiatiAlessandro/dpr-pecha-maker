@@ -179,7 +179,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </span>
       <span class="drop-side r"></span>
     </span></span>
-    <input id="openFile" type="file" accept=".pdf,.pxp,.pxc,.pxt,.pecha,.json,.txt" hidden>
+    <input id="openFile" type="file" accept=".pdf,.pxp,.pxc,.pxt,.pxa,.pecha,.json,.txt" hidden>
   </label>
   <a class="nalandabodhi-link" href="https://nalandabodhi.org/" target="_blank" rel="noopener">Visit Nalandabodhi</a>
   <div class="status-wrap">
@@ -259,7 +259,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
-          <input id="partFile" type="file" accept=".pecha,.json" hidden>
+          <input id="partFile" type="file" accept=".pecha,.json,.pxt,.pxc,.pxa" hidden>
           <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
         </div>
       </details>

@@ -138,3 +138,11 @@ visibility, margin placement, reusable files, section resets/reordering and dupl
 existing PDF repair tests. Browser QA uses local synthetic/public sample text only. Safari requires
 matching paper size/orientation and disabling headers/footers in its print dialog; browser print settings
 can otherwise add pages despite the app's CSS page size.
+
+### Original partial-file loading
+
+PXT loads page layout while preserving current content, sections and annotation text/number starts.
+PXC loads content, annotations, numbering and text-processing options while retaining page layout.
+PXA loads annotations and numbering while retaining content and page layout. PXP replaces the document.
+These scopes follow the original guide section 3; the native partial-file framing is experimental
+until actual Windows exports are tested. Synthetic scope regressions are not a fidelity claim.

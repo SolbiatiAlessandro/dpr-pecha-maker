@@ -24,7 +24,8 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - Each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
-- PXP/PXC/PXT import: public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
+- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
+- Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. Not a full WYSIWYG selected-text font dialog or direct-page editor. Formatting buttons insert marks before a selection and do not erase it.
 - Annotations: plain text only, not mixed-font/colour/style runs. Folio and Arabic fonts do not have independent font pickers.
 - Templates: web .pecha JSON files only; they are not Windows .pxt/.pxc/.pxa files. Layout saves do not contain text or annotations; annotation saves contain numbering.
@@ -32,7 +33,7 @@ PARTIAL COMPATIBILITY
 
 NOT IMPLEMENTED YET
 - Inline images, page-attached side/text-margin images, and image yi-go.
-- RTF and TibetDoc/DCT import/export; Windows PechaMaker binary-format export; .pxa import.
+- RTF and TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
 - Kerning switch, all dzog-thik vertical/percentage controls, yi-go colour-ignore option.

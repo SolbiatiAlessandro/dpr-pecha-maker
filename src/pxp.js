@@ -1,4 +1,4 @@
-// Reader for PechaMaker .pxp / .pxc / .pxt files. Written from the sample files and the User's
+// Reader for PechaMaker .pxp / .pxc / .pxt / .pxa files. Written from the sample files and the User's
 // Guide, not from the program. A file is: a header with a font table, a NON-BODY block of
 // "iNiT key=value" lines, a TEMPLATE block in INI form, then the body byte stream.
 const Pxp = (() => {
@@ -107,7 +107,7 @@ const Pxp = (() => {
     const eNB = indexOf(b, '[END NON-BODY]');
     const sT = indexOf(b, '[START TEMPLATE]');
     const eT = indexOf(b, '[END TEMPLATE]');
-    if (LAT(b, 0, 4) !== '.pxp' && sNB < 0) throw new Error('Not a PechaMaker file');
+    if (!/^\.px[pcta]$/.test(LAT(b, 0, 4)) && sNB < 0) throw new Error('Not a PechaMaker file');
     const fonts = parseFonts(LAT(b, 0, sNB < 0 ? 200 : sNB));
     const nb = sNB >= 0 ? parseNonBody(b, sNB + 17, eNB) : { values: {}, raw: {} };
     const tpl = sT >= 0 ? parseIni(LAT(b, sT + 16, eT)) : {};
@@ -169,6 +169,11 @@ const Pxp = (() => {
       d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000,
         top: num(S['PageMargin.top'], 0) / 1000, bottom: num(S['PageMargin.bottom'], 0) / 1000 };
       d.pecha.perSheet = num(S.PechaPagesPerSheet, 1);
+      d.pecha.placement = on(S.PechaPagesCentered, true) ? 'center' : 'top';
+    }
+    if (t.LineControl) {
+      d.tabWidth = num(t.LineControl.TabWidth, d.tabWidth);
+      d.tibetanRaise = num(t.LineControl.TibFontAdj, d.tibetanRaise);
     }
     const C = t.PechaControl;
     if (C) { d.pecha.height = num(C.PechaHeight, 2.5); d.pecha.dlt = num(C.PechaboxDLT, 0.03); }
@@ -181,6 +186,7 @@ const Pxp = (() => {
       d.pageNum.inset = num(A.PageNumInset, 0.05);
       d.pageNum.size = num(A.PageNumPtSz, 12);
       d.pageNum.position = on(A.PageNumCenter, false) ? 'center' : 'bottom';
+      d.pageNum.angle = num(A.PageNumAngle, 90) === 0 ? 0 : -90;
     }
     let prevEnd = 0;
     for (const i of [0, 1, 2]) {
@@ -212,7 +218,7 @@ const Pxp = (() => {
     d.folio.start = num(v.FolioStartNum, 1);
     d.folio.onTitle = on(v.FolioNumTitleEn, false);
     d.folio.jyon = on(v.FolioNumJyonEn, false);
-    if (on(v.FolioRhinoEn, false)) d.folio.rhino = plainText(raw.FolioRhinoStream, p.fonts, table);
+    d.folio.rhino = on(v.FolioRhinoEn, false) ? plainText(raw.FolioRhinoStream, p.fonts, table) : '';
     d.pageNum.start = num(v.PageStartNum, 1);
     d.pageNum.on = d.pageNum.start > 0;
     d.pageNum.onTitle = on(v.PageNumTitleEn, false);
@@ -232,6 +238,35 @@ const Pxp = (() => {
     return { doc: d, unknown: Object.keys(unknown).length };
   }
 
-  return { parse, decodeStream, eventsToText, toDoc };
+  // Native partial files have different scopes (guide section 3). A template must not erase text.
+  function load(u8, extension, table, current, Engine) {
+    const base = current ? JSON.parse(JSON.stringify(current)) : Engine.defaultDoc();
+    const parsed = parse(u8, table);
+    const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
+    if (extension === 'pxp') { imported.sections = []; return result; }
+    if (extension === 'pxt') {
+      for (const key of ['paper', 'margins', 'pecha', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
+      if (parsed.template.PechaAnnotation) {
+        for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
+        for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
+        base.notes.outLeft = imported.notes.outLeft; base.notes.outRight = imported.notes.outRight;
+      }
+    } else if (extension === 'pxc' || extension === 'pxa') {
+      base.notes.sets = imported.notes.sets;
+      for (const key of ['start', 'onTitle', 'jyon', 'rhino']) base.folio[key] = imported.folio[key];
+      for (const key of ['start', 'on', 'onTitle', 'firstTitle']) base.pageNum[key] = imported.pageNum[key];
+      if (parsed.template.PechaAnnotation) {
+        for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
+        for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
+      }
+      if (extension === 'pxc') {
+        base.text = imported.text; base.sections = []; base.flow = false;
+        for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
+      }
+    } else throw new Error('Unknown PechaMaker file type');
+    return {doc: base, unknown: result.unknown};
+  }
+
+  return { parse, decodeStream, eventsToText, toDoc, load };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;
