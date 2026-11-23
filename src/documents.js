@@ -32,6 +32,8 @@ const Documents = (() => {
     for (const k of ['w', 'h']) bound(d.paper, k, 2, 60);
     for (const k of ['left', 'right', 'top', 'bottom']) bound(d.margins, k, 0, 20);
     bound(d.pecha, 'perSheet', 1, 8, true); bound(d.pecha, 'height', 0.5, 30);
+    bound(d.dzog, 'rise', 0, 30); bound(d.dzog, 'percent', 0, 100);
+    bound(d.dzog, 'leftUp', 0, 2); bound(d.dzog, 'rightUp', 0, 2);
     bound(d, 'tabWidth', 0.05, 20);
     bound(d, 'tibetanRaise', -2, 2);
     if (d.textSize !== null) bound(d, 'textSize', 5, 200);

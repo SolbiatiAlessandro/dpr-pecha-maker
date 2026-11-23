@@ -2404,7 +2404,7 @@ const Engine = (() => {
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       assets: [], images: [],
       yigo: { rich: false, ignoreColor: true, image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
-      dzog: { enabled: true, rise: 0.05 },
+      dzog: { enabled: true, rise: 0.05, percentEnabled: false, percent: 20, leftUp: 0, rightUp: 0 },
       folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
       notes: {
@@ -2807,16 +2807,25 @@ const Engine = (() => {
   function drawDzog(p, doc, measure) {
     const { T } = p.boxes;
     const last = p.lines.length - 1;
-    if (last < 0) return '';
-    const head = measure.head(doc, p.type.fontSize);
-    const yOf = k => p.lineTops[k] + head.height + 1.5;
-    const y1 = yOf(last);
-    const x = T.x0 + p.lines[last].endX + doc.dzog.rise * PT;
+    if (last < 0 || (last === 0 && !p.lines[last].items.length)) return '';
+    const yOf = k => {
+      const bottoms = p.lines[k].items.filter(a => !a.image && a.s).map(a => {
+        const tibetan = isTib(a.s[0]);
+        return measure.head({...doc, font: a.f.family}, a.f.size, tibetan).height
+          - (tibetan ? (doc.tibetanRaise || 0) * PT : 0);
+      });
+      return p.lineTops[k] + (bottoms.length ? Math.max(...bottoms) : measure.head(doc, p.type.fontSize).height);
+    };
+    const y1 = yOf(last) - (doc.dzog.leftUp || 0) * PT;
+    const final = p.lines[last].items.at(-1);
+    const trailing = final && final.gap === 'space' ? final.gapW : 0;
+    const end = T.x0 + (p.lines[last].offset || 0) + p.lines[last].endX + trailing;
+    const x = end + (doc.dzog.percentEnabled ? Math.max(0, T.x1 - end) * doc.dzog.percent / 100 : doc.dzog.rise * PT);
     const stroke = `fill="none" stroke="#000" stroke-width="0.9"`;
     if (last === 0 || x > T.x0 + 0.98 * (T.x1 - T.x0)) {
       return `<path d="M${num(T.x0)} ${num(y1)}H${num(T.x1)}" ${stroke}/>`;
     }
-    const y0 = yOf(last - 1);
+    const y0 = yOf(last - 1) - (doc.dzog.rightUp || 0) * PT;
     return `<path d="M${num(T.x0)} ${num(y1)}H${num(x)}V${num(y0)}H${num(T.x1)}" ${stroke}/>`;
   }
 
@@ -3282,6 +3291,8 @@ const Documents = (() => {
     for (const k of ['w', 'h']) bound(d.paper, k, 2, 60);
     for (const k of ['left', 'right', 'top', 'bottom']) bound(d.margins, k, 0, 20);
     bound(d.pecha, 'perSheet', 1, 8, true); bound(d.pecha, 'height', 0.5, 30);
+    bound(d.dzog, 'rise', 0, 30); bound(d.dzog, 'percent', 0, 100);
+    bound(d.dzog, 'leftUp', 0, 2); bound(d.dzog, 'rightUp', 0, 2);
     bound(d, 'tabWidth', 0.05, 20);
     bound(d, 'tibetanRaise', -2, 2);
     if (d.textSize !== null) bound(d, 'textSize', 5, 200);
@@ -3533,6 +3544,11 @@ const Pxp = (() => {
     if (sizes.length) for (const k of ['title', 'fancy', 'body']) d.types[k].fontSize = Math.round(sizes[sizes.length - 1] * fontScale);
     d.shad = { enabled: on(v.AutoShadEn, true), yang: on(v.YangShadEn, true), ignoreYigo: on(v.IgnoreYigoShadEn, false), titlePages: on(v.TitleShadEn, false) };
     d.dzog.enabled = on(v.DzogThikEn, false);
+    d.dzog.rise = num(v.DzogThik_HexactF, .05);
+    d.dzog.percentEnabled = on(v.DzogThik_HpercentEn, false);
+    d.dzog.percent = num(v.DzogThik_Hpercent, 20);
+    d.dzog.leftUp = num(v.DzogThik_VLAdjF, 0);
+    d.dzog.rightUp = num(v.DzogThik_VRAdjF, 0);
     d.yigo.enabled = on(v['Yigo.en'], true);
     const yig = plainText(raw['Yigo.s'], p.fonts, table);
     if (yig) d.yigo.text = yig;
@@ -4174,7 +4190,11 @@ function buildPanels() {
   ]);
   fill($('dzogFields'), [
     { path: 'dzog.enabled', label: 'Draw the dzog thik under the last lines', type: 'check' },
-    { path: 'dzog.rise', label: 'Gap before it rises, in', step: 0.01, min: 0 },
+    { path: 'dzog.percentEnabled', label: 'Position rise by percentage of remaining whitespace', type: 'check' },
+    { path: 'dzog.rise', label: 'Distance past final character, in', step: 0.01, min: 0 },
+    { path: 'dzog.percent', label: 'Remaining whitespace, %', step: 1, min: 0, max: 100 },
+    { path: 'dzog.leftUp', label: 'Raise left segment, in', step: .01, min: 0, max: 2 },
+    { path: 'dzog.rightUp', label: 'Raise right segment, in', step: .01, min: 0, max: 2 },
   ]);
   fill($('folioFields'), [
     { path: 'folio.start', label: 'First folio (0 hides them)', step: 1, min: 0 },

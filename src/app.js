@@ -170,7 +170,11 @@ function buildPanels() {
   ]);
   fill($('dzogFields'), [
     { path: 'dzog.enabled', label: 'Draw the dzog thik under the last lines', type: 'check' },
-    { path: 'dzog.rise', label: 'Gap before it rises, in', step: 0.01, min: 0 },
+    { path: 'dzog.percentEnabled', label: 'Position rise by percentage of remaining whitespace', type: 'check' },
+    { path: 'dzog.rise', label: 'Distance past final character, in', step: 0.01, min: 0 },
+    { path: 'dzog.percent', label: 'Remaining whitespace, %', step: 1, min: 0, max: 100 },
+    { path: 'dzog.leftUp', label: 'Raise left segment, in', step: .01, min: 0, max: 2 },
+    { path: 'dzog.rightUp', label: 'Raise right segment, in', step: .01, min: 0, max: 2 },
   ]);
   fill($('folioFields'), [
     { path: 'folio.start', label: 'First folio (0 hides them)', step: 1, min: 0 },

@@ -48,7 +48,7 @@ const Engine = (() => {
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       assets: [], images: [],
       yigo: { rich: false, ignoreColor: true, image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
-      dzog: { enabled: true, rise: 0.05 },
+      dzog: { enabled: true, rise: 0.05, percentEnabled: false, percent: 20, leftUp: 0, rightUp: 0 },
       folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
       notes: {
@@ -451,16 +451,25 @@ const Engine = (() => {
   function drawDzog(p, doc, measure) {
     const { T } = p.boxes;
     const last = p.lines.length - 1;
-    if (last < 0) return '';
-    const head = measure.head(doc, p.type.fontSize);
-    const yOf = k => p.lineTops[k] + head.height + 1.5;
-    const y1 = yOf(last);
-    const x = T.x0 + p.lines[last].endX + doc.dzog.rise * PT;
+    if (last < 0 || (last === 0 && !p.lines[last].items.length)) return '';
+    const yOf = k => {
+      const bottoms = p.lines[k].items.filter(a => !a.image && a.s).map(a => {
+        const tibetan = isTib(a.s[0]);
+        return measure.head({...doc, font: a.f.family}, a.f.size, tibetan).height
+          - (tibetan ? (doc.tibetanRaise || 0) * PT : 0);
+      });
+      return p.lineTops[k] + (bottoms.length ? Math.max(...bottoms) : measure.head(doc, p.type.fontSize).height);
+    };
+    const y1 = yOf(last) - (doc.dzog.leftUp || 0) * PT;
+    const final = p.lines[last].items.at(-1);
+    const trailing = final && final.gap === 'space' ? final.gapW : 0;
+    const end = T.x0 + (p.lines[last].offset || 0) + p.lines[last].endX + trailing;
+    const x = end + (doc.dzog.percentEnabled ? Math.max(0, T.x1 - end) * doc.dzog.percent / 100 : doc.dzog.rise * PT);
     const stroke = `fill="none" stroke="#000" stroke-width="0.9"`;
     if (last === 0 || x > T.x0 + 0.98 * (T.x1 - T.x0)) {
       return `<path d="M${num(T.x0)} ${num(y1)}H${num(T.x1)}" ${stroke}/>`;
     }
-    const y0 = yOf(last - 1);
+    const y0 = yOf(last - 1) - (doc.dzog.rightUp || 0) * PT;
     return `<path d="M${num(T.x0)} ${num(y1)}H${num(x)}V${num(y0)}H${num(T.x1)}" ${stroke}/>`;
   }
 

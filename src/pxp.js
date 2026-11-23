@@ -220,6 +220,11 @@ const Pxp = (() => {
     if (sizes.length) for (const k of ['title', 'fancy', 'body']) d.types[k].fontSize = Math.round(sizes[sizes.length - 1] * fontScale);
     d.shad = { enabled: on(v.AutoShadEn, true), yang: on(v.YangShadEn, true), ignoreYigo: on(v.IgnoreYigoShadEn, false), titlePages: on(v.TitleShadEn, false) };
     d.dzog.enabled = on(v.DzogThikEn, false);
+    d.dzog.rise = num(v.DzogThik_HexactF, .05);
+    d.dzog.percentEnabled = on(v.DzogThik_HpercentEn, false);
+    d.dzog.percent = num(v.DzogThik_Hpercent, 20);
+    d.dzog.leftUp = num(v.DzogThik_VLAdjF, 0);
+    d.dzog.rightUp = num(v.DzogThik_VRAdjF, 0);
     d.yigo.enabled = on(v['Yigo.en'], true);
     const yig = plainText(raw['Yigo.s'], p.fonts, table);
     if (yig) d.yigo.text = yig;

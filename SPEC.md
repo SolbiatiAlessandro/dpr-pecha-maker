@@ -221,3 +221,14 @@ font size always follows the first body character on that page. A colour-match
 checkbox follows that character's colour instead. Existing plain yi-go documents
 retain their previous inherited styling. This implements installed guide 2.0 §7.3
 semantics; native rich-text clipboard equivalence is still unverified.
+
+### Dzog-thik controls
+
+The end mark uses the deepest rendered font extent on each of the final two lines,
+with separate upward adjustments for its left and right segments. Its rise can be
+placed an inch distance beyond the final text advance or a percentage of remaining
+whitespace. Trailing spaces count toward that advance. Native HpercentEn/Hpercent,
+HexactF, VLAdjF and VRAdjF fields are imported. Figure18 of installed guide2.0
+explicitly labels the percentage as whitespace; interpreting its endpoint as the
+right text boundary follows Figure17 and still needs numerical Windows comparison.
+The 98% straight-line rule and blank-only first-line suppression follow section7.2.

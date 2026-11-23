@@ -445,6 +445,31 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   d.textSize=36; assert.strictEqual(Engine.run(d,measure).pages[0].lines[0].items[0].f.size,36);
 }
 
+// Dzog-thik follows the deepest actual font and counts trailing spaces.
+{
+  const d=Engine.defaultDoc(); d.counts={title:0,fancy:0}; d.yigo.enabled=false;
+  d.text='{l 40}Large{12}small';
+  const render=()=>{ const r=Engine.run(d,measure); return {r, svg:Engine.pageSvg(r.pages[0],d,measure,r.folioCount)}; };
+  let {r,svg}=render();
+  const path=svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  assert(Math.abs(+path.match(/^M[\d.]+ ([\d.]+)H/)[1]-(r.pages[0].lineTops[0]+30)) < .01);
+  d.flow=false; d.text='{l}First\nLast';
+  const before=render().svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  d.text+='   ';
+  const after=render().svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  assert(+after.match(/H([\d.]+)V/)[1] > +before.match(/H([\d.]+)V/)[1]);
+  d.dzog.percentEnabled=true; d.dzog.percent=50;
+  const baseline=render(); const pg=baseline.r.pages[0], ln=pg.lines.at(-1);
+  const end=pg.boxes.T.x0+ln.endX+ln.items.at(-1).gapW;
+  let drawing=baseline.svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  assert(Math.abs(+drawing.match(/H([\d.]+)V/)[1]-(end+pg.boxes.T.x1)/2)<.01);
+  const lower=+drawing.match(/^M[\d.]+ ([\d.]+)/)[1], upper=+drawing.match(/V([\d.]+)/)[1];
+  d.dzog.leftUp=.1; d.dzog.rightUp=.05;
+  drawing=render().svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  assert(Math.abs(lower-+drawing.match(/^M[\d.]+ ([\d.]+)/)[1]-7.2)<.01);
+  assert(Math.abs(upper-+drawing.match(/V([\d.]+)/)[1]-3.6)<.01);
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);
