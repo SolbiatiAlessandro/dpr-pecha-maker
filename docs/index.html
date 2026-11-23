@@ -317,6 +317,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <p class="source" id="credits"></p>
       <details>
+        <summary>Browser recovery</summary>
+        <div class="field"><label for="recoveryInterval">Save recovery copy</label><select id="recoveryInterval"><option value="0">After each edit</option><option value="1">Every minute</option><option value="5">Every 5 minutes</option><option value="10">Every 10 minutes</option><option value="30">Every 30 minutes</option><option value="-1">Off</option></select></div>
+        <p class="hint" id="recoveryStatus" role="status"></p>
+        <p class="hint">Recovery is stored only in this browser, not beside your source file. Timed recovery also saves when leaving the page where possible. Off keeps the previous recovery but stops updating it. Use Save for a lasting file copy.</p>
+      </details>
+      <details>
         <summary>Reuse text, layouts and annotations</summary>
         <div>
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
@@ -3458,6 +3464,22 @@ const Documents = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Documents;
 
+// Browser recovery scheduling; storage and clock are injected for deterministic failure tests.
+class Recovery {
+  constructor(write, now = Date.now) { this.write=write; this.now=now; this.delay=0; this.lastSaved=null; this.pending=null; }
+  configure(minutes) { this.delay=minutes < 0 ? null : minutes*60000; }
+  queue(value) { this.pending=value; return this.flush(); }
+  flush(force=false) {
+    if (this.pending===null || this.delay===null) return false;
+    const now=this.now();
+    if (!force && this.lastSaved!==null && now-this.lastSaved < this.delay) return false;
+    this.write({...this.pending, savedAt: now});
+    this.lastSaved=now; this.pending=null; return true;
+  }
+  newDocument() { this.lastSaved=null; this.pending=null; }
+}
+if (typeof module !== 'undefined') module.exports=Recovery;
+
 // Reader for PechaMaker .pxp / .pxc / .pxt / .pxa files. Written from the sample files and the User's
 // Guide, with targeted observations of file-format framing. A file is: a header with a font table, a NON-BODY block of
 // "iNiT key=value" lines, a TEMPLATE block in INI form, then the body byte stream.
@@ -4255,6 +4277,11 @@ if (typeof module !== 'undefined') module.exports = { SAMPLE_TEXT, SAMPLE_SHORT_
 
 // Interface: holds one document, writes form changes into it, and redraws the pages.
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
+const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
+const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
+let recoveryMinutes = 0;
+try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
+recovery.configure(recoveryMinutes);
 const $ = id => document.getElementById(id);
 const PAPERS = { A4: [11.69, 8.27], A3: [16.54, 11.69], Letter: [11, 8.5], Legal: [14, 8.5], Custom: null };
 const SIDES = [['title.front', 'Title, front'], ['title.back', 'Title, back'], ['fancy.front', 'Fancy, front'], ['fancy.back', 'Fancy, back'], ['body.front', 'Body, front'], ['body.back', 'Body, back']];
@@ -4791,8 +4818,24 @@ function openPrintPanel() {
 
 // ---------- storage and files ----------
 
-function persist() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); storageWarningShown = false; } catch (e) { if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.'); storageWarningShown = true; }
+function recoveryStatus() {
+  $('recoveryStatus').textContent = recovery.delay === null ? 'Recovery is off. Any earlier browser recovery remains available.'
+    : storageWarningShown ? 'Recovery could not be saved. Download a copy with Save.'
+    : recovery.pending ? 'Changes are waiting for the next recovery save.'
+    : recovery.lastSaved === null ? 'No recovery saved in this session yet.'
+    : `Last recovery saved ${new Date(recovery.lastSaved).toLocaleTimeString()}.`;
+}
+function persist(force = false) {
+  if (!doc) return;
+  try {
+    recovery.queue({doc, isSample});
+    if (force) recovery.flush(true);
+    storageWarningShown = false;
+  } catch (e) {
+    if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.');
+    storageWarningShown = true;
+  }
+  recoveryStatus();
 }
 
 function restore() {
@@ -4873,6 +4916,7 @@ function setDoc(d, sample, src = null) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  recovery.newDocument();
   savedCheckpoint = {doc: Documents.artifact(d, 'document'), isSample: sample, source: src};
   reportImport([]);
   sectionIndex = 0;
@@ -5150,6 +5194,14 @@ function init() {
     const f = e.dataTransfer.files[0];
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
+  $('recoveryInterval').value = String(recoveryMinutes);
+  $('recoveryInterval').addEventListener('change', event => {
+    recoveryMinutes = Number(event.target.value); recovery.configure(recoveryMinutes);
+    try { localStorage.setItem(RECOVERY_PREF_KEY, String(recoveryMinutes)); } catch (_) { toast('This recovery preference could not be saved for next time.'); }
+    persist(true);
+  });
+  setInterval(() => { if (recovery.pending && recovery.delay !== null) persist(); }, 1000);
+  window.addEventListener('pagehide', () => persist(true));
   $('saveDoc').addEventListener('click', () => saveFile());
   $('revertDoc').addEventListener('click', () => {
     if (!savedCheckpoint) return;
@@ -5177,7 +5229,7 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (doc && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+    if (doc && !$('work').hidden && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
     }
   });

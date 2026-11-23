@@ -310,6 +310,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <p class="source" id="credits"></p>
       <details>
+        <summary>Browser recovery</summary>
+        <div class="field"><label for="recoveryInterval">Save recovery copy</label><select id="recoveryInterval"><option value="0">After each edit</option><option value="1">Every minute</option><option value="5">Every 5 minutes</option><option value="10">Every 10 minutes</option><option value="30">Every 30 minutes</option><option value="-1">Off</option></select></div>
+        <p class="hint" id="recoveryStatus" role="status"></p>
+        <p class="hint">Recovery is stored only in this browser, not beside your source file. Timed recovery also saves when leaving the page where possible. Off keeps the previous recovery but stops updating it. Use Save for a lasting file copy.</p>
+      </details>
+      <details>
         <summary>Reuse text, layouts and annotations</summary>
         <div>
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>

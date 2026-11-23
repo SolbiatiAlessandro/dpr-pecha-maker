@@ -677,4 +677,16 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   reverted.sections[0].text='Edited again';
   assert.strictEqual(saved.sections[0].text,'Original');
 }
+{
+  const Recovery=require('../src/recovery.js'); let time=0, stored=null, fail=false;
+  const r=new Recovery(v=>{if(fail)throw Error('quota'); stored=JSON.parse(JSON.stringify(v));},()=>time);
+  r.configure(1); r.queue({doc:'first'}); assert.strictEqual(stored.doc,'first');
+  time=30000; r.queue({doc:'second'}); assert.strictEqual(stored.doc,'first');
+  time=60000; r.flush(); assert.strictEqual(stored.doc,'second');
+  r.configure(-1); r.queue({doc:'off'}); r.flush(true); assert.strictEqual(stored.doc,'second');
+  r.configure(0); fail=true; assert.throws(()=>r.flush(),/quota/); assert.strictEqual(r.pending.doc,'off');
+  fail=false; r.flush(); assert.strictEqual(stored.doc,'off');
+  r.configure(30); r.queue({doc:'leaving'}); r.flush(true); assert.strictEqual(stored.doc,'leaving');
+  r.newDocument(); r.queue({doc:'new document'}); assert.strictEqual(stored.doc,'new document');
+}
 console.log('ok');

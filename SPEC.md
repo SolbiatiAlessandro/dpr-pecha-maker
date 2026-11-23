@@ -415,3 +415,16 @@ the earlier checkpoint across reloads. This is partial native Revert equivalence
 Chrome QA saved a disposable document, changed it, cancelled revert (edits
 retained), then confirmed revert (saved text restored). Regression verifies
 checkpoint and restored document are independent copies including text sections.
+
+### Browser recovery timing
+
+Default recovery remains after each edit. The browser preference can use1/5/10/30
+minute intervals or Off; first document recovery is immediate, later pending edits
+are saved when due. Page-hide attempts a final save unless disabled. Off retains
+the previous recovery without overwriting it. Quota/storage failures leave the
+pending document available for retry and tell the user to download a copy.
+This is browser-local recovery, not native .pxr files beside the original file.
+Tests inject time/storage to verify due boundaries, disabled force-flush, quota
+failure/retry, final flush and new-document reset. Chrome QA verified default
+saved status, timed pending status, Off status, and resumption of immediate saves.
+The full wall-clock minute was covered by deterministic tests, not a browser wait.

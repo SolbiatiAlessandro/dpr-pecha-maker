@@ -1,5 +1,10 @@
 // Interface: holds one document, writes form changes into it, and redraws the pages.
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
+const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
+const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
+let recoveryMinutes = 0;
+try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
+recovery.configure(recoveryMinutes);
 const $ = id => document.getElementById(id);
 const PAPERS = { A4: [11.69, 8.27], A3: [16.54, 11.69], Letter: [11, 8.5], Legal: [14, 8.5], Custom: null };
 const SIDES = [['title.front', 'Title, front'], ['title.back', 'Title, back'], ['fancy.front', 'Fancy, front'], ['fancy.back', 'Fancy, back'], ['body.front', 'Body, front'], ['body.back', 'Body, back']];
@@ -536,8 +541,24 @@ function openPrintPanel() {
 
 // ---------- storage and files ----------
 
-function persist() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc, isSample })); storageWarningShown = false; } catch (e) { if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.'); storageWarningShown = true; }
+function recoveryStatus() {
+  $('recoveryStatus').textContent = recovery.delay === null ? 'Recovery is off. Any earlier browser recovery remains available.'
+    : storageWarningShown ? 'Recovery could not be saved. Download a copy with Save.'
+    : recovery.pending ? 'Changes are waiting for the next recovery save.'
+    : recovery.lastSaved === null ? 'No recovery saved in this session yet.'
+    : `Last recovery saved ${new Date(recovery.lastSaved).toLocaleTimeString()}.`;
+}
+function persist(force = false) {
+  if (!doc) return;
+  try {
+    recovery.queue({doc, isSample});
+    if (force) recovery.flush(true);
+    storageWarningShown = false;
+  } catch (e) {
+    if (!storageWarningShown) toast('Browser storage is unavailable or full. Use Save to keep this document and its images.');
+    storageWarningShown = true;
+  }
+  recoveryStatus();
 }
 
 function restore() {
@@ -618,6 +639,7 @@ function setDoc(d, sample, src = null) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  recovery.newDocument();
   savedCheckpoint = {doc: Documents.artifact(d, 'document'), isSample: sample, source: src};
   reportImport([]);
   sectionIndex = 0;
@@ -895,6 +917,14 @@ function init() {
     const f = e.dataTransfer.files[0];
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
+  $('recoveryInterval').value = String(recoveryMinutes);
+  $('recoveryInterval').addEventListener('change', event => {
+    recoveryMinutes = Number(event.target.value); recovery.configure(recoveryMinutes);
+    try { localStorage.setItem(RECOVERY_PREF_KEY, String(recoveryMinutes)); } catch (_) { toast('This recovery preference could not be saved for next time.'); }
+    persist(true);
+  });
+  setInterval(() => { if (recovery.pending && recovery.delay !== null) persist(); }, 1000);
+  window.addEventListener('pagehide', () => persist(true));
   $('saveDoc').addEventListener('click', () => saveFile());
   $('revertDoc').addEventListener('click', () => {
     if (!savedCheckpoint) return;
@@ -922,7 +952,7 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (doc && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+    if (doc && !$('work').hidden && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
     }
   });
