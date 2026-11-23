@@ -308,3 +308,11 @@ Chrome sample QA:5pecha pages become2full pages; initial0.3in default clipped la
 Unicode title glyphs, corrected to0.6in; frames disappear, title text fully visible,
 print-sheet view shows one front/back sheet. Regression checks geometry, baseline,
 yi-go eligibility, section starts, print dimensions/margins and mode restoration.
+
+Import limitations now remain in a collapsible report above the preview until the
+next document is opened, rather than appearing only in a short toast. The report
+includes native/RTF warnings and unsupported-character counts, uses plain text,
+and is excluded from print. Chrome QA verified the experimental-image warning
+remains visible with the imported image. This report is session UI, not saved
+document metadata. Inline Copy/Move UI QA also verified100% reset, default spacing,
+visible size doubling from50%, and relocation without an extra old text marker.

@@ -586,6 +586,7 @@ function setDoc(d, sample, src = null) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  reportImport([]);
   sectionIndex = 0;
   showWork();
   buildPanels();
@@ -651,6 +652,15 @@ async function openPdf(file, buf) {
   }
 }
 
+function reportImport(messages) {
+  const list = $('importMessages');
+  list.replaceChildren(...[...new Set(messages)].map(message => {
+    const item = document.createElement('li'); item.textContent = message; return item;
+  }));
+  $('importReport').hidden = !messages.length;
+  $('importReport').open = true;
+}
+
 async function openFile(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const name = file.name.toLowerCase();
@@ -659,10 +669,12 @@ async function openFile(file) {
     if (name.endsWith('.rtf')) {
       const result = Rtf.read(buf, Engine, LEGACY_TABLE, doc || Engine.defaultDoc());
       setDoc(result.doc, false);
+      reportImport(result.warnings);
       toast(result.warnings.length ? result.warnings.join(' ') : 'RTF body text and supported formatting imported. Current page layout and annotations kept.');
     } else if (/\.px[pcta]$/.test(name)) {
       const { doc: d, unknown, warnings } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
       setDoc(d, false);
+      reportImport([...warnings, ...(unknown ? [`${unknown} characters use an unsupported font. Check them against the original.`] : [])]);
       toast(warnings.length ? warnings.join(' ') : unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);
     } else if (/\.(pecha|json)$/.test(name)) {
       setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
