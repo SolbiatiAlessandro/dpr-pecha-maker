@@ -689,4 +689,21 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   r.configure(30); r.queue({doc:'leaving'}); r.flush(true); assert.strictEqual(stored.doc,'leaving');
   r.newDocument(); r.queue({doc:'new document'}); assert.strictEqual(stored.doc,'new document');
 }
+{
+  // Actual PXA0.1 writer framing: compact non-TCC font IDs start at5; keys have no iNiT prefix.
+  const stream=Buffer.from([17,32,6,0,0,17,17,35,1,0,0,17,...Buffer.from('Latin note')]);
+  const head=Buffer.from('.pxa 0.1 u1 u2 u3 u4 0 2 0 0 Times New Roman\0'+'1 0 Georgia\0'+'\n[START NON-BODY]\nFolioStartNum=23\nPageStartNum=401\nAnnoInL[0].ptSz=20\nAnnoInL[0].insetF=0.15\nAnnoInL[0].en=1\nAnnoInL[0].slen='+stream.length+'\nAnnoInL[0].s=\n','latin1');
+  const fixture=Buffer.concat([head,stream,Buffer.from('\n[END NON-BODY]\n[START TEMPLATE]\n\n[PechaAnnotation]\nPageNumPtSz=14\n[END TEMPLATE]\n')]);
+  const parsed=Pxp.parse(fixture,TABLE); assert.strictEqual(parsed.fonts[5],'Times New Roman'); assert.strictEqual(parsed.fonts[6],'Georgia');
+  assert.deepStrictEqual(Buffer.from(parsed.nonBody.raw['AnnoInL[0].s']),stream);
+  const current=Engine.defaultDoc(); current.text='Keep body';
+  const loaded=Pxp.load(fixture,'pxa',TABLE,current,Engine);
+  assert.strictEqual(loaded.doc.folio.start,23); assert.strictEqual(loaded.doc.pageNum.start,401);
+  assert.strictEqual(loaded.doc.text,'Keep body'); assert.strictEqual(loaded.doc.pageNum.size,14);
+  assert(loaded.doc.notes.sets['title.front'].inL.text.includes('Latin note'));
+  assert(loaded.doc.notes.sets['title.front'].inL.text.includes('{b}'));
+  assert(loaded.warnings.some(w=>/experimental/.test(w)));
+  const invalid=Buffer.from('.pxa 0.1 u1 u2 u3 u4 0 0 \n[START NON-BODY]\nAnnoInL[0].slen=99999\nAnnoInL[0].s=\nx\n[END NON-BODY]\n');
+  assert.throws(()=>Pxp.parse(invalid,TABLE),/length/);
+}
 console.log('ok');

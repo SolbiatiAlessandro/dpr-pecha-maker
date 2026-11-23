@@ -428,3 +428,16 @@ Tests inject time/storage to verify due boundaries, disabled force-flush, quota
 failure/retry, final flush and new-document reset. Chrome QA verified default
 saved status, timed pending status, Off status, and resumption of immediate saves.
 The full wall-clock minute was covered by deterministic tests, not a browser wait.
+
+### Native PXA0.1 framing correction
+
+Targeted original-writer inspection established that annotation-only files use
+bare NON-BODY keys, rather than full-document iNiT-prefixed keys. Their header
+has two count/flag fields after u4; compact non-TCC font record0 maps to stream
+fontID5. The reader now accepts bare keys and offsets those compact records.
+Raw streams retain embedded NUL/control bytes; out-of-block lengths are rejected.
+Synthetic regression covers two compactfonts, rich bold text, independent counter
+starts and retained body/layout. Chrome imported an original synthetic specimen,
+visibly showing its Latin annotation, folio23/page401, preserved body and warning.
+No real native PXA export fixture has been obtained; implicit TCC references remain
+unresolved and explicitly warned. This is not a validated native round trip.

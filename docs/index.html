@@ -3496,10 +3496,11 @@ const Pxp = (() => {
 
   function parseFonts(head) {
     const fonts = {};
-    const list = head.replace(/^.*?u4 \d+ \d+ \d+ /s, '');
+    const annotationHeader = /^\.pxa 0\.1 u1 u2 u3 u4 (\d+) (\d+) /.exec(head);
+    const list = annotationHeader ? head.slice(annotationHeader[0].length) : head.replace(/^.*?u4 \d+ \d+ \d+ /s, '');
     const re = /(\d+) \d+ ([^\0]+)\0/g;
     let m;
-    while ((m = re.exec(list))) fonts[+m[1]] = m[2];
+    while ((m = re.exec(list))) fonts[+m[1] + (annotationHeader ? 5 : 0)] = m[2];
     return fonts;
   }
 
@@ -3512,10 +3513,11 @@ const Pxp = (() => {
       while (nl < end && b[nl] !== 10) nl++;
       const line = LAT(b, i, nl);
       i = nl + 1;
-      const m = /^iNiT ([^=]+)=(.*)$/.exec(line);
+      const m = /^(?:iNiT )?([^=]+)=(.*)$/.exec(line.replace(/\r$/, ''));
       if (!m) continue;
       const [, k, v] = m;
       if (/(\.s|Stream)$/.test(k)) {
+        if (!Number.isInteger(lastLen) || lastLen < 0 || lastLen > end - i) throw new Error('Invalid native text-stream length');
         raw[k] = b.subarray(i, i + lastLen);
         i += lastLen + 1;
       } else {
@@ -3733,12 +3735,17 @@ const Pxp = (() => {
   const on = (v, d) => (v === undefined ? d : +v !== 0);
 
   // Fills an engine document from a parsed file. Box geometry carries across unchanged. The first
-  // line position does not, because the old fonts hang from the baseline, so it goes back to auto.
+  // explicit box-to-first-baseline distance is retained; missing legacy values use automatic placement.
   function toDoc(u8, table, base, Engine) {
     const p = parse(u8, table);
     const d = base, t = p.template, v = p.nonBody.values, raw = p.nonBody.raw;
     const fontScale = TIB_SCALE;
     const nativeImages=readImages(p.imageBlock);
+    if (p.version.startsWith('.pxa 0.1')) {
+      nativeImages.warnings.push('Native annotation-file import is experimental; exact legacy rendering still needs original-app verification.');
+      const head=LAT(u8 instanceof Uint8Array ? u8 : new Uint8Array(u8),0,100);
+      if (/^\.pxa 0\.1 u1 u2 u3 u4 [1-9]/.test(head)) nativeImages.warnings.push('Implicit TCC font references are not yet resolved. Check all Tibetan annotations against the original.');
+    }
     d.assets=nativeImages.assets; d.images=nativeImages.images; d.yigo.image='';
     if(on(v.YigoImageEn,false)) {
       const source=d.images.find(im=>im.id==='native-inline-'+num(v.YigoLineImageIndex,-1));
