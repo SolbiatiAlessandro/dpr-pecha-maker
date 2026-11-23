@@ -86,6 +86,8 @@ const Pxp = (() => {
       } else if (c === 0x14 && bytes[i + 5] === 0x14) {
         buf += map(bytes[i + 2], bytes[i + 3]);
         i += 5;
+      } else if (c === 0x13 && i + 5 < bytes.length) {
+        flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
       } else if (c === 13 || c === 10) {
         flush(); ev.push({ t: 'hr' });
         if (c === 13 && bytes[i + 1] === 10) i++;
@@ -124,6 +126,57 @@ const Pxp = (() => {
       body: b.subarray(bodyStart, hasImageBlock ? imageStart : b.length) };
   }
 
+  // Independent reader for observed textual image-header version 1.1.
+  // Page anchor codes and older binary headers remain unsupported.
+  function readImages(block) {
+    const assets=[], images=[], warnings=[];
+    if (!block) return {assets,images,warnings};
+    warnings.push('Native image import is experimental; check every image position and size.');
+    if (block.length>24000000) {warnings.push('The native image block is too large.'); return {assets,images,warnings};}
+    let pos=0, phase='', record={}, payload=null; const groups={IINFO:[],LIINFO:[],PIINFO:[]};
+    const line=()=>{let end=pos;while(end<block.length && block[end]!==10)end++;const value=LAT(block,pos,end).replace(/\r$/,'');pos=end+1;return value;};
+    if (line()==='') {} else pos=0;
+    if (line()!=='[START IMAGES] 1.1') {warnings.push('This native image-header version is not supported.');return {assets,images,warnings};}
+    let count=0;
+    while(pos<block.length && count++<40000) {
+      const text=line();
+      const header=/^(ImageInfoCount|LineImageInfoCount|PageImageInfoCount)=(\d+)$/.exec(text);
+      if(header){phase={ImageInfoCount:'IINFO',LineImageInfoCount:'LIINFO',PageImageInfoCount:'PIINFO'}[header[1]];record={};continue;}
+      const end=/^\[END (IINFO|LIINFO|PIINFO) (\d+)\]$/.exec(text);
+      if(end){const index=+end[2];if(index<1000 && end[1]===phase)groups[phase][index]=record;record={};continue;}
+      const total=/^Images_totalBytes=(\d+)$/.exec(text);
+      if(total){const size=+total[1];if(size<=block.length-pos)payload=block.subarray(pos,pos+size);break;}
+      const field=/^([A-Za-z_]+)=(-?\d+(?:\.\d+)?)$/.exec(text);
+      if(field && phase)record[field[1]]=+field[2];
+    }
+    if(!payload){warnings.push('The native image payload is incomplete.');return {assets,images,warnings};}
+    const assetIds=new Map();
+    groups.IINFO.slice(0,200).forEach((info,index)=>{
+      if(!info)return;
+      const offset=info.imageOffset,size=info.compSize;
+      if(!Number.isInteger(offset)||!Number.isInteger(size)||offset<0||size<24||size>8000000||offset+size>payload.length){warnings.push('An invalid native image record was skipped.');return;}
+      const bytes=payload.subarray(offset,offset+size);
+      if(LAT(bytes,0,8)!=='\x89PNG\r\n\x1a\n'){warnings.push('A non-PNG native image was skipped.');return;}
+      const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),width=view.getUint32(16),height=view.getUint32(20);
+      if(!width||!height||width*height>16000000){warnings.push('An oversized native image was skipped.');return;}
+      let binary='';for(const b of bytes)binary+=String.fromCharCode(b);
+      const data='data:image/png;base64,'+btoa(binary);
+      let asset=assets.find(a=>a.data===data);
+      if(!asset){asset={id:'native-asset-'+index,data,width,height};assets.push(asset);}
+      assetIds.set(index,asset.id);
+    });
+    groups.LIINFO.forEach((info,index)=>{
+      if(!info||!assetIds.has(info.iInfoIndex))return;
+      const source=groups.IINFO[info.iInfoIndex];
+      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
+      images.push(PechaImages.placement({id:'native-inline-'+index,asset:assetIds.get(info.iInfoIndex),
+        dpi:source.dibXDPI>0?source.dibXDPI:96,ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
+        above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
+    });
+    if(groups.PIINFO.some(Boolean))warnings.push('Native fixed-page image anchors are not yet imported.');
+    return {assets,images,warnings:[...new Set(warnings)]};
+  }
+
   const ALIGN = { 0x32: 'l', 0x33: 'r', 0x34: 'c', 0x35: 'j' };
   const TIB_SCALE = 0.75;   // TibetanMachine is drawn smaller on its em than Jomolhari
 
@@ -136,6 +189,7 @@ const Pxp = (() => {
         if (v && v !== written) { out += `{${v}}`; written = v; }
         out += e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
       }
+      else if (e.t === 'image') out += `{image:native-inline-${e.index}}`;
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
       else if (e.op === 0x20) { font = e.a; if (fontMarks) out += isTibetanFont(font) ? '{font:jomolhari}' : '{font:serif}'; }
@@ -172,7 +226,14 @@ const Pxp = (() => {
     const p = parse(u8, table);
     const d = base, t = p.template, v = p.nonBody.values, raw = p.nonBody.raw;
     const fontScale = TIB_SCALE;
+    const nativeImages=readImages(p.imageBlock);
+    d.assets=nativeImages.assets; d.images=nativeImages.images; d.yigo.image='';
+    if(on(v.YigoImageEn,false)) {
+      const source=d.images.find(im=>im.id==='native-inline-'+num(v.YigoLineImageIndex,-1));
+      if(source){const yi={...source,id:'native-yigo',kind:'yigo'};d.images.push(yi);d.yigo.image=yi.id;}
+    }
     const { ev, unknown } = decodeStream(p.body, p.fonts, table);
+    if(ev.some(e=>e.t==='image'&&!d.images.some(p=>p.id==='native-inline-'+e.index))) nativeImages.warnings.push('Some inline image references could not be recovered.');
     d.text = eventsToText(ev, id => !!table[p.fonts[id]]).replace(/\s+$/, '');
     d.flow = false;
     const S = t.PageSetup;
@@ -257,7 +318,7 @@ const Pxp = (() => {
       }
       d.notes.sets[key] = set;
     });
-    return { doc: d, unknown: Object.keys(unknown).length, warnings: p.imageBlock ? ['This native file contains images that are not yet imported. Its image data was excluded from the text.'] : [] };
+    return { doc: d, unknown: Object.keys(unknown).length, warnings: nativeImages.warnings };
   }
 
   // Native partial files have different scopes (guide section 3). A template must not erase text.
@@ -265,7 +326,7 @@ const Pxp = (() => {
     const base = current ? JSON.parse(JSON.stringify(current)) : Engine.defaultDoc();
     const parsed = parse(u8, table);
     const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
-    if (extension === 'pxp') { imported.sections = []; imported.assets = []; imported.images = []; imported.yigo.image = ''; return result; }
+    if (extension === 'pxp') { imported.sections = []; return result; }
     if (extension === 'pxt') {
       for (const key of ['paper', 'margins', 'pecha', 'normal', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
       if (parsed.template.PechaAnnotation) {
@@ -282,13 +343,13 @@ const Pxp = (() => {
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
       }
       if (extension === 'pxc') {
-        base.text = imported.text; base.sections = []; base.flow = false; base.assets = []; base.images = []; imported.yigo.image = '';
+        base.text = imported.text; base.sections = []; base.flow = false; base.assets = imported.assets; base.images = imported.images;
         for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
       }
     } else throw new Error('Unknown PechaMaker file type');
     return {doc: base, unknown: result.unknown, warnings: result.warnings};
   }
 
-  return { parse, decodeStream, eventsToText, toDoc, load };
+  return { parse, readImages, decodeStream, eventsToText, toDoc, load };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;

@@ -103,7 +103,7 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 
 ## Not built yet
 
-Native image import/export, full RTF fidelity and TibetDoc import, OCR for woodblock-print scans, TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
+Complete native image import/export, full RTF fidelity and TibetDoc import, OCR for woodblock-print scans, TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
 tabs beyond a simple tab stop, editing directly on the page, undo beyond the browser's own.
 
 
@@ -172,7 +172,7 @@ Image yi-go uses the same eligibility rules as text yi-go. PNG pHYs density is r
 missing density and Ignore DPI use 96 DPI, an explicit web convention still awaiting
 Windows comparison. Full and content saves retain assets and placements; templates
 contain no image bytes. Browser-storage failures prompt the user to Save.
-Native image-block formats and original copy/move reset semantics remain open. Uploaded image data stays in the browser/local saved document.
+Native image interoperability and exact clipboard reset semantics remain open. Uploaded image data stays in the browser/local saved document.
 
 Page images use fixed volume page numbers with six left/right box/text anchors, inward
 and downward shifts, 20–200% scaling and a margin to text for text-side anchors.
@@ -271,10 +271,15 @@ guide/hint toggles; an automated comparison verifies unchanged print SVG output.
 
 Native image-tail guard: image-bearing files append an image header/metadata/payload
 after body bytes. The reader recognizes a structured [START IMAGES] header and
-excludes that tail from decoded body text, reporting unsupported native images.
-This is a corruption-prevention improvement, not image import. Framing was checked
-against the original writer through local static inspection; the regression fixture
-is synthetic and native image specimens remain unavailable.
+excludes that tail from decoded body text. An independent experimental reader now
+handles textual image-header version 1.1: embedded PNG assets, inline placement
+references and image yi-go. It validates payload bounds and caps image dimensions,
+then carries scale, DPI, baseline adjustment and side spacing into the web model.
+Older binary image headers, fixed-page anchor codes and native export remain open.
+Framing and inline-reference indexing were checked by local static inspection.
+Regression fixtures are synthetic: no real Windows image specimen is available,
+so this is not verified native interoperability. Chrome QA imported a synthetic
+file through the picker and visibly rendered its red PNG between two text runs.
 
 ### Kerning
 

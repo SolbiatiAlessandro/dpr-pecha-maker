@@ -258,7 +258,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="btn" type="button" id="copyImage">Copy inline image at text cursor</button>
         <button class="btn" type="button" id="moveImage">Move inline image to text cursor</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
-        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page images stay on the chosen volume page number when text changes. Native-file image imports are still in development.</p>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page images stay on the chosen volume page number when text changes. Native 1.1 inline/image yi-go import is experimental; check positions and sizes. Native fixed-page images and older image headers are not supported.</p>
       </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
@@ -298,7 +298,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still missing: native image import/export, full RTF fidelity and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still incomplete: native image import (1.1 inline/image yi-go is experimental; fixed-page images and older headers are missing), full RTF fidelity, TibetDoc import/export, Windows legacy keyboard maps, and original-format file export. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>

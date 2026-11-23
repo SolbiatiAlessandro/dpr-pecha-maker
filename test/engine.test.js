@@ -538,7 +538,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   const file=Buffer.from('.pxp\n[START NON-BODY]\n[END NON-BODY]\n[START TEMPLATE]\n[END TEMPLATE]\nBody\n[START IMAGES] 1.1\nImageInfoCount=1\nimageOffset=0\ncompSize=8\n[END IINFO 0]\nImages_totalBytes=8\nPAYLOAD!','latin1');
   const result=Pxp.load(file,'pxp',TABLE,Engine.defaultDoc(),Engine);
   assert(result.doc.text.includes('Body')); assert(!result.doc.text.includes('PAYLOAD'));
-  assert(!result.doc.text.includes('ImageInfoCount')); assert.strictEqual(result.warnings.length,1);
+  assert(!result.doc.text.includes('ImageInfoCount')); assert(result.warnings.length>=1);
 }
 
 // Kerning state travels with measured runs and printed text, and survives templates.
@@ -566,6 +566,25 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(Engine.run(d,measure).pages[1].lines[0].yigoCount>0);
   assert.strictEqual(Engine.run(d,measure).pages.length,2);
   d.pecha.mode=true; assert(Engine.run(d,measure).pages.some(p=>p.blank));
+}
+
+// Synthetic image-header1.1 follows observed writer framing; real native fixture still needed.
+{
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAc0lEQVR4nO3RMQ0AIBDAwFfCjP/gD2Qw9IbuTW7OXlf/mt8D9QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCg3QMFUIQOyQQsWgAAAABJRU5ErkJggg==','base64');
+  const head=Buffer.from('.pxp\n[START NON-BODY]\niNiT YigoImageEn=1\niNiT YigoLineImageIndex=0\n[END NON-BODY]\n[START TEMPLATE]\n[END TEMPLATE]\nBefore ','latin1');
+  const meta=Buffer.from(' after\n[START IMAGES] 1.1\nImageInfoCount=1\nimageOffset=0\ncompSize='+png.length+'\ndibXDPI=96\ndibYDPI=96\n[END IINFO 0]\nLineImageInfoCount=1\niInfoIndex=0\nignoreImgDPI=0\nscale=50\nsideSp_float=0.1\nyAdj_float=0.25\naddTFA=1\n[END LIINFO 0]\nPageImageInfoCount=0\nImages_totalBytes='+png.length+'\n','latin1');
+  const file=Buffer.concat([head,Buffer.from([0x13,0,0,0,0,0x13]),meta,png]);
+  const result=Pxp.load(file,'pxp',TABLE,Engine.defaultDoc(),Engine);
+  assert.strictEqual(result.doc.assets.length,1); assert.strictEqual(result.doc.images.length,2);
+  assert(result.doc.text.includes('Before {image:native-inline-0} after'));
+  assert.strictEqual(result.doc.yigo.image,'native-yigo');
+  const image=result.doc.images[0];assert.strictEqual(image.scale,50);assert.strictEqual(image.above,.25);
+  assert.strictEqual(image.space,.1);assert(image.addTibetan);
+  assert.strictEqual(PechaImages.dimensions(result.doc,image).w,36);
+  const current=Engine.defaultDoc();current.paper.w=17;
+  assert.strictEqual(Pxp.load(file,'pxc',TABLE,current,Engine).doc.paper.w,17);
+  const bad=Buffer.from(file);const at=bad.indexOf('imageOffset=0');bad[at+'imageOffset='.length]=57;
+  assert.strictEqual(Pxp.load(bad,'pxp',TABLE,current,Engine).doc.assets.length,0);
 }
 
 const dir = process.argv[2];
