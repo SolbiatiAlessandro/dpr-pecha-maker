@@ -36,6 +36,7 @@ const Engine = (() => {
       },
       tabWidth: 0.5,
       tibetanRaise: 0,
+      display: { baselines: false, hintColors: false },
       paper: { name: 'A4', w: 11.69, h: 8.27 },
       margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
       pecha: { height: 2.55, dlt: 0.03, perSheet: 3, placement: 'center' },
@@ -400,11 +401,12 @@ const Engine = (() => {
     return `<text transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})" font-size="${num(size)}" text-anchor="${anchor}" font-family="${esc(doc.font)}">${esc(s)}</text>`;
   }
 
-  function drawBoxes(p, doc) {
+  function drawBoxes(p, doc, screen = false) {
     const { O, I, d, lx1, lx2, rx1, rx2 } = p.boxes;
     const t = p.type;
     if (t.style === 'none') return '';
-    const stroke = `fill="none" stroke="${esc(t.color)}" stroke-width="0.7"`;
+    const color = screen && doc.display?.hintColors ? {title:"#b03020",fancy:"#16723b",body:"#245bb4"}[p.kind] : t.color;
+    const stroke = `fill="none" stroke="${esc(color)}" stroke-width="0.7"`;
     const rect = (r, inset = 0) => `<rect x="${num(r.x0 + inset)}" y="${num(r.y0 + inset)}" width="${num(r.x1 - r.x0 - 2 * inset)}" height="${num(r.y1 - r.y0 - 2 * inset)}" ${stroke}/>`;
     let out = rect(O);
     if (d) out += rect(O, d);
@@ -429,20 +431,20 @@ const Engine = (() => {
     const block = (nLines - 1) * t.lineHeight * PT + head.height;
     const start = t.top === null ? T.y0 + (room - block) / 2 : T.y0 + t.top * PT;
     let out = '';
-    p.lineTops = [];
+    p.lineTops = []; p.lineBaselines = [];
     p.lines.forEach((line, ln) => {
       const top = start + ln * t.lineHeight * PT;
       p.lineTops.push(top);
+      const baseline = top + head.ascent;
+      p.lineBaselines.push(baseline);
       for (const a of line.items) {
         if (a.image) {
           const im = PechaImages.dimensions(doc, a.image);
-          const baseline = top + measure.head(doc, a.f.size).ascent;
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
           out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
           continue;
         }
-        const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
-        out += textEl(T.x0 + (line.offset || 0) + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
+        out += textEl(T.x0 + (line.offset || 0) + a.x, baseline - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
     });
     return out;
@@ -455,10 +457,10 @@ const Engine = (() => {
     const yOf = k => {
       const bottoms = p.lines[k].items.filter(a => !a.image && a.s).map(a => {
         const tibetan = isTib(a.s[0]);
-        return measure.head({...doc, font: a.f.family}, a.f.size, tibetan).height
+        return measure.head({...doc, font: a.f.family}, a.f.size, tibetan).descent
           - (tibetan ? (doc.tibetanRaise || 0) * PT : 0);
       });
-      return p.lineTops[k] + (bottoms.length ? Math.max(...bottoms) : measure.head(doc, p.type.fontSize).height);
+      return p.lineBaselines[k] + (bottoms.length ? Math.max(...bottoms) : measure.head(doc, p.type.fontSize).descent);
     };
     const y1 = yOf(last) - (doc.dzog.leftUp || 0) * PT;
     const final = p.lines[last].items.at(-1);
@@ -541,12 +543,13 @@ const Engine = (() => {
     }).join('');
   }
 
-  function pageInner(p, doc, measure, folioCount) {
+  function pageInner(p, doc, measure, folioCount, screen = false) {
     if (p.blank) return '';
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
+    const guides = screen && doc.display?.baselines ? p.lineBaselines.map(y => `<line data-baseline-guide="true" x1="${num(p.boxes.T.x0)}" x2="${num(p.boxes.T.x1)}" y1="${num(y)}" y2="${num(y)}" stroke="#888" stroke-width="0.5" stroke-dasharray="3 3"/>`).join('') : '';
     return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
-      + drawBoxes(p, doc) + drawPageImages(p, doc) + text
+      + drawBoxes(p, doc, screen) + drawPageImages(p, doc) + guides + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
       + `</g>`;
@@ -554,7 +557,7 @@ const Engine = (() => {
 
   function pageSvg(p, doc, measure, folioCount) {
     const { w, h } = p.boxes;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(w)} ${num(h)}" role="img" aria-label="Pecha page ${p.n}">${pageInner(p, doc, measure, folioCount)}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(w)} ${num(h)}" role="img" aria-label="Pecha page ${p.n}">${pageInner(p, doc, measure, folioCount, true)}</svg>`;
   }
 
   // ---------- sheets ----------
@@ -600,7 +603,7 @@ const Engine = (() => {
     sheet.slots.forEach((p, r) => {
       if (!p) return;
       const y = doc.pecha.placement === 'top' ? (back ? H - bottom - (r + 1) * h : top + r * h) : top + r * strip + (strip - h) / 2;
-      out += `<g transform="translate(${num(x)} ${num(y)})">${pageInner(p, doc, measure, folioCount)}</g>`;
+      out += `<g transform="translate(${num(x)} ${num(y)})">${pageInner(p, doc, measure, folioCount, screen)}</g>`;
     });
     if (doc.print.cutMarks) {
       const tick = 14;

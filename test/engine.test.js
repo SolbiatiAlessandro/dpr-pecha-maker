@@ -452,7 +452,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   const render=()=>{ const r=Engine.run(d,measure); return {r, svg:Engine.pageSvg(r.pages[0],d,measure,r.folioCount)}; };
   let {r,svg}=render();
   const path=svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
-  assert(Math.abs(+path.match(/^M[\d.]+ ([\d.]+)H/)[1]-(r.pages[0].lineTops[0]+30)) < .01);
+  assert(Math.abs(+path.match(/^M[\d.]+ ([\d.]+)H/)[1]-(r.pages[0].lineBaselines[0]+10)) < .01);
   d.flow=false; d.text='{l}First\nLast';
   const before=render().svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
   d.text+='   ';
@@ -509,6 +509,28 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(n.notes.sets['body.front'].inL.text,'Keep'); assert.strictEqual(n.folio.rhino,'Phrase');
   assert.strictEqual(n.yigo.text,'Custom'); assert.deepStrictEqual(n.assets,[d.assets[0]]);
   n.notes.sets['body.front'].inL.text='Changed'; assert.strictEqual(d.notes.sets['body.front'].inL.text,'Keep');
+}
+
+// Mixed sizes/fonts share a line baseline; Tibetan raise moves only Tibetan runs.
+{
+  const d=Engine.defaultDoc(); d.text='{l font:serif 40}Large{12}small{font:noto}ཀ་';
+  d.counts={title:0,fancy:0}; d.yigo.enabled=false; d.tibetanRaise=.1;
+  const r=Engine.run(d,measure); const svg=Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  const yFor=s=>+svg.match(new RegExp('<text[^>]* y="([0-9.]+)"[^>]*>'+s+'</text>'))[1];
+  assert.strictEqual(yFor('Large'),yFor('small'));
+  assert(Math.abs(yFor('Large')-yFor('ཀ་')-7.2)<.01);
+}
+
+// Display hints never alter printed sheet output or saved frame colours.
+{
+  const d=Engine.defaultDoc(); d.text='Text'; d.types.title.color='#112233';
+  const r=Engine.run(d,measure), sheet=Engine.impose(d,r.pages,{pass:'sequence'})[0];
+  const plain=Engine.sheetSvg(sheet,d,measure,r.folioCount,false);
+  d.display={baselines:true,hintColors:true};
+  const preview=Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
+  assert(preview.includes('data-baseline-guide')); assert(preview.includes('stroke="#b03020"'));
+  assert.strictEqual(Engine.sheetSvg(sheet,d,measure,r.folioCount,false),plain);
+  assert.strictEqual(d.types.title.color,'#112233');
 }
 
 const dir = process.argv[2];

@@ -134,6 +134,10 @@ function buildPanels() {
     { path: 'tibetanRaise', label: 'Raise Tibetan, in', step: 0.01, min: -2, max: 2 },
   ]);
   buildRolePanel();
+  fill($('displayFields'), [
+    {path:'display.baselines',label:'Show baseline guides',type:'check'},
+    {path:'display.hintColors',label:'Colour boxes by page type on screen',type:'check'},
+  ]);
   fill($('paperFields'), [
     { path: 'paper.name', label: 'Paper', type: 'select', options: Object.keys(PAPERS).map(k => [k, k]), onChange: v => { if (PAPERS[v]) { [doc.paper.w, doc.paper.h] = PAPERS[v]; buildPanels(); } } },
     { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8, onChange: v => { if (v > 1) { doc.pecha.placement = 'center'; $('f_pecha_placement').value = 'center'; } } },

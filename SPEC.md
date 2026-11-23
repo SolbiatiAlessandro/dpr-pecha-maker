@@ -256,3 +256,15 @@ keeps those settings; its existing layout preservation is unchanged. Body/page
 images and prior text sections are cleared. This follows guide2.0 p36 and author
 release1.13.2 forum post157; a separate Close-to-startup-defaults workflow remains
 unimplemented. Native full-file loading continues to use the file's own settings.
+
+### Shared baselines and screen guides
+
+Mixed font sizes now share the line's reference baseline; the independent Tibetan
+raise offsets Tibetan text only. Inline images and dzog-thik descent use the same
+reference. This corrects previous alignment by each run's top edge. The reference
+is still derived from the web page-type font metrics; exact native baseline-offset
+import and historical font metrics remain unverified.
+Optional dashed baseline guides and red/green/blue Title/Fancy/Body frame hints
+apply only to screen SVGs. Printed SVGs retain configured frame colours and contain
+no baseline guides. Chrome QA verified mixed40pt/12pt text alignment and visible
+guide/hint toggles; an automated comparison verifies unchanged print SVG output.
