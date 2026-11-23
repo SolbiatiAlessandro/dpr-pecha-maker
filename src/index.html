@@ -90,6 +90,11 @@ header {
 
 .stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 18px; background: var(--table-2); color: #dfe7ea; font-size: 13px; font-variant-numeric: tabular-nums; }
+.preview-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.preview-nav input { width: 5em; background: #fff; color: #17232a; }
+.preview-nav button { background: #dfe7ea; color: #17232a; border: 1px solid #a9bac4; border-radius: 3px; padding: 4px 8px; }
+.preview-nav button:disabled { opacity: .45; }
+.preview-nav label { display: inline; color: inherit; }
 .bar .seg { border-color: #4f6370; width: 180px; }
 .bar .seg button { background: transparent; color: #dfe7ea; }
 .bar .seg button[aria-pressed="true"] { background: var(--slate); color: #10181d; }
@@ -360,6 +365,16 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <main class="stage">
     <div class="bar">
       <div class="seg" id="viewSeg"></div>
+      <form class="preview-nav" id="goPageForm">
+        <label for="goPage">Go to page</label>
+        <input id="goPage" type="number" min="1" step="1" value="1" required title="Document page number (Ctrl+G or Command+G)">
+        <button type="submit">Go</button>
+      </form>
+      <div class="preview-nav" aria-label="Preview navigation">
+        <button id="previousPreview" type="button">Previous 24</button>
+        <span id="previewRange" role="status"></span>
+        <button id="nextPreview" type="button">Next 24</button>
+      </div>
       <span id="stats"></span>
       <span id="warn" role="status"></span>
     </div>

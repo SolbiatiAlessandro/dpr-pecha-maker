@@ -10,6 +10,7 @@ const PRINT_MODES = [['duplex', 'Two-sided printer'], ['manual', 'One side at a 
 
 const PREVIEW_PAGES = 24;
 
+let previewStart = 0;
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
 let sectionIndex = 0, imageId = '', storageWarningShown = false;
@@ -467,8 +468,14 @@ function render() {
   };
   const sheets = Engine.impose(doc, res.pages);
   const total = view === 'pages' ? res.pages.length : sheets.length;
+  previewStart = Math.max(0, Math.min(previewStart, total - 1));
+  const previewEnd = Math.min(total, previewStart + PREVIEW_PAGES);
+  $('previousPreview').disabled = previewStart === 0;
+  $('nextPreview').disabled = previewEnd >= total;
+  $('previewRange').textContent = `${view === 'pages' ? 'Pages' : 'Sheet sides'} ${previewStart + 1}–${previewEnd} of ${total}`;
+  $('goPage').max = String(res.pages.length);
   if (view === 'pages') {
-    for (const p of res.pages.slice(0, PREVIEW_PAGES)) {
+    for (const p of res.pages.slice(previewStart, previewEnd)) {
       const folio = Math.ceil(p.n / 2);
       const tag = doc.pecha.mode === false ? `Page ${p.n}${p.sectionName ? ' · '+p.sectionName : ''}` : p.blank ? `Page ${p.n} · blank back before the next text` : `Page ${p.n} · ${p.kind} · ${p.sectionName ? `${p.sectionName} · text folio ${p.folioNumber}` : `folio ${folio}`} ${p.front ? 'front' : 'back'}`;
       leaf(tag.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), Engine.pageSvg(p, doc, measure, res.folioCount));
@@ -477,12 +484,12 @@ function render() {
     const of = sheets.filter(s => s.side !== 'back').length;
     const tag = s => (s.side === 'seq' ? `Proof sheet ${s.sheet} of ${of} · pages in order`
       : `Sheet ${s.sheet} of ${of} · ${s.side === 'front' ? 'front' : doc.print.turnBacks ? 'back, upside down for a printer that turns it' : 'back, as it reads once the sheet is turned over its top edge'}`);
-    sheets.slice(0, PREVIEW_PAGES).forEach(s => leaf(tag(s), Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
+    sheets.slice(previewStart, previewEnd).forEach(s => leaf(tag(s), Engine.sheetSvg(s, doc, measure, res.folioCount, true), true));
   }
   if (total > PREVIEW_PAGES) {
     const more = document.createElement('p');
     more.className = 'more';
-    more.textContent = `Showing the first ${PREVIEW_PAGES} of ${total}. Printing includes all of them.`;
+    more.textContent = `Showing ${previewStart + 1}–${previewEnd} of ${total}. Printing includes all of them.`;
     frag.append(more);
   }
   host.replaceChildren(frag);
@@ -613,6 +620,7 @@ function setDoc(d, sample, src = null) {
   doc = d; isSample = sample; source = src;
   reportImport([]);
   sectionIndex = 0;
+  previewStart = 0;
   showWork();
   buildPanels();
   noteSample();
@@ -873,6 +881,25 @@ function init() {
   });
   $('saveDoc').addEventListener('click', () => saveFile());
   $('printBtn').addEventListener('click', openPrintPanel);
+  for (const [id, direction] of [['previousPreview', -1], ['nextPreview', 1]]) {
+    $(id).addEventListener('click', () => {
+      previewStart = Math.max(0, previewStart + direction * PREVIEW_PAGES);
+      render(); $('table').scrollTop = 0;
+    });
+  }
+  $('goPageForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const page = Number($('goPage').value);
+    if (!Number.isInteger(page) || page < 1 || page > latest.pages.length) return;
+    setView('pages', true);
+    previewStart = page - 1;
+    render(); $('table').scrollTop = 0;
+  });
+  document.addEventListener('keydown', event => {
+    if (doc && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+      event.preventDefault(); $('goPage').focus(); $('goPage').select();
+    }
+  });
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
   // The browser's own print command prints both sides in one file, or the proof.
   window.addEventListener('beforeprint', () => { if (!printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
@@ -893,6 +920,7 @@ function init() {
 }
 
 function setView(v, quiet) {
+  if (view !== v) previewStart = 0;
   view = v;
   segment($('viewSeg'), [['pages', 'Pages'], ['sheets', 'Print sheets']], view, x => setView(x));
   if (!quiet && doc) render();

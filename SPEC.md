@@ -379,3 +379,15 @@ documents, with no change to generated print SVGs. Browser-level print commands
 remain under browser control and generate the normal print layout. Chrome QA
 verified touching page edges, disabled print button, and restored captions/button
 after switching off. The screen-guide print-equality regression includes compact.
+
+### Preview navigation
+
+Go to Page uses one-based document pages (including blank backs), independent
+of Tibetan/Arabic numbering starts. Ctrl+G/Command+G focuses the field. A jump
+switches from sheet preview to page preview. Previous/Next buttons browse batches
+of24 pages or sheet sides; changing view or loading a document resets the window.
+The preview limit does not change pagination, imposition or print output.
+Chrome QA used55 explicit pages: batches1–24,25–48,49–55, disabled final Next,
+direct jump30–53, and20 sheet sides after switching view. A visual contrast defect
+was fixed and rechecked. The original GoToPage menu is documented; selection and
+scroll details are web-specific, not a verified recreation of native editor focus.

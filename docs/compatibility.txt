@@ -29,6 +29,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 - In pecha mode each section starts on a new folio front; an inserted blank back counts toward volume page numbers. Full-page mode starts a new page without a blank back. Restarting Title/Fancy layouts is an explicit per-text choice.
 
 PARTIAL COMPATIBILITY
+- Preview navigation: Go to Page uses document page numbers; Ctrl+G/Command+G focuses its field. Previous/Next browse all preview batches. Printing still includes the complete document. Native editor cursor behavior is not reproduced.
 - Character selection: a Unicode Tibetan palette groups letters, subjoined forms, marks, signs and numbers, with optional supported typeface choice. It inserts at the cursor or replaces selection while preserving surrounding formatting. It does not reproduce legacy font-code charts or all Windows-installed fonts.
 - Full-page (non-pecha) mode reflows within paper margins, with separate line height and first baseline, one page per sheet, and yi-go after the first page. Pecha frames/labels are retained but hidden; original label interactions and native font/print equivalence still need verification.
 - RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
