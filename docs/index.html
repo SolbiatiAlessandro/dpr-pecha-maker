@@ -330,6 +330,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
           <button class="btn" type="button" id="revertDoc">Revert to open / Save checkpoint</button>
+          <button class="btn" type="button" id="closeDoc">Close document and reset for next pecha</button>
           <p class="hint">Revert restores the document opened in this session or the checkpoint captured when you press full Save. Cancelling the download does not undo that checkpoint. Separate-settings downloads do not change it. Revert does not reread an external file. Browser recovery keeps the most recent edits separately.</p>
           <input id="partFile" type="file" accept=".pecha,.json,.pxt,.pxc,.pxa,.rtf" hidden>
           <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
@@ -5210,6 +5211,13 @@ function init() {
   setInterval(() => { if (recovery.pending && recovery.delay !== null) persist(); }, 1000);
   window.addEventListener('pagehide', () => persist(true));
   $('saveDoc').addEventListener('click', () => saveFile());
+  $('closeDoc').addEventListener('click', () => {
+    if (!confirm('Close this document and reset the next new pecha to default settings and empty annotations? Download a copy with Save first if needed.')) return;
+    persist(true); clearTimeout(timer);
+    doc = null; source = null; savedCheckpoint = null; latest = null;
+    recovery.newDocument(); $('printRoot').replaceChildren();
+    showStart('Document closed. A new pecha will start with default settings. Browser recovery, when available, can reopen the previous document.');
+  });
   $('revertDoc').addEventListener('click', () => {
     if (!savedCheckpoint) return;
     if (!confirm('Discard changes since this document was opened or the full Save command was last used? This cannot be undone.')) return;
@@ -5242,7 +5250,7 @@ function init() {
   });
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
   // The browser's own print command prints both sides in one file, or the proof.
-  window.addEventListener('beforeprint', () => { if (!printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
+  window.addEventListener('beforeprint', () => { if (doc && !printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
   window.addEventListener('afterprint', () => {
     if (printPass === 'fronts') toast('Now turn the printed stack over its top edge, put it back in the tray, and print the backs.');
     printPass = null;

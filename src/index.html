@@ -323,6 +323,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
           <button class="btn" type="button" id="revertDoc">Revert to open / Save checkpoint</button>
+          <button class="btn" type="button" id="closeDoc">Close document and reset for next pecha</button>
           <p class="hint">Revert restores the document opened in this session or the checkpoint captured when you press full Save. Cancelling the download does not undo that checkpoint. Separate-settings downloads do not change it. Revert does not reread an external file. Browser recovery keeps the most recent edits separately.</p>
           <input id="partFile" type="file" accept=".pecha,.json,.pxt,.pxc,.pxa,.rtf" hidden>
           <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>

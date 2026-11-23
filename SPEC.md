@@ -441,3 +441,13 @@ starts and retained body/layout. Chrome imported an original synthetic specimen,
 visibly showing its Latin annotation, folio23/page401, preserved body and warning.
 No real native PXA export fixture has been obtained; implicit TCC references remain
 unresolved and explicitly warned. This is not a validated native round trip.
+
+### Close versus New
+
+Close document confirms, attempts enabled browser recovery, clears the session
+document/checkpoint/print content and returns to the start screen. The next new
+pecha uses default settings and blank annotations. This differs intentionally
+from New/import retaining reusable annotations while the current document exists,
+matching the documented Close/New distinction. Chrome QA confirmed start-screen
+recovery remains available, new text is empty, both counters reset1 and annotation
+fields are blank. Original Windows startup INI defaults are not imported.

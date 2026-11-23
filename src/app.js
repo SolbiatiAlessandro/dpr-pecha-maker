@@ -926,6 +926,13 @@ function init() {
   setInterval(() => { if (recovery.pending && recovery.delay !== null) persist(); }, 1000);
   window.addEventListener('pagehide', () => persist(true));
   $('saveDoc').addEventListener('click', () => saveFile());
+  $('closeDoc').addEventListener('click', () => {
+    if (!confirm('Close this document and reset the next new pecha to default settings and empty annotations? Download a copy with Save first if needed.')) return;
+    persist(true); clearTimeout(timer);
+    doc = null; source = null; savedCheckpoint = null; latest = null;
+    recovery.newDocument(); $('printRoot').replaceChildren();
+    showStart('Document closed. A new pecha will start with default settings. Browser recovery, when available, can reopen the previous document.');
+  });
   $('revertDoc').addEventListener('click', () => {
     if (!savedCheckpoint) return;
     if (!confirm('Discard changes since this document was opened or the full Save command was last used? This cannot be undone.')) return;
@@ -958,7 +965,7 @@ function init() {
   });
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
   // The browser's own print command prints both sides in one file, or the proof.
-  window.addEventListener('beforeprint', () => { if (!printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
+  window.addEventListener('beforeprint', () => { if (doc && !printPass) buildPrint(doc.print.sides === 'sequence' ? 'sequence' : 'duplex'); });
   window.addEventListener('afterprint', () => {
     if (printPass === 'fronts') toast('Now turn the printed stack over its top edge, put it back in the tray, and print the backs.');
     printPass = null;

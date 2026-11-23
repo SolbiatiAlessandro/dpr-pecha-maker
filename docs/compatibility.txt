@@ -30,6 +30,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 
 PARTIAL COMPATIBILITY
 - Recovery can save after each edit, every1/5/10/30 minutes, or be disabled. It stores one recovery in this browser, not a native .pxr file beside the source. Off retains the previous copy. Storage limits/private browsing can prevent recovery; keep downloaded copies.
+- Close resets the next new pecha to web defaults and empty annotations; New/import while a document is open retains reusable annotations. Original startup settings are not imported.
 - Revert restores the session open/full-Save checkpoint after confirmation. Full Save captures it when invoked, even if its download is cancelled. This does not reread an external file or retain earlier checkpoints across reloads. Browser recovery still stores recent edits automatically.
 - Preview navigation: Go to Page uses document page numbers; Ctrl+G/Command+G focuses its field. Previous/Next browse all preview batches. Printing still includes the complete document. Native editor cursor behavior is not reproduced.
 - Character selection: a Unicode Tibetan palette groups letters, subjoined forms, marks, signs and numbers, with optional supported typeface choice. It inserts at the cursor or replaces selection while preserving surrounding formatting. It does not reproduce legacy font-code charts or all Windows-installed fonts.
@@ -48,7 +49,7 @@ NOT IMPLEMENTED YET
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps and locked keyboard mode.
 
-- Command-line imports and original Close/startup-defaults workflow.
+- Command-line imports and Windows startup-INI/default-setting equivalence.
 - Typeover, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.
 
