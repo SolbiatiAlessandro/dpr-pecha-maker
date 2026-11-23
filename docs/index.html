@@ -2420,6 +2420,7 @@ const Engine = (() => {
       },
       tabWidth: 0.5,
       tibetanRaise: 0,
+      kerning: true,
       display: { baselines: false, hintColors: false },
       paper: { name: 'A4', w: 11.69, h: 8.27 },
       margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
@@ -2601,7 +2602,7 @@ const Engine = (() => {
     const st = atom.style || {};
     const role = doc.roles && doc.roles[st.role];
     const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
-    return { size, weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
+    return { size, kerning: doc.kerning === false ? 'none' : 'normal', weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
       italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
       family: st.font ? {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"}[st.font] : role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
   }
@@ -2932,7 +2933,7 @@ const Engine = (() => {
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
     const guides = screen && doc.display?.baselines ? p.lineBaselines.map(y => `<line data-baseline-guide="true" x1="${num(p.boxes.T.x0)}" x2="${num(p.boxes.T.x1)}" y1="${num(y)}" y2="${num(y)}" stroke="#888" stroke-width="0.5" stroke-dasharray="3 3"/>`).join('') : '';
-    return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
+    return `<g text-rendering="geometricPrecision" style="font-kerning:${doc.kerning === false ? 'none' : 'normal'}" font-family="${esc(doc.font)}" fill="#14100e">`
       + drawBoxes(p, doc, screen) + drawPageImages(p, doc) + guides + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
@@ -3295,7 +3296,7 @@ if (typeof module !== 'undefined') module.exports = Rtf;
 // Browser document files. These JSON formats are independent of Windows PechaMaker's formats.
 const Documents = (() => {
   const clone = value => JSON.parse(JSON.stringify(value));
-  const layoutKeys = ['font', 'fontName', 'textSize', 'roles', 'tabWidth', 'tibetanRaise', 'paper', 'margins', 'pecha', 'counts', 'types', 'shad', 'yigo', 'dzog', 'print'];
+  const layoutKeys = ['font', 'fontName', 'textSize', 'roles', 'tabWidth', 'tibetanRaise', 'kerning', 'paper', 'margins', 'pecha', 'counts', 'types', 'shad', 'yigo', 'dzog', 'print'];
   const annotationKeys = ['folio', 'pageNum', 'notes', 'sectionLabels'];
   // Keep only known fields, merge older documents with defaults, and never assign prototype keys.
   function merge(base, input) {
@@ -4093,10 +4094,12 @@ const widths = new Map(), heads = new Map();
 const BASE = 200;
 
 function measure(s, f) {
-  const key = `${f.family}|${f.weight}|${f.italic}|${s}`;
+  const kerning = f.kerning || (doc?.kerning === false ? 'none' : 'normal');
+  const key = `${f.family}|${f.weight}|${f.italic}|${kerning}|${s}`;
   let w = widths.get(key);
   if (w === undefined) {
     ctx.font = `${f.italic ? 'italic ' : ''}${f.weight} ${BASE}px ${f.family}`;
+    if ('fontKerning' in ctx) ctx.fontKerning = kerning;
     w = ctx.measureText(s.replace(//g, '།')).width / BASE;
     widths.set(key, w);
   }
@@ -4156,6 +4159,7 @@ function field(host, def) {
     el.id = id;
     wrap.append(lab, el);
   }
+  if (def.disabled) el.disabled = true;
   el.addEventListener(def.event || (def.type === 'select' || def.type === 'check' ? 'change' : 'input'), () => {
     let v;
     if (def.type === 'check') v = el.checked;
@@ -4201,6 +4205,7 @@ function buildPanels() {
   fill($('textFields'), [
     { path: 'textSize', label: 'All main text, pt (blank keeps individual sizes)', step: 1, min: 5, max: 200, nullable: true, wide: true, placeholder: 'individual sizes' },
     { path: 'tabWidth', label: 'Tab stops, in', step: 0.05, min: 0.05, max: 20 },
+    { path: 'kerning', label: 'Apply font kerning', type: 'check', disabled: !('fontKerning' in ctx) },
     { path: 'tibetanRaise', label: 'Raise Tibetan, in', step: 0.01, min: -2, max: 2 },
   ]);
   buildRolePanel();

@@ -1,7 +1,7 @@
 // Browser document files. These JSON formats are independent of Windows PechaMaker's formats.
 const Documents = (() => {
   const clone = value => JSON.parse(JSON.stringify(value));
-  const layoutKeys = ['font', 'fontName', 'textSize', 'roles', 'tabWidth', 'tibetanRaise', 'paper', 'margins', 'pecha', 'counts', 'types', 'shad', 'yigo', 'dzog', 'print'];
+  const layoutKeys = ['font', 'fontName', 'textSize', 'roles', 'tabWidth', 'tibetanRaise', 'kerning', 'paper', 'margins', 'pecha', 'counts', 'types', 'shad', 'yigo', 'dzog', 'print'];
   const annotationKeys = ['folio', 'pageNum', 'notes', 'sectionLabels'];
   // Keep only known fields, merge older documents with defaults, and never assign prototype keys.
   function merge(base, input) {

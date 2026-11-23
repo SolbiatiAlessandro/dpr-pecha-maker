@@ -541,6 +541,14 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert(!result.doc.text.includes('ImageInfoCount')); assert.strictEqual(result.warnings.length,1);
 }
 
+// Kerning state travels with measured runs and printed text, and survives templates.
+{
+  const d=Engine.defaultDoc(); d.text='AVATAR'; d.kerning=false;
+  const r=Engine.run(d,measure); assert.strictEqual(r.pages[0].lines[0].items.at(-1).f.kerning,'none');
+  assert(Engine.pageSvg(r.pages[0],d,measure,r.folioCount).includes('font-kerning:none'));
+  assert.strictEqual(Documents.apply(Engine.defaultDoc(),Documents.artifact(d,'template'),Engine).kerning,false);
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

@@ -275,3 +275,14 @@ excludes that tail from decoded body text, reporting unsupported native images.
 This is a corruption-prevention improvement, not image import. Framing was checked
 against the original writer through local static inspection; the regression fixture
 is synthetic and native image specimens remain unavailable.
+
+### Kerning
+
+The document kerning switch is carried into measured font runs, canvas width-cache
+keys and screen/print SVG text style. Layout templates preserve it. The checkbox
+is disabled in browsers without canvas fontKerning support; those browsers cannot
+reliably reproduce documents saved with kerning disabled. Browser fonts and their
+kerning data still differ from the historical Windows fonts. Chrome QA verifies
+the enabled checkbox changes state and renders a large Latin test without errors;
+exact spacing differences are not claimed from that visual check.
+API reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fontKerning

@@ -23,10 +23,12 @@ const widths = new Map(), heads = new Map();
 const BASE = 200;
 
 function measure(s, f) {
-  const key = `${f.family}|${f.weight}|${f.italic}|${s}`;
+  const kerning = f.kerning || (doc?.kerning === false ? 'none' : 'normal');
+  const key = `${f.family}|${f.weight}|${f.italic}|${kerning}|${s}`;
   let w = widths.get(key);
   if (w === undefined) {
     ctx.font = `${f.italic ? 'italic ' : ''}${f.weight} ${BASE}px ${f.family}`;
+    if ('fontKerning' in ctx) ctx.fontKerning = kerning;
     w = ctx.measureText(s.replace(//g, '།')).width / BASE;
     widths.set(key, w);
   }
@@ -86,6 +88,7 @@ function field(host, def) {
     el.id = id;
     wrap.append(lab, el);
   }
+  if (def.disabled) el.disabled = true;
   el.addEventListener(def.event || (def.type === 'select' || def.type === 'check' ? 'change' : 'input'), () => {
     let v;
     if (def.type === 'check') v = el.checked;
@@ -131,6 +134,7 @@ function buildPanels() {
   fill($('textFields'), [
     { path: 'textSize', label: 'All main text, pt (blank keeps individual sizes)', step: 1, min: 5, max: 200, nullable: true, wide: true, placeholder: 'individual sizes' },
     { path: 'tabWidth', label: 'Tab stops, in', step: 0.05, min: 0.05, max: 20 },
+    { path: 'kerning', label: 'Apply font kerning', type: 'check', disabled: !('fontKerning' in ctx) },
     { path: 'tibetanRaise', label: 'Raise Tibetan, in', step: 0.01, min: -2, max: 2 },
   ]);
   buildRolePanel();

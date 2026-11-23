@@ -11,6 +11,7 @@ AVAILABLE IN THE WEB APP
 - Independent Tibetan folio and Arabic page starting numbers, title visibility, Jyon, fixed folio phrase, independent number fonts, sizes and insets.
 - Arabic bottom/center placement and label rotation; extra Tibetan label rotation choices.
 - Static margin annotations for page type and front/back, with optional mixed font/style/colour, one size per annotation position, and inset.
+- Optional font kerning where the browser supports matching canvas measurement and SVG rendering. Native font metrics remain unverified.
 - Left/right/center/justified text, font size and colour, bold/italic/underline/strike formatting marks, hard returns, hard page breaks and fixed shad.
 - One tab interval with tab-aligned text, shared line baselines for mixed-size text, independent Tibetan raise, and nonprinting baseline/page-type-colour guides. Native baseline-offset import and historical font metrics still need comparison.
 - Automatic yi-go, Rinchen/Yang shad options, and final dzog thik with separate segment heights and inch/whitespace-percent rise controls. Exact edge behavior and whitespace endpoints still need Windows comparison.
@@ -41,7 +42,6 @@ NOT IMPLEMENTED YET
 - TibetDoc/DCT import/export; Windows PechaMaker binary-format export.
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode and exact original compact-view controls.
-- Kerning switch.
 - Configurable timed recovery/revert controls, command-line imports, original Close/startup-defaults workflow.
 - Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.

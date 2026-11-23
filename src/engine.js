@@ -36,6 +36,7 @@ const Engine = (() => {
       },
       tabWidth: 0.5,
       tibetanRaise: 0,
+      kerning: true,
       display: { baselines: false, hintColors: false },
       paper: { name: 'A4', w: 11.69, h: 8.27 },
       margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
@@ -217,7 +218,7 @@ const Engine = (() => {
     const st = atom.style || {};
     const role = doc.roles && doc.roles[st.role];
     const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
-    return { size, weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
+    return { size, kerning: doc.kerning === false ? 'none' : 'normal', weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
       italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
       family: st.font ? {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"}[st.font] : role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
   }
@@ -548,7 +549,7 @@ const Engine = (() => {
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
     const guides = screen && doc.display?.baselines ? p.lineBaselines.map(y => `<line data-baseline-guide="true" x1="${num(p.boxes.T.x0)}" x2="${num(p.boxes.T.x1)}" y1="${num(y)}" y2="${num(y)}" stroke="#888" stroke-width="0.5" stroke-dasharray="3 3"/>`).join('') : '';
-    return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
+    return `<g text-rendering="geometricPrecision" style="font-kerning:${doc.kerning === false ? 'none' : 'normal'}" font-family="${esc(doc.font)}" fill="#14100e">`
       + drawBoxes(p, doc, screen) + drawPageImages(p, doc) + guides + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
