@@ -99,6 +99,10 @@ header {
 .leaf .tag { color: #b9c8d1; font-size: 12px; font-variant-numeric: tabular-nums; }
 .leaf svg { display: block; width: 100%; height: auto; background: var(--folio); box-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 22px rgba(0, 0, 0, .28); }
 .leaf.sheet svg { background: #fff; }
+.table.compact, .table.compact .leaf { gap: 0; }
+.table.compact .leaf .tag { display: none; }
+.table.compact .leaf svg { box-shadow: none; }
+button:disabled { opacity: .55; cursor: default; }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
@@ -324,7 +328,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <div class="field"><label for="orientation">Orientation</label><select id="orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></div>
       <div class="grid" id="paperFields"></div>
       <h3>Screen guides</h3><div class="grid" id="displayFields"></div>
-      <p class="hint">Baseline guides and page-type colours appear on screen only.</p>
+      <p class="hint">Baseline guides, page-type colours and compact spacing appear on screen only. Turn off compact view to use the print buttons.</p>
       <p class="hint">Top and bottom margins are mirrored on back sheets to align both sides after turning the paper over.</p>
       <h3>Page order</h3><div class="grid" id="orderFields"></div>
       <h3>Page design</h3>

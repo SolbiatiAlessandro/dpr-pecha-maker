@@ -140,6 +140,7 @@ function buildPanels() {
   buildRolePanel();
   fill($('displayFields'), [
     {path:'display.baselines',label:'Show baseline guides',type:'check'},
+    {path:'display.compact',label:'Compact page view (turn off to print)',type:'check',disabled:doc.pecha.mode===false},
     {path:'display.hintColors',label:'Colour boxes by page type on screen',type:'check'},
   ]);
   fill($('paperFields'), [
@@ -453,6 +454,10 @@ function render() {
   latest = res;
   updateImageWarning();
   const host = $('table');
+  const compact=doc.pecha.mode!==false && doc.display.compact;
+  host.classList.toggle('compact',compact && view==='pages');
+  $('printBtn').disabled=compact;
+  $('printBtn').title=compact ? 'Turn off Compact page view in Layout before printing.' : '';
   const frag = document.createDocumentFragment();
   const leaf = (tag, svg, sheet) => {
     const d = document.createElement('div');
@@ -492,6 +497,7 @@ function render() {
   $('warn').textContent = clippedTop ? 'The first line extends above the page. Increase the full-page first-baseline setting.' : !Engine.fits(doc) ? 'The pecha do not fit between the top and bottom margins. Reduce their height or number per sheet.' : badWidth ? 'The boxes and side margins leave no space for text.' : '';
   $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   updatePrintSteps();
+  for(const button of document.querySelectorAll('[data-pass]'))button.disabled=compact;
   persist();
 }
 
@@ -505,6 +511,7 @@ function buildPrint(pass) {
 
 let printPass = null;
 function printNow(pass) {
+  if(doc.pecha.mode!==false && doc.display.compact){toast('Turn off Compact page view in Layout before printing.');return;}
   render(); // include edits made immediately before clicking Print
   if (!Engine.fits(doc) || latest.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0)) { toast('The pecha do not fit. Adjust the layout before printing.'); return; }
   printPass = pass;

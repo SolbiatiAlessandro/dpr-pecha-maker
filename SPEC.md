@@ -368,3 +368,14 @@ reference-screen logical units and rounds scaled dimensions to integers. Its
 ordinary path also rounds to reference-display logical units before scaling.
 The web continues to use96CSS pixels/inch; exact display-dependent native
 rounding is not reproduced. There is no universal hardcoded Windows96DPI fallback.
+
+### Compact page view
+
+Installed guide2.0 §8.8 describes pages pushed together without intervening space
+and printing disabled while compact view is enabled. The web switch removes
+preview gaps/captions and disables app print buttons; turning it off restores
+normal spacing and printing. It is a screen preference, preserved in full web
+documents, with no change to generated print SVGs. Browser-level print commands
+remain under browser control and generate the normal print layout. Chrome QA
+verified touching page edges, disabled print button, and restored captions/button
+after switching off. The screen-guide print-equality regression includes compact.

@@ -37,7 +37,7 @@ const Engine = (() => {
       tabWidth: 0.5,
       tibetanRaise: 0,
       kerning: true,
-      display: { baselines: false, hintColors: false },
+      display: { baselines: false, hintColors: false, compact: false },
       paper: { name: 'A4', w: 11.69, h: 8.27 },
       margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
       normal: { lineHeight: .38, baseline: .6 },

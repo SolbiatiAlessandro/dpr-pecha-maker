@@ -526,7 +526,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   const d=Engine.defaultDoc(); d.text='Text'; d.types.title.color='#112233';
   const r=Engine.run(d,measure), sheet=Engine.impose(d,r.pages,{pass:'sequence'})[0];
   const plain=Engine.sheetSvg(sheet,d,measure,r.folioCount,false);
-  d.display={baselines:true,hintColors:true};
+  d.display={baselines:true,hintColors:true,compact:true};
   const preview=Engine.pageSvg(r.pages[0],d,measure,r.folioCount);
   assert(preview.includes('data-baseline-guide')); assert(preview.includes('stroke="#b03020"'));
   assert.strictEqual(Engine.sheetSvg(sheet,d,measure,r.folioCount,false),plain);
