@@ -476,7 +476,7 @@ const Engine = (() => {
   function annotationRuns(slot, doc, measure) {
     const source = slot.rich ? parseStream(slot.text, false).filter(it => it.k === 'text') : [{s: slot.text, style: {}}];
     return source.map(it => {
-      const s = it.s.replace(/[\u2028\r\n\t]/g, ' '), f = fontFor({...doc, textSize: null}, it, slot.size);
+      const s = it.s.replace(/[\u2028\r\n\t]/g, ' '), f = fontFor({...doc, textSize: slot.size}, it, slot.size);
       return {s, f, color: it.style.color, width: measure(s, f), head: measure.head({...doc, font: f.family}, f.size)};
     });
   }

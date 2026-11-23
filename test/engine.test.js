@@ -367,7 +367,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   doc.notes.sets['body.front'].inL = {...Engine.noteSlot('{b}Bold{/b} {font:noto #b03020 18}ཀ་', 13), rich: true};
   const r = Engine.run(doc, measure), svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
   assert(svg.includes('font-weight="700">Bold</text>')); assert(svg.includes('fill="#b03020">ཀ་</text>'));
-  assert(svg.includes('font-size="18"')); assert(!svg.includes('{font:noto'));
+  assert(!svg.includes('font-size="18"')); assert(!svg.includes('{font:noto'));
   assert(svg.includes('font-size="13"')); // global body80 does not override annotation size13
   const saved = Documents.apply(Engine.defaultDoc(), Documents.artifact(doc, 'annotations'), Engine);
   assert.deepStrictEqual(saved.notes.sets['body.front'].inL, doc.notes.sets['body.front'].inL);

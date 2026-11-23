@@ -242,3 +242,8 @@ is retained. Cursor positions inside formatting tokens advance to the token end.
 This follows guide2.0 section9.1's reset rule; native clipboard operation and exact
 Windows default spacing remain unverified. Copying raw text tokens still shares
 the existing placement rather than creating a new placement.
+
+Annotation size correction: installed guide2.0 p36 specifies one size per position,
+applied across mixed-font text. Annotation rendering now overrides inline size
+marks with the slot's size while preserving fonts/emphasis/colour. Main-text size
+continues to have no effect on annotations.
