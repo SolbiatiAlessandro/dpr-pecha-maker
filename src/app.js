@@ -959,8 +959,18 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (doc && !$('work').hidden && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+    if (!doc || $('work').hidden || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
+    } else if (key === 's' && !event.shiftKey) {
+      event.preventDefault(); if (!event.repeat) saveFile();
+    } else if (event.target === $('text') && !event.isComposing) {
+      if (key === 'enter' || key === '\\') {
+        event.preventDefault(); insertAtCursor(key === 'enter' ? '{page}' : '{hs}');
+      } else if (key === '<' || key === '>' || (event.shiftKey && (event.code === 'Comma' || event.code === 'Period'))) {
+        event.preventDefault(); $(key === '<' || event.code === 'Comma' ? 'previousCode' : 'nextCode').click();
+      }
     }
   });
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });

@@ -212,7 +212,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <header>
     <div class="mark"><b lang="bo">དཔེ་ཆ།</b><a href="https://nalandabodhi.org/" target="_blank" rel="noopener">Nalandabodhi Pecha Maker</a></div>
     <button class="btn" id="newDoc" type="button">New pecha</button>
-    <button class="btn" id="saveDoc" type="button">Save</button>
+    <button class="btn" id="saveDoc" type="button" title="Save document (Ctrl+S or Command+S)">Save</button>
     <button class="btn primary" id="printBtn" type="button">Print or save PDF</button>
   </header>
 
@@ -243,10 +243,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
       <div class="chips" id="codes"></div>
-      <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it.</p>
+      <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it. In the editor, Ctrl/Command+Enter inserts a page break; Ctrl/Command+\ inserts a fixed shad.</p>
       <div class="chips">
-        <button class="chip" id="previousCode" type="button">Previous formatting mark</button>
-        <button class="chip" id="nextCode" type="button">Next formatting mark</button>
+        <button class="chip" id="previousCode" type="button" title="Ctrl+< or Command+< in the text editor">Previous formatting mark</button>
+        <button class="chip" id="nextCode" type="button" title="Ctrl+> or Command+> in the text editor">Next formatting mark</button>
         <button class="chip" id="removeReturns" type="button" title="Select text first. Deletes line breaks without adding spaces; keeps page-break marks.">Remove selected line breaks</button>
       </div>
       <details>

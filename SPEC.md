@@ -451,3 +451,13 @@ from New/import retaining reusable annotations while the current document exists
 matching the documented Close/New distinction. Chrome QA confirmed start-screen
 recovery remains available, new text is empty, both counters reset1 and annotation
 fields are blank. Original Windows startup INI defaults are not imported.
+
+### Editing shortcuts
+
+Ctrl/Command+S invokes full document Save while the editor is open. In the text
+editor, Ctrl/Command+Enter inserts a page mark and Ctrl/Command+backslash inserts
+a hard shad. Ctrl/Command+< and > select previous/next marks (physical Shift+comma
+and Shift+period are also recognized for browsers reporting unshifted key names).
+Chrome QA verified page/hard-shad tokens, pecha-download Save dialog, and both
+Control/Command format navigation. The physical-key fallback fixed an observed
+shortcut failure. Browser print behavior remains unchanged.
