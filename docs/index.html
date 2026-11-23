@@ -2845,7 +2845,7 @@ const Engine = (() => {
     const y1 = yOf(last) - (doc.dzog.leftUp || 0) * PT;
     const final = p.lines[last].items.at(-1);
     const trailing = final && final.gap === 'space' ? final.gapW : 0;
-    const end = T.x0 + (p.lines[last].offset || 0) + p.lines[last].endX + trailing;
+    const end = T.x0 + p.lines[last].endX + trailing;
     const x = end + (doc.dzog.percentEnabled ? Math.max(0, T.x1 - end) * doc.dzog.percent / 100 : doc.dzog.rise * PT);
     const stroke = `fill="none" stroke="#000" stroke-width="0.9"`;
     if (last === 0 || x > T.x0 + 0.98 * (T.x1 - T.x0)) {

@@ -468,6 +468,14 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   drawing=render().svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
   assert(Math.abs(lower-+drawing.match(/^M[\d.]+ ([\d.]+)/)[1]-7.2)<.01);
   assert(Math.abs(upper-+drawing.match(/V([\d.]+)/)[1]-3.6)<.01);
+  d.dzog.percentEnabled=false;
+  d.assets=[{id:'a',data:'data:image/png;base64,iVBORw0KGgo=',width:96,height:192}];
+  d.images=[PechaImages.placement({id:'p',asset:'a',kind:'page',page:1})];
+  const shifted=render(); const shiftedPage=shifted.r.pages[0], shiftedLine=shiftedPage.lines.at(-1);
+  assert(shiftedLine.offset>0);
+  const shiftedPath=shifted.svg.match(/<path d="([^"]+)" fill="none" stroke="#000" stroke-width="0.9"/)[1];
+  assert(Math.abs(+shiftedPath.match(/H([\d.]+)V/)[1]-(shiftedPage.boxes.T.x0+shiftedLine.endX+shiftedLine.items.at(-1).gapW+d.dzog.rise*72))<.01);
+
 }
 
 // Image copies share pixels, reset placement, and move correctly between text sections.
