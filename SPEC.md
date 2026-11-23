@@ -391,3 +391,15 @@ Chrome QA used55 explicit pages: batches1–24,25–48,49–55, disabled final N
 direct jump30–53, and20 sheet sides after switching view. A visual contrast defect
 was fixed and rechecked. The original GoToPage menu is documented; selection and
 scroll details are web-specific, not a verified recreation of native editor focus.
+
+### Formatting-code navigation and hard returns
+
+Previous/Next formatting mark selects the entire preceding/following brace token
+in the current text. It does not wrap at either end. Remove selected line breaks
+deletes CR/LF from the selection without inserting spaces or removing page-break
+marks. No selection leaves the document unchanged and asks for a selection.
+These correspond to original menu/status-help commands; selecting visible web
+marks is a web-editor adaptation rather than native exposed-code rendering.
+Tests cover selection boundaries, adjacent marks, end-of-document, CRLF, page
+break preservation and empty selection. Chrome QA navigated bold/end-bold and
+back, then removed a selected line break while preserving formatting/page break.

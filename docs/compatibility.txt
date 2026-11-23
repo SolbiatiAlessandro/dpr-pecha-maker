@@ -36,7 +36,7 @@ PARTIAL COMPATIBILITY
 - Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
 - PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Textual native image-header1.1 imports embedded PNG inline, yi-go and fixed-page images experimentally; version1.0 supports the observed28-byte asset/40-byte inline records. Six page anchors and one-based physical page numbers follow static format evidence. Framing/reference tests and browser import QA use synthetic specimens; no real native image specimen has been verified. Import notes remain visible above the preview during the session. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
-- Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
+- Editing: uses text plus visible formatting marks. Previous/Next mark navigation and selected line-break removal are available. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
 - Annotations: mixed runs use visible formatting marks rather than the original rich-text paste interface. Known native annotation formatting codes are imported; exact legacy fonts and all codes remain unverified.
 - Templates: web .pecha JSON files only; they are not Windows .pxt/.pxc/.pxa files. Layout saves do not contain text or annotations; annotation saves contain numbering.
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
@@ -47,7 +47,7 @@ NOT IMPLEMENTED YET
 - TCC/Sambhota legacy keyboard maps and locked keyboard mode.
 
 - Configurable timed recovery/revert controls, command-line imports, original Close/startup-defaults workflow.
-- Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
+- Typeover, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.
 
 STILL TO VERIFY AGAINST WINDOWS

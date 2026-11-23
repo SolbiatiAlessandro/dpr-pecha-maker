@@ -57,6 +57,16 @@ const TextFormat = (() => {
     const result=apply(replaced,start,start+character.length,{font},Engine);
     return {text:result.text,cursor:result.end};
   }
-  return {apply,insertCharacter};
+  function findCode(text, start, end, direction) {
+    const marks = [...text.matchAll(/\{[^{}\n]*\}/g)];
+    const mark = direction < 0 ? marks.reverse().find(m => m.index < start)
+      : marks.find(m => m.index >= end);
+    return mark ? {start: mark.index, end: mark.index + mark[0].length} : null;
+  }
+  function removeReturns(text, start, end) {
+    const selected = text.slice(start, end).replace(/\r\n|\r|\n/g, '');
+    return {text: text.slice(0, start) + selected + text.slice(end), start, end: start + selected.length};
+  }
+  return {apply,insertCharacter,findCode,removeReturns};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

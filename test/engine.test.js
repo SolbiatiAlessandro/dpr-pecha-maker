@@ -657,4 +657,15 @@ if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   assert.strictEqual(TextFormat.insertCharacter('A{28}B',3,3,'ཀ','',Engine).text,'A{28}ཀB');
   assert(!chars.some(c=>c.text==='◌'));
 }
+{
+  const f=require('../src/text-format.js'), text='A{b}B{/b}{page}C';
+  assert.deepStrictEqual(f.findCode(text,0,0,1),{start:1,end:4});
+  assert.deepStrictEqual(f.findCode(text,1,4,1),{start:5,end:9});
+  assert.deepStrictEqual(f.findCode(text,5,9,-1),{start:1,end:4});
+  assert.strictEqual(f.findCode(text,0,0,-1),null);
+  assert.strictEqual(f.findCode(text,text.length,text.length,1),null);
+  assert.deepStrictEqual(f.removeReturns('A\nB\r\n{b}C{page}D\nE',2,17),
+    {text:'A\nB{b}C{page}DE',start:2,end:14});
+  assert.deepStrictEqual(f.removeReturns('A\nB',1,1),{text:'A\nB',start:1,end:1});
+}
 console.log('ok');

@@ -790,6 +790,20 @@ function init() {
     [doc.paper.w, doc.paper.h] = e.target.value === 'portrait' ? [short, long] : [long, short];
     buildPanels(); schedule();
   });
+  for (const [id, direction] of [['previousCode', -1], ['nextCode', 1]]) {
+    $(id).addEventListener('click', () => {
+      const t = $('text'), range = TextFormat.findCode(t.value, t.selectionStart, t.selectionEnd, direction);
+      if (!range) { toast(direction < 0 ? 'No earlier formatting mark.' : 'No later formatting mark.'); return; }
+      t.focus(); t.setSelectionRange(range.start, range.end);
+    });
+  }
+  $('removeReturns').addEventListener('click', () => {
+    const t = $('text');
+    if (t.selectionStart === t.selectionEnd) { toast('Select the text whose line breaks you want to remove.'); return; }
+    const result = TextFormat.removeReturns(t.value, t.selectionStart, t.selectionEnd);
+    t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
+    setEditingText(t.value); schedule();
+  });
   $('applySelection').addEventListener('click', () => {
     const attrs = {}, size = $('selectionSize').value;
     if (size && (!Number.isFinite(+size) || +size < 4 || +size > 200)) { toast('Choose a text size from 4 to 200 pt.'); return; }

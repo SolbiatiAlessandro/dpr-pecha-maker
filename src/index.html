@@ -244,6 +244,11 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
       <div class="chips" id="codes"></div>
       <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it.</p>
+      <div class="chips">
+        <button class="chip" id="previousCode" type="button">Previous formatting mark</button>
+        <button class="chip" id="nextCode" type="button">Next formatting mark</button>
+        <button class="chip" id="removeReturns" type="button" title="Select text first. Deletes line breaks without adding spaces; keeps page-break marks.">Remove selected line breaks</button>
+      </div>
       <details>
         <summary>Format selected text</summary>
         <p class="hint">Select text above. Change only the attributes you choose; blank fields keep mixed formatting. With no selection, formatting begins at the cursor. Whole-text size overrides individual sizes until cleared.</p>

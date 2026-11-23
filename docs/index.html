@@ -251,6 +251,11 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
       <div class="chips" id="codes"></div>
       <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it.</p>
+      <div class="chips">
+        <button class="chip" id="previousCode" type="button">Previous formatting mark</button>
+        <button class="chip" id="nextCode" type="button">Next formatting mark</button>
+        <button class="chip" id="removeReturns" type="button" title="Select text first. Deletes line breaks without adding spaces; keeps page-break marks.">Remove selected line breaks</button>
+      </div>
       <details>
         <summary>Format selected text</summary>
         <p class="hint">Select text above. Change only the attributes you choose; blank fields keep mixed formatting. With no selection, formatting begins at the cursor. Whole-text size overrides individual sizes until cleared.</p>
@@ -3159,7 +3164,17 @@ const TextFormat = (() => {
     const result=apply(replaced,start,start+character.length,{font},Engine);
     return {text:result.text,cursor:result.end};
   }
-  return {apply,insertCharacter};
+  function findCode(text, start, end, direction) {
+    const marks = [...text.matchAll(/\{[^{}\n]*\}/g)];
+    const mark = direction < 0 ? marks.reverse().find(m => m.index < start)
+      : marks.find(m => m.index >= end);
+    return mark ? {start: mark.index, end: mark.index + mark[0].length} : null;
+  }
+  function removeReturns(text, start, end) {
+    const selected = text.slice(start, end).replace(/\r\n|\r|\n/g, '');
+    return {text: text.slice(0, start) + selected + text.slice(end), start, end: start + selected.length};
+  }
+  return {apply,insertCharacter,findCode,removeReturns};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
 
@@ -5027,6 +5042,20 @@ function init() {
     const short = Math.min(doc.paper.w, doc.paper.h), long = Math.max(doc.paper.w, doc.paper.h);
     [doc.paper.w, doc.paper.h] = e.target.value === 'portrait' ? [short, long] : [long, short];
     buildPanels(); schedule();
+  });
+  for (const [id, direction] of [['previousCode', -1], ['nextCode', 1]]) {
+    $(id).addEventListener('click', () => {
+      const t = $('text'), range = TextFormat.findCode(t.value, t.selectionStart, t.selectionEnd, direction);
+      if (!range) { toast(direction < 0 ? 'No earlier formatting mark.' : 'No later formatting mark.'); return; }
+      t.focus(); t.setSelectionRange(range.start, range.end);
+    });
+  }
+  $('removeReturns').addEventListener('click', () => {
+    const t = $('text');
+    if (t.selectionStart === t.selectionEnd) { toast('Select the text whose line breaks you want to remove.'); return; }
+    const result = TextFormat.removeReturns(t.value, t.selectionStart, t.selectionEnd);
+    t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
+    setEditingText(t.value); schedule();
   });
   $('applySelection').addEventListener('click', () => {
     const attrs = {}, size = $('selectionSize').value;
