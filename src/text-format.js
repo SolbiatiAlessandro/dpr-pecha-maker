@@ -67,6 +67,28 @@ const TextFormat = (() => {
     const selected = text.slice(start, end).replace(/\r\n|\r|\n/g, '');
     return {text: text.slice(0, start) + selected + text.slice(end), start, end: start + selected.length};
   }
-  return {apply,insertCharacter,findCode,removeReturns};
+  // Return a native replacement selection; the browser still performs the edit and owns undo.
+  // Visible codes and line boundaries must not be consumed as ordinary characters.
+  function typeoverRange(text, start, end, inserted) {
+    if (start !== end || !inserted || /[{}\r\n\u2028]/.test(inserted)
+        || /^[\p{M}\u200d\ufe0f]/u.test(inserted) || typeof Intl.Segmenter !== 'function') return null;
+    const segmenter = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
+      if (start >= m.index && start < m.index + m[0].length) return null;
+    }
+    let remaining = [...segmenter.segment(inserted)].length, right = start;
+    // Segment the full text so a caret inside a Tibetan stack or surrogate pair is detected.
+    for (const {segment, index} of segmenter.segment(text)) {
+      if (index < start) {
+        if (index + segment.length > start) return null;
+        continue;
+      }
+      if (!remaining || /[{}\r\n\u2028]/.test(segment)) break;
+      right = index + segment.length;
+      remaining--;
+    }
+    return right > start ? {start, end: right} : null;
+  }
+  return {apply,insertCharacter,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

@@ -459,6 +459,16 @@ fields are blank. Original Windows startup INI defaults are not imported.
 
 ### Editing shortcuts
 
+Typeover is an optional session editing mode, toggled with the checkbox or unmodified Insert while
+the text editor has focus. Ordinary typed text replaces the next Unicode grapheme cluster; at end
+of text it appends. Tibetan stacks, vowels and surrogate pairs are not partially overwritten.
+Typeover stops before visible formatting/image/page tokens and line boundaries. Existing selections
+retain normal replacement. Paste, IME composition, formatting commands and character-picker insertion
+remain normal insertions; a directly typed combining mark extends the preceding base. The native
+browser performs the edit so its undo/redo history is retained. Mode is not saved in document files.
+The original release notes confirm Typeover and its end-of-file fix, but this Unicode/editor policy
+has not been verified against the original legacy-font Windows editor. That parity item remains open.
+
 Ctrl/Command+S invokes full document Save while the editor is open. In the text
 editor, Ctrl/Command+Enter inserts a page mark and Ctrl/Command+backslash inserts
 a hard shad. Ctrl/Command+< and > select previous/next marks (physical Shift+comma

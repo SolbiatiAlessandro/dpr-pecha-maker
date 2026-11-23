@@ -788,6 +788,17 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('keydown', event => {
+    if (event.key === 'Insert' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      if (!event.repeat) $('typeover').checked = !$('typeover').checked;
+    }
+  });
+  $('text').addEventListener('beforeinput', event => {
+    if (!$('typeover').checked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
+    const t = event.target, range = TextFormat.typeoverRange(t.value, t.selectionStart, t.selectionEnd, event.data);
+    if (range) t.setSelectionRange(range.start, range.end);
+  });
   $('startSections').addEventListener('click', () => {
     doc.sections = [{ name: 'Text 1', text: doc.text, folioStart: doc.folio.start, restartLayout: true }];
     doc.text = ''; sectionIndex = 0; buildSectionPanel(); schedule();

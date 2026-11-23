@@ -6,6 +6,28 @@ const Engine = require('../src/engine.js'), Pxp = require('../src/pxp.js'), TABL
 const { SAMPLE_TEXT } = require('../src/sample.js');
 const Documents = require('../src/documents.js');
 
+// Typeover respects Unicode clusters, visible formatting and structural boundaries.
+{
+  const range = require('../src/text-format.js').typeoverRange;
+  assert.deepStrictEqual(range('ABC', 1, 1, 'x'), {start: 1, end: 2});
+  assert.deepStrictEqual(range('ABC', 1, 1, 'xy'), {start: 1, end: 3});
+  assert.strictEqual(range('ABC', 3, 3, 'x'), null, 'typing at EOF inserts');
+  assert.strictEqual(range('ABC', 0, 2, 'x'), null, 'native selection replacement is retained');
+  assert.deepStrictEqual(range('ཀྱི་ཁ', 0, 0, 'ག'), {start: 0, end: 3});
+  assert.deepStrictEqual(range('ཀི་ཁ', 0, 0, 'གུ'), {start: 0, end: 2});
+  assert.strictEqual(range('ཀི་ཁ', 1, 1, 'ག'), null, 'do not split an existing cluster');
+  assert.strictEqual(range('ཀཁ', 1, 1, 'ི'), null, 'a typed vowel extends the preceding base');
+  assert.deepStrictEqual(range('😀B', 0, 0, 'x'), {start: 0, end: 2});
+  assert.strictEqual(range('😀B', 1, 1, 'x'), null, 'do not split a surrogate pair');
+  assert.deepStrictEqual(range('A{b}B', 0, 0, 'xy'), {start: 0, end: 1});
+  for (const position of [1, 2, 3]) assert.strictEqual(range('A{b}B', position, position, 'x'), null);
+  assert.deepStrictEqual(range('A{b}B', 4, 4, 'x'), {start: 4, end: 5});
+  assert.deepStrictEqual(range('A\nB', 0, 0, 'xy'), {start: 0, end: 1});
+  assert.strictEqual(range('A\r\nB', 1, 1, 'x'), null);
+  for (const text of ['{page}A', '{image:i1}A', '{hs}A']) assert.strictEqual(range(text, 0, 0, 'x'), null);
+  for (const inserted of ['{b}', '\n', '\u2028', '']) assert.strictEqual(range('ABC', 0, 0, inserted), null);
+}
+
 const measure = (s, f) => s.length * f.size * 0.4;
 measure.head = (doc, size) => ({ ascent: size * 0.5, descent: size * 0.25, height: size * 0.75 });
 const atoms = s => Engine.splitAtoms(s).map(a => a.s + (a.gap === 'space' ? '_' : a.gap === 'tsheg' ? '|' : ''));
