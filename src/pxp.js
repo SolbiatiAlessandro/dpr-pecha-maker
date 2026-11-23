@@ -137,6 +137,7 @@ const Pxp = (() => {
       }
       else if (e.op === 0x23) out += e.a ? '{b}' : '{/b}';
       else if (e.op === 0x24) out += e.a ? '{i}' : '{/i}';
+      else if (e.op === 0x25) out += e.a ? '{u}' : '{/u}';
       else if (ALIGN[e.op]) out += `{${ALIGN[e.op]}}`;
       else if (e.op === 0x48) out += '\t';
     }
@@ -165,7 +166,8 @@ const Pxp = (() => {
       let w = num(S['PaperSize.x'], 11000) / 1000, h = num(S['PaperSize.y'], 8500) / 1000;
       if (+S.PageOrientation === 2 && w < h) [w, h] = [h, w];
       d.paper = { name: 'Custom', w, h };
-      d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000 };
+      d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000,
+        top: num(S['PageMargin.top'], 0) / 1000, bottom: num(S['PageMargin.bottom'], 0) / 1000 };
       d.pecha.perSheet = num(S.PechaPagesPerSheet, 1);
     }
     const C = t.PechaControl;
@@ -178,6 +180,7 @@ const Pxp = (() => {
       d.folio.size = num(A.FolioNumPtSz, 20) * fontScale;
       d.pageNum.inset = num(A.PageNumInset, 0.05);
       d.pageNum.size = num(A.PageNumPtSz, 12);
+      d.pageNum.position = on(A.PageNumCenter, false) ? 'center' : 'bottom';
     }
     let prevEnd = 0;
     for (const i of [0, 1, 2]) {
@@ -213,6 +216,7 @@ const Pxp = (() => {
     d.pageNum.start = num(v.PageStartNum, 1);
     d.pageNum.on = d.pageNum.start > 0;
     d.pageNum.onTitle = on(v.PageNumTitleEn, false);
+    d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
         const text = plainText(raw[`${name}[${i}].s`], p.fonts, table);

@@ -12,6 +12,9 @@ const PREVIEW_PAGES = 24;
 
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
+let sectionIndex = 0;
+const editingText = () => doc.sections.length ? doc.sections[sectionIndex].text : doc.text;
+function setEditingText(value) { if (doc.sections.length) doc.sections[sectionIndex].text = value; else doc.text = value; }
 
 // ---------- measuring ----------
 
@@ -89,6 +92,12 @@ function field(host, def) {
     else if (def.type === 'select') v = def.number ? +el.value : el.value;
     else if (el.type === 'number') v = el.value === '' ? (def.nullable ? null : getPath(def.path)) : +el.value;
     else v = el.value;
+    if (el.type === 'number' && v !== null) {
+      if (!Number.isFinite(v)) return;
+      if (def.min !== undefined) v = Math.max(def.min, v);
+      if (def.max !== undefined) v = Math.min(def.max, v);
+      if (def.step === 1) v = Math.round(v);
+    }
     setPath(def.path, v);
     if (def.onChange) def.onChange(v);
     schedule();
@@ -114,16 +123,28 @@ function segment(host, options, active, onPick) {
 // ---------- panels ----------
 
 function buildPanels() {
-  $('text').value = doc.text;
+  $('text').value = editingText();
+  buildSectionPanel();
   $('flow').checked = doc.flow;
+  $('orientation').value = doc.paper.w >= doc.paper.h ? 'landscape' : 'portrait';
+  fill($('textFields'), [
+    { path: 'textSize', label: 'All main text, pt (blank keeps individual sizes)', step: 1, min: 5, max: 200, nullable: true, wide: true, placeholder: 'individual sizes' },
+    { path: 'tabWidth', label: 'Tab stops, in', step: 0.05, min: 0.05, max: 20 },
+    { path: 'tibetanRaise', label: 'Raise Tibetan, in', step: 0.01, min: -2, max: 2 },
+  ]);
+  buildRolePanel();
   fill($('paperFields'), [
     { path: 'paper.name', label: 'Paper', type: 'select', options: Object.keys(PAPERS).map(k => [k, k]), onChange: v => { if (PAPERS[v]) { [doc.paper.w, doc.paper.h] = PAPERS[v]; buildPanels(); } } },
-    { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8 },
+    { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8, onChange: v => { if (v > 1) { doc.pecha.placement = 'center'; $('f_pecha_placement').value = 'center'; } } },
+    { path: 'pecha.placement', label: 'Vertical placement', type: 'select', wide: true, options: [['center', 'Centered between margins'], ['top', 'Single pecha at top margin']], onChange: v => { if (v === 'top') { doc.pecha.perSheet = 1; buildPanels(); } } },
     { path: 'fontName', label: 'Typeface', type: 'select', wide: true, options: FONTS.map(f => [f, f]), onChange: v => { doc.font = `'${v}','Noto Serif Tibetan',serif`; } },
     { path: 'paper.w', label: 'Sheet width, in', step: 0.01, min: 3, onChange: () => { doc.paper.name = 'Custom'; } },
     { path: 'paper.h', label: 'Sheet height, in', step: 0.01, min: 2, onChange: () => { doc.paper.name = 'Custom'; } },
     { path: 'pecha.height', label: 'Pecha height, in', step: 0.05, min: 0.5 },
-    { path: 'margins.left', label: 'Left and right margin, in', step: 0.05, min: 0, onChange: v => { doc.margins.right = v; } },
+    { path: 'margins.left', label: 'Left margin, in', step: 0.05, min: 0 },
+    { path: 'margins.right', label: 'Right margin, in', step: 0.05, min: 0 },
+    { path: 'margins.top', label: 'Top margin, in', step: 0.05, min: 0 },
+    { path: 'margins.bottom', label: 'Bottom margin, in', step: 0.05, min: 0 },
     { path: 'pecha.dlt', label: 'Double line gap, in', step: 0.005, min: 0 },
   ]);
   fill($('orderFields'), [
@@ -152,6 +173,7 @@ function buildPanels() {
     { path: 'folio.size', label: 'Size, pt', step: 1, min: 6 },
     { path: 'folio.inset', label: 'Inset from box, in', step: 0.01, min: 0 },
     { path: 'folio.onTitle', label: 'Show on Title pages', type: 'check' },
+    { path: 'folio.angle', label: 'Folio label rotation', type: 'select', number: true, wide: true, options: [[-90, '90° counterclockwise'], [90, '90° clockwise'], [0, 'Horizontal']] },
     { path: 'folio.jyon', label: 'Add བྱོན། to the last folio', type: 'check' },
     { path: 'folio.rhino', label: 'Same phrase on every folio (seru)', type: 'text', wide: true, tibetan: true },
   ]);
@@ -160,12 +182,45 @@ function buildPanels() {
     { path: 'pageNum.start', label: 'First page', step: 1, min: 0 },
     { path: 'pageNum.size', label: 'Size, pt', step: 1, min: 5 },
     { path: 'pageNum.onTitle', label: 'Show on Title pages', type: 'check' },
+    { path: 'pageNum.firstTitle', label: 'Include the first Title page', type: 'check' },
+    { path: 'pageNum.position', label: 'Position', type: 'select', options: [['bottom', 'Bottom'], ['center', 'Center']] },
+    { path: 'pageNum.angle', label: 'Rotation', type: 'select', number: true, options: [[-90, '90° counterclockwise'], [0, 'Horizontal'], [90, '90° clockwise']] },
+    { path: 'pageNum.inset', label: 'Inset from right box, in', step: 0.01, min: 0 },
   ]);
   const ns = $('noteSide');
   ns.replaceChildren(...SIDES.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
   ns.value = noteSide;
   buildNotePanel();
   buildPrintPanel();
+}
+
+function buildSectionPanel() {
+  const multi = doc.sections.length > 0;
+  $('sectionControls').hidden = !multi;
+  $('startSections').hidden = multi;
+  if (!multi) return;
+  const picker = $('sectionPick');
+  picker.replaceChildren(...doc.sections.map((s, i) => {
+    const option = document.createElement('option'); option.value = i; option.textContent = `${i + 1}. ${s.name || 'Untitled text'}`; return option;
+  }));
+  picker.value = sectionIndex;
+  const section = doc.sections[sectionIndex];
+  $('sectionName').value = section.name;
+  $('sectionFolio').value = section.folioStart;
+  $('sectionOpening').checked = section.restartLayout;
+  $('sectionLeft').checked = doc.sectionLabels.left;
+  $('sectionRight').checked = doc.sectionLabels.right;
+  $('sectionEarlier').disabled = sectionIndex === 0;
+  $('sectionLater').disabled = sectionIndex === doc.sections.length - 1;
+}
+
+function buildRolePanel() {
+  const role = $('rolePick').value || 'root';
+  fill($('roleFields'), [
+    { path: `roles.${role}.font`, label: 'Typeface', type: 'select', options: FONTS.map(f => [f, f]), wide: true },
+    { path: `roles.${role}.size`, label: 'Size, pt', step: 1, min: 5, max: 200 },
+    { path: `roles.${role}.bold`, label: 'Bold', type: 'check' },
+  ]);
 }
 
 function buildPrintPanel() {
@@ -187,7 +242,7 @@ function buildTypePanel() {
   segment($('typeSeg'), [['title', 'Title'], ['fancy', 'Fancy'], ['body', 'Body']], currentType, v => { currentType = v; buildTypePanel(); });
   const p = `types.${currentType}`;
   fill($('typeFields'), [
-    { path: `${p}.lines`, label: 'Lines per page', step: 1, min: 1, max: 14 },
+    { path: `${p}.lines`, label: 'Lines per page', step: 1, min: 1, max: 100 },
     { path: `${p}.fontSize`, label: 'Text size, pt', step: 1, min: 8 },
     { path: `${p}.lineHeight`, label: 'Line height, in', step: 0.01, min: 0.1 },
     { path: `${p}.top`, label: 'Box to first line, in', step: 0.01, min: 0, nullable: true, placeholder: 'centred' },
@@ -229,7 +284,7 @@ function updatePrintSteps() {
   const count = `${n} ${n === 1 ? 'sheet' : 'sheets'}`;
   const edge = doc.paper.w >= doc.paper.h ? 'long' : 'short';
   const paper = doc.paper.name === 'Custom' ? `${doc.paper.w} × ${doc.paper.h} in` : doc.paper.name;
-  const setup = `Paper ${paper}, scale 100%, margins none.`;
+  const setup = `Paper ${paper}, ${doc.paper.w >= doc.paper.h ? 'landscape' : 'portrait'}, scale 100%, margins none. Turn off browser headers and footers.`;
   const check = 'Then turn sheet 1 over its top edge, the way you turn a pecha leaf. Page 2 should be the right way up behind page 1.';
   const html = {
     duplex: `<ol class="steps">
@@ -303,7 +358,8 @@ function render() {
   if (view === 'pages') {
     for (const p of res.pages.slice(0, PREVIEW_PAGES)) {
       const folio = Math.ceil(p.n / 2);
-      leaf(`Page ${p.n} · ${p.kind} · folio ${folio} ${p.front ? 'front' : 'back'}`, Engine.pageSvg(p, doc, measure, res.folioCount));
+      const tag = p.blank ? `Page ${p.n} · blank back before the next text` : `Page ${p.n} · ${p.kind} · ${p.sectionName ? `${p.sectionName} · text folio ${p.folioNumber}` : `folio ${folio}`} ${p.front ? 'front' : 'back'}`;
+      leaf(tag.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), Engine.pageSvg(p, doc, measure, res.folioCount));
     }
   } else {
     const of = sheets.filter(s => s.side !== 'back').length;
@@ -320,7 +376,8 @@ function render() {
   host.replaceChildren(frag);
   const paperSheets = sheets.filter(s => s.side !== 'back').length;
   $('stats').textContent = `${res.pages.length} pages · ${res.folioCount} folios · ${paperSheets} ${paperSheets === 1 ? 'sheet' : 'sheets'} of ${doc.paper.name === 'Custom' ? 'paper' : doc.paper.name}`;
-  $('warn').textContent = Engine.fits(doc) ? '' : `${doc.pecha.perSheet} pecha at ${doc.pecha.height} in need ${(doc.pecha.perSheet * doc.pecha.height).toFixed(2)} in, and the sheet is ${doc.paper.h} in tall.`;
+  const badWidth = res.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0);
+  $('warn').textContent = !Engine.fits(doc) ? 'The pecha do not fit between the top and bottom margins. Reduce their height or number per sheet.' : badWidth ? 'The boxes and side margins leave no space for text.' : '';
   $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   updatePrintSteps();
   persist();
@@ -328,14 +385,16 @@ function render() {
 
 // pass: 'duplex', 'fronts', 'backs' or 'sequence'; left out, it follows the chosen way of printing.
 function buildPrint(pass) {
-  const res = latest || Engine.run(doc, measure);
+  const res = Engine.run(doc, measure);
+  $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   const sheets = Engine.impose(doc, res.pages, { pass, firstOnly: doc.print.firstOnly && pass !== 'sequence' && doc.print.sides !== 'sequence' });
   $('printRoot').innerHTML = sheets.map(s => `<div class="sheet-print" style="width:${doc.paper.w}in;height:${doc.paper.h}in">${Engine.sheetSvg(s, doc, measure, res.folioCount, false)}</div>`).join('');
 }
 
 let printPass = null;
 function printNow(pass) {
-  if (!Engine.fits(doc)) toast('The pecha do not fit on this sheet. Reduce the height or the number per sheet.');
+  render(); // include edits made immediately before clicking Print
+  if (!Engine.fits(doc) || latest.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0)) { toast('The pecha do not fit. Adjust the layout before printing.'); return; }
   printPass = pass;
   buildPrint(pass);
   window.print();
@@ -429,9 +488,11 @@ function drawFlags() {
 }
 
 function setDoc(d, sample, src = null) {
+  d = Documents.normalize(d, Engine);
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  sectionIndex = 0;
   showWork();
   buildPanels();
   noteSample();
@@ -505,7 +566,7 @@ async function openFile(file) {
       setDoc(d, false);
       toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name} and converted it to Unicode.`);
     } else if (/\.(pecha|json)$/.test(name)) {
-      setDoc(JSON.parse(new TextDecoder().decode(buf)), false);
+      setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
       toast(`Opened ${file.name}.`);
     } else {
       const d = Engine.defaultDoc();
@@ -518,13 +579,13 @@ async function openFile(file) {
   }
 }
 
-function saveFile() {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' }));
+function saveFile(kind = 'document') {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(Documents.artifact(doc, kind), null, 1)], { type: 'application/json' }));
   const a = document.createElement('a');
-  a.href = url; a.download = 'pecha.pecha';
+  a.href = url; a.download = kind === 'document' ? 'pecha.pecha' : `pecha-${kind}.pecha`;
   a.click();
   URL.revokeObjectURL(url);
-  toast('Saved pecha.pecha to your downloads.');
+  toast(`Saved ${a.download} to your downloads.`);
 }
 
 // ---------- text helpers ----------
@@ -533,7 +594,7 @@ function insertAtCursor(s) {
   const t = $('text'), a = t.selectionStart, b = t.selectionEnd;
   t.setRangeText(s, a, b, 'end');
   t.focus();
-  doc.text = t.value;
+  setEditingText(t.value);
   schedule();
 }
 
@@ -542,11 +603,15 @@ function wylieToTibetan(s) {
 }
 
 function init() {
-  const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}']];
+  const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
     const b = document.createElement('button');
     b.className = 'chip'; b.type = 'button'; b.textContent = label; b.title = `Inserts ${code}`;
-    b.addEventListener('click', () => insertAtCursor(code));
+    b.addEventListener('click', () => {
+      const t = $('text');
+      // Formatting controls must never erase a highlighted passage.
+      insertAtCursor(code + t.value.slice(t.selectionStart, t.selectionEnd));
+    });
     $('codes').append(b);
   }
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
@@ -554,8 +619,46 @@ function init() {
     document.querySelectorAll('.pane').forEach(p => { p.hidden = p.dataset.pane !== b.dataset.tab; });
     if (b.dataset.tab === 'print') setView('sheets');
   }));
-  $('text').addEventListener('input', e => { doc.text = e.target.value; isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('startSections').addEventListener('click', () => {
+    doc.sections = [{ name: 'Text 1', text: doc.text, folioStart: doc.folio.start, restartLayout: true }];
+    doc.text = ''; sectionIndex = 0; buildSectionPanel(); schedule();
+  });
+  $('sectionPick').addEventListener('change', e => { sectionIndex = +e.target.value; $('text').value = editingText(); buildSectionPanel(); });
+  $('addSection').addEventListener('click', () => {
+    if (doc.sections.length >= 200) { toast('This volume has reached the limit of 200 texts. Save it and start a new volume.'); return; }
+    doc.sections.push({ name: `Text ${doc.sections.length + 1}`, text: '', folioStart: 1, restartLayout: true });
+    sectionIndex = doc.sections.length - 1; $('text').value = ''; buildSectionPanel(); schedule(); $('text').focus();
+  });
+  $('sectionName').addEventListener('input', e => { doc.sections[sectionIndex].name = e.target.value; $('sectionPick').options[sectionIndex].textContent = `${sectionIndex + 1}. ${e.target.value || 'Untitled text'}`; schedule(); });
+  $('sectionFolio').addEventListener('input', e => { if (e.target.value !== '') { doc.sections[sectionIndex].folioStart = Math.max(0, Math.min(9999, Math.round(+e.target.value) || 0)); schedule(); } });
+  $('sectionOpening').addEventListener('change', e => { doc.sections[sectionIndex].restartLayout = e.target.checked; schedule(); });
+  for (const side of ['Left', 'Right']) $('section' + side).addEventListener('change', e => { doc.sectionLabels[side.toLowerCase()] = e.target.checked; schedule(); });
+  for (const [id, direction] of [['sectionEarlier', -1], ['sectionLater', 1]]) $(id).addEventListener('click', () => {
+    const next = sectionIndex + direction;
+    if (next < 0 || next >= doc.sections.length) return;
+    [doc.sections[sectionIndex], doc.sections[next]] = [doc.sections[next], doc.sections[sectionIndex]];
+    sectionIndex = next; buildSectionPanel(); schedule();
+  });
   $('flow').addEventListener('change', e => { doc.flow = e.target.checked; schedule(); });
+  $('orientation').addEventListener('change', e => {
+    const short = Math.min(doc.paper.w, doc.paper.h), long = Math.max(doc.paper.w, doc.paper.h);
+    [doc.paper.w, doc.paper.h] = e.target.value === 'portrait' ? [short, long] : [long, short];
+    buildPanels(); schedule();
+  });
+  $('rolePick').addEventListener('change', buildRolePanel);
+  $('applyRole').addEventListener('click', () => {
+    const t = $('text'), a = t.selectionStart, b = t.selectionEnd, role = $('rolePick').value;
+    if (a === b) { insertAtCursor(`{${role}}`); return; }
+    // Resume the previous role after the selection instead of leaking the new role into following text.
+    const before = Engine.parseStream(t.value.slice(0, b), false).filter(x => x.k === 'text').at(-1);
+    const prior = before && before.style;
+    const restore = prior ? `{${prior.role || '/role'}}${prior.size ? `{${prior.size}}` : ''}${prior.bold === null ? '' : prior.bold ? '{b}' : '{/b}'}` : '{/role}';
+    insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
+  });
+  $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
+  $('loadPart').addEventListener('click', () => $('partFile').click());
+  $('partFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('noteSide').addEventListener('change', e => { noteSide = e.target.value; buildNotePanel(); });
   $('wylie').addEventListener('input', e => { $('wyliePreview').textContent = wylieToTibetan(e.target.value); });
   $('wylieInsert').addEventListener('click', () => {
@@ -568,7 +671,7 @@ function init() {
   $('pasteText').addEventListener('click', () => { setDoc(Engine.defaultDoc(), false); $('text').focus(); });
   $('tryExample').addEventListener('click', () => setDoc(sampleDoc(), true));
   $('resume').addEventListener('click', () => { const s = restore(); if (s) setDoc(s.doc, s.isSample); });
-  $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); doc.text = d.text; $('text').value = d.text; schedule(); } });
+  $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); setEditingText(d.text); $('text').value = d.text; schedule(); } });
   let depth = 0;
   window.addEventListener('dragenter', e => { e.preventDefault(); depth++; document.body.classList.add('dragging'); });
   window.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove('dragging'); });
@@ -579,7 +682,7 @@ function init() {
     const f = e.dataTransfer.files[0];
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
-  $('saveDoc').addEventListener('click', saveFile);
+  $('saveDoc').addEventListener('click', () => saveFile());
   $('printBtn').addEventListener('click', openPrintPanel);
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
   // The browser's own print command prints both sides in one file, or the proof.

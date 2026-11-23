@@ -23,13 +23,22 @@ const Engine = (() => {
     return {
       version: 1,
       text: '',
+      sections: [],
+      sectionLabels: { left: true, right: true },
       flow: true,
       font: "'Jomolhari','Noto Serif Tibetan',serif",
       fontName: 'Jomolhari',
+      textSize: null,
+      roles: {
+        root: { font: 'Jomolhari', size: 23, bold: false },
+        commentary: { font: 'Jomolhari', size: 23, bold: false },
+        heading: { font: 'Jomolhari', size: 28, bold: false },
+      },
       tabWidth: 0.5,
+      tibetanRaise: 0,
       paper: { name: 'A4', w: 11.69, h: 8.27 },
-      margins: { left: 0.3, right: 0.3 },
-      pecha: { height: 2.55, dlt: 0.03, perSheet: 3 },
+      margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
+      pecha: { height: 2.55, dlt: 0.03, perSheet: 3, placement: 'center' },
       counts: { title: 1, fancy: 2 },
       types: {
         title: pageType({ lines: 2, lineHeight: 0.5, fontSize: 25, sideIn: 0.42, sideOut: 0.72, insideOn: true, inside: 0.32, squeezeOn: true, squeeze: 0.14 }),
@@ -39,8 +48,8 @@ const Engine = (() => {
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       yigo: { enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
-      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '' },
-      pageNum: { start: 1, onTitle: false, inset: 0.05, size: 9, on: true },
+      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90 },
+      pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom' },
       notes: {
         outLeft: 0, outRight: 0,
         sets: {
@@ -57,7 +66,7 @@ const Engine = (() => {
 
   // Format codes sit in the text, as in PechaMaker: {c} {j} {l} {r} {30} {#b03020} {b} {/b} {i} {/i} {page}
   function parseStream(text, flow) {
-    const style = { align: 'j', size: null, color: null, bold: false, italic: false };
+    const style = { align: 'j', size: null, color: null, bold: null, italic: false, underline: false, strike: false, role: null };
     const items = [];
     const src = prepareBreaks(text || '', flow);
     const re = /\{([^{}\n]*)\}/g;
@@ -77,6 +86,12 @@ const Engine = (() => {
         else if (tok === '/b') style.bold = false;
         else if (tok === 'i') style.italic = true;
         else if (tok === '/i') style.italic = false;
+        else if (tok === 'u') style.underline = true;
+        else if (tok === '/u') style.underline = false;
+        else if (tok === 's') style.strike = true;
+        else if (tok === '/s') style.strike = false;
+        else if (['root', 'commentary', 'heading'].includes(tok)) { style.role = tok; style.bold = null; style.size = null; }
+        else if (tok === '/role') { style.role = null; style.bold = null; style.size = null; }
         else if (/^\d+(\.\d+)?$/.test(tok)) style.size = +tok;
         else if (/^#[0-9a-f]{3,6}$/i.test(tok)) style.color = tok;
         else if (tok === 'size') style.size = null;
@@ -174,7 +189,7 @@ const Engine = (() => {
 
   function yigoWanted(doc, n, kind, isFirstFancy) {
     if (!doc.yigo.enabled) return false;
-    if (kind === 'title') return doc.yigo.title2 && n > 1 && n % 2 === 1;
+    if (kind === 'title') return doc.yigo.title2 && n > 1;
     if (kind === 'fancy' && !doc.yigo.fancyStart) return false;
     if (isFirstFancy) return true;
     return n % 2 === 1;
@@ -182,8 +197,11 @@ const Engine = (() => {
 
   function fontFor(doc, atom, sizeDefault) {
     const st = atom.style || {};
-    const size = st.size || sizeDefault;
-    return { size, weight: st.bold ? 700 : 400, italic: !!st.italic, family: doc.font };
+    const role = doc.roles && doc.roles[st.role];
+    const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
+    return { size, weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
+      italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
+      family: role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
   }
 
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
@@ -246,6 +264,14 @@ const Engine = (() => {
   }
 
   function reflow(line, W, justify) {
+    // Tab stops were already positioned by fillLine. Rebuilding x from glyph widths erases them.
+    if (line.hasTab) {
+      line.width = line.natural;
+      const off = line.align === 'c' ? (W - line.width) / 2 : line.align === 'r' ? W - line.width : 0;
+      if (off > 0) line.items.forEach(p => { p.x += off; });
+      line.endX = line.width + Math.max(0, off);
+      return;
+    }
     let x = 0, spaces = [], tshegs = [];
     const its = line.items;
     its.forEach((p, k) => {
@@ -307,23 +333,24 @@ const Engine = (() => {
 
   // ---------- rendering ----------
 
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(//g, SHAD);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(//g, SHAD);
   const num = v => Math.round(v * 100) / 100;
 
   function textEl(x, y, s, f, color, extra = '') {
     const st = (f.weight > 400 ? ' font-weight="700"' : '') + (f.italic ? ' font-style="italic"' : '');
-    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(f.size)}"${color ? ` fill="${color}"` : ''}${st}${extra}>${esc(s)}</text>`;
+    const decorations = [f.underline && 'underline', f.strike && 'line-through'].filter(Boolean).join(' ');
+    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(f.size)}"${f.family ? ` font-family="${esc(f.family)}"` : ''}${color ? ` fill="${esc(color)}"` : ''}${st}${decorations ? ` text-decoration="${decorations}"` : ''}${extra}>${esc(s)}</text>`;
   }
 
-  function sideText(x, y, s, size, doc, anchor) {
-    return `<text transform="translate(${num(x)} ${num(y)}) rotate(-90)" font-size="${num(size)}" text-anchor="${anchor}">${esc(s)}</text>`;
+  function sideText(x, y, s, size, doc, anchor, angle = -90) {
+    return `<text transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})" font-size="${num(size)}" text-anchor="${anchor}">${esc(s)}</text>`;
   }
 
   function drawBoxes(p, doc) {
     const { O, I, d, lx1, lx2, rx1, rx2 } = p.boxes;
     const t = p.type;
     if (t.style === 'none') return '';
-    const stroke = `fill="none" stroke="${t.color}" stroke-width="0.7"`;
+    const stroke = `fill="none" stroke="${esc(t.color)}" stroke-width="0.7"`;
     const rect = (r, inset = 0) => `<rect x="${num(r.x0 + inset)}" y="${num(r.y0 + inset)}" width="${num(r.x1 - r.x0 - 2 * inset)}" height="${num(r.y1 - r.y0 - 2 * inset)}" ${stroke}/>`;
     let out = rect(O);
     if (d) out += rect(O, d);
@@ -342,7 +369,7 @@ const Engine = (() => {
 
   function drawText(p, doc, measure) {
     const { T } = p.boxes, t = p.type;
-    const head = measure.head(doc, t.fontSize);
+    const head = measure.head(doc, doc.textSize || t.fontSize);
     const room = T.y1 - T.y0;
     const nLines = p.kind === 'title' ? Math.max(1, p.lines.length) : t.lines;   // a short last page starts where full pages do
     const block = (nLines - 1) * t.lineHeight * PT + head.height;
@@ -353,8 +380,8 @@ const Engine = (() => {
       const top = start + ln * t.lineHeight * PT;
       p.lineTops.push(top);
       for (const a of line.items) {
-        const h = measure.head(doc, a.f.size, isTib(a.s[0]));
-        out += textEl(T.x0 + a.x, top + h.ascent, a.s, a.f, a.style && a.style.color);
+        const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
+        out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
     });
     return out;
@@ -378,7 +405,12 @@ const Engine = (() => {
 
   function drawMargins(p, doc, measure, folioCount) {
     const { O, w, h } = p.boxes;
-    const set = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
+    const sourceSet = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
+    const set = { ...sourceSet };
+    if (p.sectionName && doc.sectionLabels) {
+      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, text: p.sectionName };
+      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, text: p.sectionName };
+    }
     let out = '';
     const asc = size => measure.head(doc, size);
     const pad = 9;
@@ -394,26 +426,29 @@ const Engine = (() => {
     if (set.outR.on && set.outR.text) out += sideText(w - set.outR.inset * PT - asc(set.outR.size).descent, midY, set.outR.text, set.outR.size, doc, 'middle');
 
     const fo = doc.folio;
-    const showFolio = p.front && fo.start > 0 && (p.kind !== 'title' || fo.onTitle);
+    const folioStart = p.sectionFolioStart === undefined ? fo.start : p.sectionFolioStart;
+    const showFolio = p.front && folioStart > 0 && (p.kind !== 'title' || fo.onTitle);
     if (showFolio) {
-      const number = fo.start + (p.n - 1) / 2;
-      const isLast = (p.n + 1) / 2 >= folioCount;
+      const number = p.folioNumber === undefined ? fo.start + (p.n - 1) / 2 : p.folioNumber;
+      const isLast = p.sectionLastFolio === undefined ? (p.n + 1) / 2 >= folioCount : p.sectionLastFolio;
       const label = fo.rhino || Folio.words(number) + (fo.jyon && isLast ? Folio.JYON : '');
       const x = O.x0 + fo.inset * PT + asc(fo.size).ascent;
-      out += sideText(x, midY, label, fo.size, doc, 'middle');
+      out += sideText(x, midY, label, fo.size, doc, 'middle', fo.angle === undefined ? -90 : fo.angle);
     }
     const pn = doc.pageNum;
-    if (pn.on && pn.start > 0 && (p.kind !== 'title' || pn.onTitle)) {
+    if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {
       const x = O.x1 - pn.inset * PT - 2;
-      out += `<text transform="translate(${num(x)} ${num(O.y1 - pad)}) rotate(-90)" font-size="${pn.size}" font-family="Georgia,'Times New Roman',serif">${pn.start + p.n - 1}</text>`;
+      const center = pn.position === 'center', angle = pn.angle === undefined ? -90 : pn.angle;
+      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="Georgia,'Times New Roman',serif">${pn.start + p.n - 1}</text>`;
     }
     return out;
   }
 
   function pageInner(p, doc, measure, folioCount) {
+    if (p.blank) return '';
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
-    return `<g text-rendering="geometricPrecision" font-family="${doc.font.replace(/"/g, '&quot;')}" fill="#14100e">`
+    return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
       + drawBoxes(p, doc) + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
@@ -460,17 +495,20 @@ const Engine = (() => {
 
   function sheetSvg(sheet, doc, measure, folioCount, screen) {
     const W = doc.paper.w * PT, H = doc.paper.h * PT, n = doc.pecha.perSheet;
-    const strip = H / n, h = doc.pecha.height * PT, x = doc.margins.left * PT;
+    // Mirror vertical margins on backs so a top-edge turn aligns every front with its back.
+    const back = sheet.side === 'back';
+    const top = (doc.margins[back ? 'bottom' : 'top'] || 0) * PT, bottom = (doc.margins[back ? 'top' : 'bottom'] || 0) * PT;
+    const strip = (H - top - bottom) / n, h = doc.pecha.height * PT, x = doc.margins.left * PT;
     let out = '';
     sheet.slots.forEach((p, r) => {
       if (!p) return;
-      const y = r * strip + (strip - h) / 2;
+      const y = doc.pecha.placement === 'top' ? (back ? H - bottom - (r + 1) * h : top + r * h) : top + r * strip + (strip - h) / 2;
       out += `<g transform="translate(${num(x)} ${num(y)})">${pageInner(p, doc, measure, folioCount)}</g>`;
     });
     if (doc.print.cutMarks) {
       const tick = 14;
       const line = (a, b, c, d) => `<line x1="${num(a)}" y1="${num(b)}" x2="${num(c)}" y2="${num(d)}" stroke="#000" stroke-width="0.35"/>`;
-      for (let k = 1; k < n; k++) { const y = k * strip; out += line(0, y, tick, y) + line(W - tick, y, W, y); }
+      for (let k = 1; k < n; k++) { const y = top + k * (doc.pecha.placement === 'top' ? h : strip); out += line(0, y, tick, y) + line(W - tick, y, W, y); }
       const w = W - (doc.margins.left + doc.margins.right) * PT;
       for (const px of [x, x + w]) out += line(px, 0, px, tick * 0.6) + line(px, H - tick * 0.6, px, H);
       // The sheet number sits in the margin that is cut away, so a misfed back shows before it is cut.
@@ -486,10 +524,32 @@ const Engine = (() => {
   }
 
   function fits(doc) {
-    return doc.pecha.perSheet * doc.pecha.height <= doc.paper.h + 1e-6;
+    return doc.pecha.perSheet * doc.pecha.height <= doc.paper.h - (doc.margins.top || 0) - (doc.margins.bottom || 0) + 1e-6;
   }
 
   function run(doc, measure) {
+    if (doc.sections && doc.sections.length) {
+      const pages = [];
+      doc.sections.forEach((section, index) => {
+        // Each text begins on the front of a new leaf. A blank back is a real volume page.
+        if (pages.length % 2) {
+          const type = doc.types.body;
+          pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
+        }
+        const sub = { ...doc, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
+        const atoms = atomize(parseStream(sub.text, sub.flow), sub, measure);
+        const local = paginate(sub, atoms, measure), offset = pages.length;
+        const count = Math.ceil(local.length / 2);
+        for (const p of local) {
+          p.localN = p.n; p.sectionIndex = index; p.sectionName = section.name;
+          p.sectionFolioStart = section.folioStart; p.folioNumber = section.folioStart + Math.floor((p.n - 1) / 2);
+          p.sectionLastFolio = Math.ceil(p.n / 2) === count;
+          p.n += offset; p.isLast = p.localN === local.length;
+          pages.push(p);
+        }
+      });
+      return { pages, folioCount: Math.ceil(pages.length / 2) };
+    }
     const atoms = atomize(parseStream(doc.text, doc.flow), doc, measure);
     const pages = paginate(doc, atoms, measure);
     if (pages.length) pages[pages.length - 1].isLast = true;

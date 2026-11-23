@@ -2,8 +2,9 @@
 
 A browser tool that turns a PDF of a Tibetan text into traditional pecha pages ready to print. The feature set
 follows the public documentation of PechaMaker (Windows, 2004-2018, by Frederick W. Johnson): its
-website, FAQ, release notes and User's Guide. The code here is new. PechaMaker's executable was never
-run or disassembled, and none of its code is reused.
+website, FAQ, release notes and User's Guide. The code here is independently written. Public documentation, example files and read-only UI-resource
+inspection inform compatibility work; no proprietary implementation or assets are reused. Original
+Windows runtime equivalence has not yet been verified.
 
 ## Starting from a PDF
 
@@ -29,7 +30,8 @@ settings on the left. Everything runs in the browser and nothing is uploaded.
 - A document runs through up to three page types in a fixed order: Title, Fancy, Body. Body is the
   last type and takes all remaining pages. Each type has its own lines, line height, boxes and colour.
 - Page width is the sheet width minus the side margins. Page height is one setting for all types.
-- N pages per sheet are spaced evenly, so each sits centred in a strip of sheet height / N.
+- N pages per sheet are spaced evenly between top and bottom margins. A single pecha can instead
+  sit at the top margin. Back sheets mirror the vertical margins for top-edge turning.
 
 ## Page design
 
@@ -42,7 +44,8 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 - Text is Unicode Tibetan mixed with any other script. PechaMaker has no Unicode support; here it is
   the only input encoding, and old files are converted on opening.
 - Format codes sit in the text and apply until changed: `{c}` `{j}` `{l}` `{r}`, `{30}` size, `{size}`
-  default size, `{#b03020}` colour, `{color}` black, `{b}` `{i}`, `{page}`, `{hs}` fixed shad.
+  default size, `{#b03020}` colour, `{color}` black, `{b}` `{i}` `{u}` `{s}` with slash closing marks,
+  `{page}`, `{hs}` fixed shad. Formatting marks apply until changed; buttons insert marks at the cursor.
 - With "Run lines together", a single line break disappears and a blank line is a hard return. A verse
   ending in a shad or tsheg joins the next verse with no added space.
 - Lines break after a tsheg, after a shad, or at a space. A shad never starts a line through a break
@@ -65,7 +68,8 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 - **Folio numbers**: spelled in Tibetan on the left of each front. 21-99 stand alone in the long form
   (བརྒྱད་ཅུ་གྱ་གཉིས), the short form follows hundreds, and exact hundreds take ཐམ་པ. Also an option for
   one fixed phrase on every folio, and བྱོན། added to the last folio.
-- **Page numbers**: Arabic, rotated, on the right.
+- **Page numbers**: Arabic on the right; bottom/center, rotation, inset and separate first-title visibility.
+  Folio rotation is separately configurable; its exact original facing direction remains unverified.
 - **Margin notes**: rotated text at inside left top and bottom, inside right, outside left and outside
   right, set separately for the front and back of each page type.
 
@@ -93,10 +97,44 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
   byte strings after a length key; an INI template; then the body. In the body `0x11 op a b c 0x11` is
   a format code (0x20 font, 0x21 size, 0x22 colour, 0x23 bold, 0x24 italic, 0x25 underline, 0x32-35
   alignment, 0x48 tab) and `0x14 x font ch y 0x14` is a stack from another font of the set.
-- Saves its own `.pecha` file (JSON). A draft is kept in the browser.
+- Saves its own `.pecha` file (JSON). A draft is kept in the browser. Separate web layout, content and
+  annotation/numbering files can be applied to the current document without replacing unrelated parts.
+  They are not Windows PXT/PXC/PXA files. Older web documents receive default values for new fields.
 
 ## Not built yet
 
-Pictures in side boxes and inline images, RTF and TibetDoc import, OCR for woodblock-print scans, separate save of text and template,
-TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
+Pictures in side boxes and inline images, RTF and TibetDoc import, OCR for woodblock-print scans, TCC and Sambhota keyboard maps (Wylie entry and the system Tibetan keyboard stand in), multi-column
 tabs beyond a simple tab stop, editing directly on the page, undo beyond the browser's own.
+
+
+## Whole-text styling and volumes (web additions)
+
+- A nullable global main-text size overrides inline, page-type and role sizes while preserving font,
+  bold, italic and colour. Clearing it restores those individual sizes. Numbering and notes keep their
+  own sizes. This is a reversible size override, not an exact simulation of Windows selection editing.
+- `{root}`, `{commentary}`, `{heading}` and `{/role}` mark semantic roles. Each role has its own font,
+  size and bold choice. All marked passages respond to role changes. No root/commentary bold mapping
+  is assumed. An explicit bold or size mark after a role overrides that attribute until the next role.
+- Optional volumes contain ordered text sections, with a name, Tibetan starting folio and explicit
+  choice to restart the shared Title/Fancy sequence. Unticked means all Body pages for that text.
+- Every section begins on the front of a new folio. If needed, a blank back is inserted. Arabic page
+  counting continues across every page, including blank backs and hidden title labels. Tibetan folio
+  counts restart per text. This is a declared web workflow, not claimed original Windows behavior.
+- Section names can replace the left and/or right inside annotations, retaining their size/inset.
+  Reordering whole texts recalculates pagination and volume counters. Single-text files are unchanged
+  until the user enables the volume controls. Content-only saves retain sections and role marks.
+
+## Compatibility limits and verification
+
+The interface includes an explicit unfinished-features checklist. The original has additional image,
+legacy-input, normal editing-mode, selected-text formatting and annotation features that are not fully
+recreated. Rich text in annotations, exact shad/yi-go/dzog edge behavior, original font metrics and
+original label facing still need direct comparison. PDF/OCR is an existing web addition, not an original
+Windows feature. Legacy sample imports are smoke-tested for all five public examples; that does not
+prove visual fidelity. Native Windows keyboard maps and binary-format export remain absent.
+
+Validation includes engine regression tests for typography preservation, tab stops, numbering/title
+visibility, margin placement, reusable files, section resets/reordering and duplex imposition, plus
+existing PDF repair tests. Browser QA uses local synthetic/public sample text only. Safari requires
+matching paper size/orientation and disabling headers/footers in its print dialog; browser print settings
+can otherwise add pages despite the app's CSS page size.

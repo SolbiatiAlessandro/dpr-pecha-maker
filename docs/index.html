@@ -26,7 +26,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--table); color: var(--ink); font: 14px/1.45 var(--ui); }
+body { margin: 0; background: var(--table); color: var(--ink); font: 16px/1.45 var(--ui); }
 button, input, select, textarea { font: inherit; color: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, label.btn:focus-within {
   outline: 2px solid var(--verm); outline-offset: 1px;
@@ -56,24 +56,24 @@ header {
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--verm); font-weight: 600; }
 .pane { padding: 14px 16px 26px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
 .pane > * { flex-shrink: 0; }
-.pane h3 { margin: 6px 0 0; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); }
-.pane p.hint { margin: 0; color: var(--ink-soft); font-size: 12.5px; }
+.pane h3 { margin: 6px 0 0; font-size: .875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--red); }
+.pane p.hint { margin: 0; color: var(--ink-soft); font-size: .875rem; }
 #text {
   width: 100%; min-height: 300px; flex: 1; resize: vertical; padding: 10px 12px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px;
   font: 21px/1.75 var(--tib);
 }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { border: 1px solid var(--rule); background: var(--folio); padding: 3px 9px; border-radius: 3px; cursor: pointer; font-size: 12.5px; }
+.chip { border: 1px solid var(--rule); background: var(--folio); padding: 3px 9px; border-radius: 3px; cursor: pointer; font-size: .875rem; }
 .chip:hover { border-color: var(--verm); }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12.5px; color: var(--ink-soft); }
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: .875rem; color: var(--ink-soft); }
 .field input, .field select { width: 100%; padding: 5px 7px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .field.wide { grid-column: 1 / -1; }
 .field .tib, .tib { font-family: var(--tib); font-size: 17px; }
-.check { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; }
+.check { display: flex; align-items: flex-start; gap: 7px; font-size: .875rem; }
 .check input { margin-top: 3px; accent-color: var(--verm); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
-.seg button { border: 0; background: var(--folio); padding: 6px 4px; cursor: pointer; font-size: 13px; }
+.seg button { border: 0; background: var(--folio); padding: 6px 4px; cursor: pointer; font-size: .875rem; }
 .seg button[aria-pressed="true"] { background: var(--red); color: var(--paper); }
 .seg.wrap button { padding: 7px 4px; line-height: 1.25; }
 .steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 14px; }
@@ -83,7 +83,7 @@ header {
   display: grid; place-items: center; font-size: 12px; font-weight: 700;
 }
 .steps li > * { grid-column: 2; }
-.steps p { margin: 0; font-size: 13px; }
+.steps p { margin: 0; font-size: .875rem; }
 .steps .btn { justify-self: start; }
 #printSteps { display: flex; flex-direction: column; gap: 12px; }
 .flip { margin: 0; padding: 10px 12px 6px; background: var(--folio); border: 1px solid var(--rule); border-radius: 3px; }
@@ -151,7 +151,7 @@ header {
 .site-credit .dharma { color: var(--gold); font-size: 16px; vertical-align: -1px; }
 .site-credit a { color: inherit; text-underline-offset: 3px; }
 .site-credit a:hover { color: #fff; }
-details summary { cursor: pointer; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--red); font-weight: 700; }
+details summary { cursor: pointer; font-size: .875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--red); font-weight: 700; }
 details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 
 @media (max-width: 860px) {
@@ -219,8 +219,36 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     </div>
 
     <div class="pane" data-pane="text">
+      <details>
+        <summary>Texts in this volume</summary>
+        <div>
+          <button class="btn" id="startSections" type="button">Organize as a volume of texts</button>
+          <div id="sectionControls" hidden>
+            <div class="field"><label for="sectionPick">Edit text</label><select id="sectionPick"></select></div>
+            <div class="field"><label for="sectionName">Text / section name</label><input id="sectionName" type="text"></div>
+            <div class="field"><label for="sectionFolio">First Tibetan folio for this text (0 hides)</label><input id="sectionFolio" type="number" min="0" max="9999" step="1"></div>
+            <label class="check"><input id="sectionOpening" type="checkbox"><span>Restart Title and Fancy pages for this text</span></label>
+            <label class="check"><input id="sectionLeft" type="checkbox"><span>Use section names in left inside boxes</span></label>
+            <label class="check"><input id="sectionRight" type="checkbox"><span>Use section names in right inside boxes</span></label>
+            <div class="chips"><button class="chip" id="sectionEarlier" type="button">Move earlier</button><button class="chip" id="sectionLater" type="button">Move later</button><button class="chip" id="addSection" type="button">Add text</button></div>
+          </div>
+          <p class="hint">Each text begins on a new folio front. A blank back is inserted when needed and counts toward the continuous Arabic page numbers. Tibetan folios restart at each text’s chosen number. Side names replace the chosen inside notes. This volume workflow is a web addition, not verified original Windows behavior.</p>
+        </div>
+      </details>
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
       <div class="chips" id="codes"></div>
+      <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it.</p>
+      <h3>Text size</h3><div class="grid" id="textFields"></div>
+      <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
+      <details>
+        <summary>Root, commentary and heading styles</summary>
+        <div>
+          <label for="rolePick">Text role</label><select id="rolePick"><option value="root">Root text</option><option value="commentary">Commentary</option><option value="heading">Heading</option></select>
+          <div class="grid" id="roleFields"></div>
+          <button class="btn" type="button" id="applyRole">Apply role to selection or start here</button>
+          <p class="hint">Choose your own fonts and bold settings. Changes update every marked passage. A whole-text size overrides role sizes until cleared. Roles are a web feature; original Windows named styles are unverified.</p>
+        </div>
+      </details>
       <label class="check"><input type="checkbox" id="flow"><span>Run lines together. A blank line starts a new paragraph.</span></label>
       <label class="check" id="otherWrap" hidden><input type="checkbox" id="keepOther"><span>Include the non-Tibetan lines from the PDF. This rebuilds the text and replaces your edits.</span></label>
       <details>
@@ -232,10 +260,34 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <p class="source" id="sampleNote"></p>
       <p class="source" id="credits"></p>
+      <details>
+        <summary>Reuse text, layouts and annotations</summary>
+        <div>
+          <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
+          <button class="btn" type="button" id="savePart">Download selected settings</button>
+          <button class="btn" type="button" id="loadPart">Load into this pecha</button>
+          <input id="partFile" type="file" accept=".pecha,.json" hidden>
+          <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Compatibility and unfinished features</summary>
+        <div>
+          <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
+          <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
+          <p class="hint">Still missing: inline and page-attached images, image yi-go, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
+          <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
+          <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
+        </div>
+      </details>
     </div>
 
     <div class="pane" data-pane="layout" hidden>
-      <h3>Paper</h3><div class="grid" id="paperFields"></div>
+      <h3>Paper</h3>
+      <div class="field"><label for="orientation">Orientation</label><select id="orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></div>
+      <div class="grid" id="paperFields"></div>
+      <p class="hint">Top and bottom margins are mirrored on back sheets to align both sides after turning the paper over.</p>
       <h3>Page order</h3><div class="grid" id="orderFields"></div>
       <h3>Page design</h3>
       <div class="seg" id="typeSeg"></div>
@@ -2237,13 +2289,22 @@ const Engine = (() => {
     return {
       version: 1,
       text: '',
+      sections: [],
+      sectionLabels: { left: true, right: true },
       flow: true,
       font: "'Jomolhari','Noto Serif Tibetan',serif",
       fontName: 'Jomolhari',
+      textSize: null,
+      roles: {
+        root: { font: 'Jomolhari', size: 23, bold: false },
+        commentary: { font: 'Jomolhari', size: 23, bold: false },
+        heading: { font: 'Jomolhari', size: 28, bold: false },
+      },
       tabWidth: 0.5,
+      tibetanRaise: 0,
       paper: { name: 'A4', w: 11.69, h: 8.27 },
-      margins: { left: 0.3, right: 0.3 },
-      pecha: { height: 2.55, dlt: 0.03, perSheet: 3 },
+      margins: { left: 0.3, right: 0.3, top: 0, bottom: 0 },
+      pecha: { height: 2.55, dlt: 0.03, perSheet: 3, placement: 'center' },
       counts: { title: 1, fancy: 2 },
       types: {
         title: pageType({ lines: 2, lineHeight: 0.5, fontSize: 25, sideIn: 0.42, sideOut: 0.72, insideOn: true, inside: 0.32, squeezeOn: true, squeeze: 0.14 }),
@@ -2253,8 +2314,8 @@ const Engine = (() => {
       shad: { enabled: true, yang: true, ignoreYigo: false, titlePages: false },
       yigo: { enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05 },
-      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '' },
-      pageNum: { start: 1, onTitle: false, inset: 0.05, size: 9, on: true },
+      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90 },
+      pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom' },
       notes: {
         outLeft: 0, outRight: 0,
         sets: {
@@ -2271,7 +2332,7 @@ const Engine = (() => {
 
   // Format codes sit in the text, as in PechaMaker: {c} {j} {l} {r} {30} {#b03020} {b} {/b} {i} {/i} {page}
   function parseStream(text, flow) {
-    const style = { align: 'j', size: null, color: null, bold: false, italic: false };
+    const style = { align: 'j', size: null, color: null, bold: null, italic: false, underline: false, strike: false, role: null };
     const items = [];
     const src = prepareBreaks(text || '', flow);
     const re = /\{([^{}\n]*)\}/g;
@@ -2291,6 +2352,12 @@ const Engine = (() => {
         else if (tok === '/b') style.bold = false;
         else if (tok === 'i') style.italic = true;
         else if (tok === '/i') style.italic = false;
+        else if (tok === 'u') style.underline = true;
+        else if (tok === '/u') style.underline = false;
+        else if (tok === 's') style.strike = true;
+        else if (tok === '/s') style.strike = false;
+        else if (['root', 'commentary', 'heading'].includes(tok)) { style.role = tok; style.bold = null; style.size = null; }
+        else if (tok === '/role') { style.role = null; style.bold = null; style.size = null; }
         else if (/^\d+(\.\d+)?$/.test(tok)) style.size = +tok;
         else if (/^#[0-9a-f]{3,6}$/i.test(tok)) style.color = tok;
         else if (tok === 'size') style.size = null;
@@ -2388,7 +2455,7 @@ const Engine = (() => {
 
   function yigoWanted(doc, n, kind, isFirstFancy) {
     if (!doc.yigo.enabled) return false;
-    if (kind === 'title') return doc.yigo.title2 && n > 1 && n % 2 === 1;
+    if (kind === 'title') return doc.yigo.title2 && n > 1;
     if (kind === 'fancy' && !doc.yigo.fancyStart) return false;
     if (isFirstFancy) return true;
     return n % 2 === 1;
@@ -2396,8 +2463,11 @@ const Engine = (() => {
 
   function fontFor(doc, atom, sizeDefault) {
     const st = atom.style || {};
-    const size = st.size || sizeDefault;
-    return { size, weight: st.bold ? 700 : 400, italic: !!st.italic, family: doc.font };
+    const role = doc.roles && doc.roles[st.role];
+    const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
+    return { size, weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
+      italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
+      family: role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
   }
 
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
@@ -2460,6 +2530,14 @@ const Engine = (() => {
   }
 
   function reflow(line, W, justify) {
+    // Tab stops were already positioned by fillLine. Rebuilding x from glyph widths erases them.
+    if (line.hasTab) {
+      line.width = line.natural;
+      const off = line.align === 'c' ? (W - line.width) / 2 : line.align === 'r' ? W - line.width : 0;
+      if (off > 0) line.items.forEach(p => { p.x += off; });
+      line.endX = line.width + Math.max(0, off);
+      return;
+    }
     let x = 0, spaces = [], tshegs = [];
     const its = line.items;
     its.forEach((p, k) => {
@@ -2521,23 +2599,24 @@ const Engine = (() => {
 
   // ---------- rendering ----------
 
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(//g, SHAD);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(//g, SHAD);
   const num = v => Math.round(v * 100) / 100;
 
   function textEl(x, y, s, f, color, extra = '') {
     const st = (f.weight > 400 ? ' font-weight="700"' : '') + (f.italic ? ' font-style="italic"' : '');
-    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(f.size)}"${color ? ` fill="${color}"` : ''}${st}${extra}>${esc(s)}</text>`;
+    const decorations = [f.underline && 'underline', f.strike && 'line-through'].filter(Boolean).join(' ');
+    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(f.size)}"${f.family ? ` font-family="${esc(f.family)}"` : ''}${color ? ` fill="${esc(color)}"` : ''}${st}${decorations ? ` text-decoration="${decorations}"` : ''}${extra}>${esc(s)}</text>`;
   }
 
-  function sideText(x, y, s, size, doc, anchor) {
-    return `<text transform="translate(${num(x)} ${num(y)}) rotate(-90)" font-size="${num(size)}" text-anchor="${anchor}">${esc(s)}</text>`;
+  function sideText(x, y, s, size, doc, anchor, angle = -90) {
+    return `<text transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})" font-size="${num(size)}" text-anchor="${anchor}">${esc(s)}</text>`;
   }
 
   function drawBoxes(p, doc) {
     const { O, I, d, lx1, lx2, rx1, rx2 } = p.boxes;
     const t = p.type;
     if (t.style === 'none') return '';
-    const stroke = `fill="none" stroke="${t.color}" stroke-width="0.7"`;
+    const stroke = `fill="none" stroke="${esc(t.color)}" stroke-width="0.7"`;
     const rect = (r, inset = 0) => `<rect x="${num(r.x0 + inset)}" y="${num(r.y0 + inset)}" width="${num(r.x1 - r.x0 - 2 * inset)}" height="${num(r.y1 - r.y0 - 2 * inset)}" ${stroke}/>`;
     let out = rect(O);
     if (d) out += rect(O, d);
@@ -2556,7 +2635,7 @@ const Engine = (() => {
 
   function drawText(p, doc, measure) {
     const { T } = p.boxes, t = p.type;
-    const head = measure.head(doc, t.fontSize);
+    const head = measure.head(doc, doc.textSize || t.fontSize);
     const room = T.y1 - T.y0;
     const nLines = p.kind === 'title' ? Math.max(1, p.lines.length) : t.lines;   // a short last page starts where full pages do
     const block = (nLines - 1) * t.lineHeight * PT + head.height;
@@ -2567,8 +2646,8 @@ const Engine = (() => {
       const top = start + ln * t.lineHeight * PT;
       p.lineTops.push(top);
       for (const a of line.items) {
-        const h = measure.head(doc, a.f.size, isTib(a.s[0]));
-        out += textEl(T.x0 + a.x, top + h.ascent, a.s, a.f, a.style && a.style.color);
+        const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
+        out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
     });
     return out;
@@ -2592,7 +2671,12 @@ const Engine = (() => {
 
   function drawMargins(p, doc, measure, folioCount) {
     const { O, w, h } = p.boxes;
-    const set = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
+    const sourceSet = doc.notes.sets[`${p.kind}.${p.front ? 'front' : 'back'}`];
+    const set = { ...sourceSet };
+    if (p.sectionName && doc.sectionLabels) {
+      if (doc.sectionLabels.left) set.inL = { ...set.inL, on: true, text: p.sectionName };
+      if (doc.sectionLabels.right) set.inR = { ...set.inR, on: true, text: p.sectionName };
+    }
     let out = '';
     const asc = size => measure.head(doc, size);
     const pad = 9;
@@ -2608,26 +2692,29 @@ const Engine = (() => {
     if (set.outR.on && set.outR.text) out += sideText(w - set.outR.inset * PT - asc(set.outR.size).descent, midY, set.outR.text, set.outR.size, doc, 'middle');
 
     const fo = doc.folio;
-    const showFolio = p.front && fo.start > 0 && (p.kind !== 'title' || fo.onTitle);
+    const folioStart = p.sectionFolioStart === undefined ? fo.start : p.sectionFolioStart;
+    const showFolio = p.front && folioStart > 0 && (p.kind !== 'title' || fo.onTitle);
     if (showFolio) {
-      const number = fo.start + (p.n - 1) / 2;
-      const isLast = (p.n + 1) / 2 >= folioCount;
+      const number = p.folioNumber === undefined ? fo.start + (p.n - 1) / 2 : p.folioNumber;
+      const isLast = p.sectionLastFolio === undefined ? (p.n + 1) / 2 >= folioCount : p.sectionLastFolio;
       const label = fo.rhino || Folio.words(number) + (fo.jyon && isLast ? Folio.JYON : '');
       const x = O.x0 + fo.inset * PT + asc(fo.size).ascent;
-      out += sideText(x, midY, label, fo.size, doc, 'middle');
+      out += sideText(x, midY, label, fo.size, doc, 'middle', fo.angle === undefined ? -90 : fo.angle);
     }
     const pn = doc.pageNum;
-    if (pn.on && pn.start > 0 && (p.kind !== 'title' || pn.onTitle)) {
+    if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {
       const x = O.x1 - pn.inset * PT - 2;
-      out += `<text transform="translate(${num(x)} ${num(O.y1 - pad)}) rotate(-90)" font-size="${pn.size}" font-family="Georgia,'Times New Roman',serif">${pn.start + p.n - 1}</text>`;
+      const center = pn.position === 'center', angle = pn.angle === undefined ? -90 : pn.angle;
+      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="Georgia,'Times New Roman',serif">${pn.start + p.n - 1}</text>`;
     }
     return out;
   }
 
   function pageInner(p, doc, measure, folioCount) {
+    if (p.blank) return '';
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
-    return `<g text-rendering="geometricPrecision" font-family="${doc.font.replace(/"/g, '&quot;')}" fill="#14100e">`
+    return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
       + drawBoxes(p, doc) + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
@@ -2674,17 +2761,20 @@ const Engine = (() => {
 
   function sheetSvg(sheet, doc, measure, folioCount, screen) {
     const W = doc.paper.w * PT, H = doc.paper.h * PT, n = doc.pecha.perSheet;
-    const strip = H / n, h = doc.pecha.height * PT, x = doc.margins.left * PT;
+    // Mirror vertical margins on backs so a top-edge turn aligns every front with its back.
+    const back = sheet.side === 'back';
+    const top = (doc.margins[back ? 'bottom' : 'top'] || 0) * PT, bottom = (doc.margins[back ? 'top' : 'bottom'] || 0) * PT;
+    const strip = (H - top - bottom) / n, h = doc.pecha.height * PT, x = doc.margins.left * PT;
     let out = '';
     sheet.slots.forEach((p, r) => {
       if (!p) return;
-      const y = r * strip + (strip - h) / 2;
+      const y = doc.pecha.placement === 'top' ? (back ? H - bottom - (r + 1) * h : top + r * h) : top + r * strip + (strip - h) / 2;
       out += `<g transform="translate(${num(x)} ${num(y)})">${pageInner(p, doc, measure, folioCount)}</g>`;
     });
     if (doc.print.cutMarks) {
       const tick = 14;
       const line = (a, b, c, d) => `<line x1="${num(a)}" y1="${num(b)}" x2="${num(c)}" y2="${num(d)}" stroke="#000" stroke-width="0.35"/>`;
-      for (let k = 1; k < n; k++) { const y = k * strip; out += line(0, y, tick, y) + line(W - tick, y, W, y); }
+      for (let k = 1; k < n; k++) { const y = top + k * (doc.pecha.placement === 'top' ? h : strip); out += line(0, y, tick, y) + line(W - tick, y, W, y); }
       const w = W - (doc.margins.left + doc.margins.right) * PT;
       for (const px of [x, x + w]) out += line(px, 0, px, tick * 0.6) + line(px, H - tick * 0.6, px, H);
       // The sheet number sits in the margin that is cut away, so a misfed back shows before it is cut.
@@ -2700,10 +2790,32 @@ const Engine = (() => {
   }
 
   function fits(doc) {
-    return doc.pecha.perSheet * doc.pecha.height <= doc.paper.h + 1e-6;
+    return doc.pecha.perSheet * doc.pecha.height <= doc.paper.h - (doc.margins.top || 0) - (doc.margins.bottom || 0) + 1e-6;
   }
 
   function run(doc, measure) {
+    if (doc.sections && doc.sections.length) {
+      const pages = [];
+      doc.sections.forEach((section, index) => {
+        // Each text begins on the front of a new leaf. A blank back is a real volume page.
+        if (pages.length % 2) {
+          const type = doc.types.body;
+          pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
+        }
+        const sub = { ...doc, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
+        const atoms = atomize(parseStream(sub.text, sub.flow), sub, measure);
+        const local = paginate(sub, atoms, measure), offset = pages.length;
+        const count = Math.ceil(local.length / 2);
+        for (const p of local) {
+          p.localN = p.n; p.sectionIndex = index; p.sectionName = section.name;
+          p.sectionFolioStart = section.folioStart; p.folioNumber = section.folioStart + Math.floor((p.n - 1) / 2);
+          p.sectionLastFolio = Math.ceil(p.n / 2) === count;
+          p.n += offset; p.isLast = p.localN === local.length;
+          pages.push(p);
+        }
+      });
+      return { pages, folioCount: Math.ceil(pages.length / 2) };
+    }
     const atoms = atomize(parseStream(doc.text, doc.flow), doc, measure);
     const pages = paginate(doc, atoms, measure);
     if (pages.length) pages[pages.length - 1].isLast = true;
@@ -2714,6 +2826,64 @@ const Engine = (() => {
   return { PT, defaultDoc, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
+
+// Browser document files. These JSON formats are independent of Windows PechaMaker's formats.
+const Documents = (() => {
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const layoutKeys = ['font', 'fontName', 'textSize', 'roles', 'tabWidth', 'tibetanRaise', 'paper', 'margins', 'pecha', 'counts', 'types', 'shad', 'yigo', 'dzog', 'print'];
+  const annotationKeys = ['folio', 'pageNum', 'notes', 'sectionLabels'];
+  // Keep only known fields, merge older documents with defaults, and never assign prototype keys.
+  function merge(base, input) {
+    const out = clone(base);
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+    for (const key of Object.keys(base)) {
+      const value = input[key];
+      if (value === undefined) continue;
+      if (base[key] && typeof base[key] === 'object') out[key] = merge(base[key], value);
+      else if (base[key] === null) out[key] = value === null || (typeof value === 'number' && Number.isFinite(value)) ? value : null;
+      else if (typeof value === typeof base[key] && (typeof value !== 'number' || Number.isFinite(value))) out[key] = value;
+    }
+    return out;
+  }
+  function normalize(input, Engine) {
+    if (!input || input.version !== 1 || typeof input.text !== 'string') throw new Error('Not a web pecha document');
+    if (Array.isArray(input.sections) && input.sections.length > 200) throw new Error('Too many texts in this volume');
+    const d = merge(Engine.defaultDoc(), input);
+    d.sections = Array.isArray(input.sections) ? input.sections.map((s, i) => ({
+      name: typeof s.name === 'string' ? s.name : `Text ${i + 1}`,
+      text: typeof s.text === 'string' ? s.text : '',
+      folioStart: Number.isFinite(s.folioStart) ? Math.max(0, Math.min(9999, Math.round(s.folioStart))) : 1,
+      restartLayout: s.restartLayout !== false,
+    })) : [];
+    const bound = (o, k, min, max, integer = false) => { o[k] = Math.max(min, Math.min(max, integer ? Math.round(o[k]) : o[k])); };
+    for (const k of ['w', 'h']) bound(d.paper, k, 2, 60);
+    for (const k of ['left', 'right', 'top', 'bottom']) bound(d.margins, k, 0, 20);
+    bound(d.pecha, 'perSheet', 1, 8, true); bound(d.pecha, 'height', 0.5, 30);
+    bound(d, 'tabWidth', 0.05, 20);
+    bound(d, 'tibetanRaise', -2, 2);
+    if (d.textSize !== null) bound(d, 'textSize', 5, 200);
+    for (const k of ['title', 'fancy']) bound(d.counts, k, 0, 1000, true);
+    for (const t of Object.values(d.types)) { bound(t, 'lines', 1, 100, true); bound(t, 'fontSize', 5, 200); bound(t, 'lineHeight', 0.05, 10); }
+    for (const r of Object.values(d.roles)) { bound(r, 'size', 5, 200); if (!['Jomolhari', 'Noto Serif Tibetan'].includes(r.font)) r.font = 'Jomolhari'; }
+    if (d.pecha.placement === 'top') d.pecha.perSheet = 1;
+    return d;
+  }
+  function artifact(doc, kind) {
+    if (kind === 'document') return clone(doc);
+    const keys = kind === 'template' ? layoutKeys : kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    return { format: 'web-pecha-part', version: 1, kind, settings: Object.fromEntries(keys.map(k => [k, clone(doc[k])])) };
+  }
+  function apply(current, saved, Engine) {
+    if (saved.format !== 'web-pecha-part') return normalize(saved, Engine);
+    if (saved.version !== 1 || !['template', 'annotations', 'content'].includes(saved.kind)) throw new Error('Unknown pecha file');
+    const keys = saved.kind === 'template' ? layoutKeys : saved.kind === 'annotations' ? annotationKeys : ['text', 'flow', 'sections'];
+    const combined = clone(current || Engine.defaultDoc());
+    for (const k of keys) if (saved.settings && Object.hasOwn(saved.settings, k)) combined[k] = saved.settings[k];
+    return normalize(combined, Engine);
+  }
+  return { normalize, artifact, apply };
+})();
+if (typeof module !== 'undefined') module.exports = Documents;
 
 // Reader for PechaMaker .pxp / .pxc / .pxt files. Written from the sample files and the User's
 // Guide, not from the program. A file is: a header with a font table, a NON-BODY block of
@@ -2854,6 +3024,7 @@ const Pxp = (() => {
       }
       else if (e.op === 0x23) out += e.a ? '{b}' : '{/b}';
       else if (e.op === 0x24) out += e.a ? '{i}' : '{/i}';
+      else if (e.op === 0x25) out += e.a ? '{u}' : '{/u}';
       else if (ALIGN[e.op]) out += `{${ALIGN[e.op]}}`;
       else if (e.op === 0x48) out += '\t';
     }
@@ -2882,7 +3053,8 @@ const Pxp = (() => {
       let w = num(S['PaperSize.x'], 11000) / 1000, h = num(S['PaperSize.y'], 8500) / 1000;
       if (+S.PageOrientation === 2 && w < h) [w, h] = [h, w];
       d.paper = { name: 'Custom', w, h };
-      d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000 };
+      d.margins = { left: num(S['PageMargin.left'], 500) / 1000, right: num(S['PageMargin.right'], 500) / 1000,
+        top: num(S['PageMargin.top'], 0) / 1000, bottom: num(S['PageMargin.bottom'], 0) / 1000 };
       d.pecha.perSheet = num(S.PechaPagesPerSheet, 1);
     }
     const C = t.PechaControl;
@@ -2895,6 +3067,7 @@ const Pxp = (() => {
       d.folio.size = num(A.FolioNumPtSz, 20) * fontScale;
       d.pageNum.inset = num(A.PageNumInset, 0.05);
       d.pageNum.size = num(A.PageNumPtSz, 12);
+      d.pageNum.position = on(A.PageNumCenter, false) ? 'center' : 'bottom';
     }
     let prevEnd = 0;
     for (const i of [0, 1, 2]) {
@@ -2930,6 +3103,7 @@ const Pxp = (() => {
     d.pageNum.start = num(v.PageStartNum, 1);
     d.pageNum.on = d.pageNum.start > 0;
     d.pageNum.onTitle = on(v.PageNumTitleEn, false);
+    d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
         const text = plainText(raw[`${name}[${i}].s`], p.fonts, table);
@@ -3371,6 +3545,9 @@ const PREVIEW_PAGES = 24;
 
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
+let sectionIndex = 0;
+const editingText = () => doc.sections.length ? doc.sections[sectionIndex].text : doc.text;
+function setEditingText(value) { if (doc.sections.length) doc.sections[sectionIndex].text = value; else doc.text = value; }
 
 // ---------- measuring ----------
 
@@ -3448,6 +3625,12 @@ function field(host, def) {
     else if (def.type === 'select') v = def.number ? +el.value : el.value;
     else if (el.type === 'number') v = el.value === '' ? (def.nullable ? null : getPath(def.path)) : +el.value;
     else v = el.value;
+    if (el.type === 'number' && v !== null) {
+      if (!Number.isFinite(v)) return;
+      if (def.min !== undefined) v = Math.max(def.min, v);
+      if (def.max !== undefined) v = Math.min(def.max, v);
+      if (def.step === 1) v = Math.round(v);
+    }
     setPath(def.path, v);
     if (def.onChange) def.onChange(v);
     schedule();
@@ -3473,16 +3656,28 @@ function segment(host, options, active, onPick) {
 // ---------- panels ----------
 
 function buildPanels() {
-  $('text').value = doc.text;
+  $('text').value = editingText();
+  buildSectionPanel();
   $('flow').checked = doc.flow;
+  $('orientation').value = doc.paper.w >= doc.paper.h ? 'landscape' : 'portrait';
+  fill($('textFields'), [
+    { path: 'textSize', label: 'All main text, pt (blank keeps individual sizes)', step: 1, min: 5, max: 200, nullable: true, wide: true, placeholder: 'individual sizes' },
+    { path: 'tabWidth', label: 'Tab stops, in', step: 0.05, min: 0.05, max: 20 },
+    { path: 'tibetanRaise', label: 'Raise Tibetan, in', step: 0.01, min: -2, max: 2 },
+  ]);
+  buildRolePanel();
   fill($('paperFields'), [
     { path: 'paper.name', label: 'Paper', type: 'select', options: Object.keys(PAPERS).map(k => [k, k]), onChange: v => { if (PAPERS[v]) { [doc.paper.w, doc.paper.h] = PAPERS[v]; buildPanels(); } } },
-    { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8 },
+    { path: 'pecha.perSheet', label: 'Pecha per sheet', step: 1, min: 1, max: 8, onChange: v => { if (v > 1) { doc.pecha.placement = 'center'; $('f_pecha_placement').value = 'center'; } } },
+    { path: 'pecha.placement', label: 'Vertical placement', type: 'select', wide: true, options: [['center', 'Centered between margins'], ['top', 'Single pecha at top margin']], onChange: v => { if (v === 'top') { doc.pecha.perSheet = 1; buildPanels(); } } },
     { path: 'fontName', label: 'Typeface', type: 'select', wide: true, options: FONTS.map(f => [f, f]), onChange: v => { doc.font = `'${v}','Noto Serif Tibetan',serif`; } },
     { path: 'paper.w', label: 'Sheet width, in', step: 0.01, min: 3, onChange: () => { doc.paper.name = 'Custom'; } },
     { path: 'paper.h', label: 'Sheet height, in', step: 0.01, min: 2, onChange: () => { doc.paper.name = 'Custom'; } },
     { path: 'pecha.height', label: 'Pecha height, in', step: 0.05, min: 0.5 },
-    { path: 'margins.left', label: 'Left and right margin, in', step: 0.05, min: 0, onChange: v => { doc.margins.right = v; } },
+    { path: 'margins.left', label: 'Left margin, in', step: 0.05, min: 0 },
+    { path: 'margins.right', label: 'Right margin, in', step: 0.05, min: 0 },
+    { path: 'margins.top', label: 'Top margin, in', step: 0.05, min: 0 },
+    { path: 'margins.bottom', label: 'Bottom margin, in', step: 0.05, min: 0 },
     { path: 'pecha.dlt', label: 'Double line gap, in', step: 0.005, min: 0 },
   ]);
   fill($('orderFields'), [
@@ -3511,6 +3706,7 @@ function buildPanels() {
     { path: 'folio.size', label: 'Size, pt', step: 1, min: 6 },
     { path: 'folio.inset', label: 'Inset from box, in', step: 0.01, min: 0 },
     { path: 'folio.onTitle', label: 'Show on Title pages', type: 'check' },
+    { path: 'folio.angle', label: 'Folio label rotation', type: 'select', number: true, wide: true, options: [[-90, '90° counterclockwise'], [90, '90° clockwise'], [0, 'Horizontal']] },
     { path: 'folio.jyon', label: 'Add བྱོན། to the last folio', type: 'check' },
     { path: 'folio.rhino', label: 'Same phrase on every folio (seru)', type: 'text', wide: true, tibetan: true },
   ]);
@@ -3519,12 +3715,45 @@ function buildPanels() {
     { path: 'pageNum.start', label: 'First page', step: 1, min: 0 },
     { path: 'pageNum.size', label: 'Size, pt', step: 1, min: 5 },
     { path: 'pageNum.onTitle', label: 'Show on Title pages', type: 'check' },
+    { path: 'pageNum.firstTitle', label: 'Include the first Title page', type: 'check' },
+    { path: 'pageNum.position', label: 'Position', type: 'select', options: [['bottom', 'Bottom'], ['center', 'Center']] },
+    { path: 'pageNum.angle', label: 'Rotation', type: 'select', number: true, options: [[-90, '90° counterclockwise'], [0, 'Horizontal'], [90, '90° clockwise']] },
+    { path: 'pageNum.inset', label: 'Inset from right box, in', step: 0.01, min: 0 },
   ]);
   const ns = $('noteSide');
   ns.replaceChildren(...SIDES.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; }));
   ns.value = noteSide;
   buildNotePanel();
   buildPrintPanel();
+}
+
+function buildSectionPanel() {
+  const multi = doc.sections.length > 0;
+  $('sectionControls').hidden = !multi;
+  $('startSections').hidden = multi;
+  if (!multi) return;
+  const picker = $('sectionPick');
+  picker.replaceChildren(...doc.sections.map((s, i) => {
+    const option = document.createElement('option'); option.value = i; option.textContent = `${i + 1}. ${s.name || 'Untitled text'}`; return option;
+  }));
+  picker.value = sectionIndex;
+  const section = doc.sections[sectionIndex];
+  $('sectionName').value = section.name;
+  $('sectionFolio').value = section.folioStart;
+  $('sectionOpening').checked = section.restartLayout;
+  $('sectionLeft').checked = doc.sectionLabels.left;
+  $('sectionRight').checked = doc.sectionLabels.right;
+  $('sectionEarlier').disabled = sectionIndex === 0;
+  $('sectionLater').disabled = sectionIndex === doc.sections.length - 1;
+}
+
+function buildRolePanel() {
+  const role = $('rolePick').value || 'root';
+  fill($('roleFields'), [
+    { path: `roles.${role}.font`, label: 'Typeface', type: 'select', options: FONTS.map(f => [f, f]), wide: true },
+    { path: `roles.${role}.size`, label: 'Size, pt', step: 1, min: 5, max: 200 },
+    { path: `roles.${role}.bold`, label: 'Bold', type: 'check' },
+  ]);
 }
 
 function buildPrintPanel() {
@@ -3546,7 +3775,7 @@ function buildTypePanel() {
   segment($('typeSeg'), [['title', 'Title'], ['fancy', 'Fancy'], ['body', 'Body']], currentType, v => { currentType = v; buildTypePanel(); });
   const p = `types.${currentType}`;
   fill($('typeFields'), [
-    { path: `${p}.lines`, label: 'Lines per page', step: 1, min: 1, max: 14 },
+    { path: `${p}.lines`, label: 'Lines per page', step: 1, min: 1, max: 100 },
     { path: `${p}.fontSize`, label: 'Text size, pt', step: 1, min: 8 },
     { path: `${p}.lineHeight`, label: 'Line height, in', step: 0.01, min: 0.1 },
     { path: `${p}.top`, label: 'Box to first line, in', step: 0.01, min: 0, nullable: true, placeholder: 'centred' },
@@ -3588,7 +3817,7 @@ function updatePrintSteps() {
   const count = `${n} ${n === 1 ? 'sheet' : 'sheets'}`;
   const edge = doc.paper.w >= doc.paper.h ? 'long' : 'short';
   const paper = doc.paper.name === 'Custom' ? `${doc.paper.w} × ${doc.paper.h} in` : doc.paper.name;
-  const setup = `Paper ${paper}, scale 100%, margins none.`;
+  const setup = `Paper ${paper}, ${doc.paper.w >= doc.paper.h ? 'landscape' : 'portrait'}, scale 100%, margins none. Turn off browser headers and footers.`;
   const check = 'Then turn sheet 1 over its top edge, the way you turn a pecha leaf. Page 2 should be the right way up behind page 1.';
   const html = {
     duplex: `<ol class="steps">
@@ -3662,7 +3891,8 @@ function render() {
   if (view === 'pages') {
     for (const p of res.pages.slice(0, PREVIEW_PAGES)) {
       const folio = Math.ceil(p.n / 2);
-      leaf(`Page ${p.n} · ${p.kind} · folio ${folio} ${p.front ? 'front' : 'back'}`, Engine.pageSvg(p, doc, measure, res.folioCount));
+      const tag = p.blank ? `Page ${p.n} · blank back before the next text` : `Page ${p.n} · ${p.kind} · ${p.sectionName ? `${p.sectionName} · text folio ${p.folioNumber}` : `folio ${folio}`} ${p.front ? 'front' : 'back'}`;
+      leaf(tag.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), Engine.pageSvg(p, doc, measure, res.folioCount));
     }
   } else {
     const of = sheets.filter(s => s.side !== 'back').length;
@@ -3679,7 +3909,8 @@ function render() {
   host.replaceChildren(frag);
   const paperSheets = sheets.filter(s => s.side !== 'back').length;
   $('stats').textContent = `${res.pages.length} pages · ${res.folioCount} folios · ${paperSheets} ${paperSheets === 1 ? 'sheet' : 'sheets'} of ${doc.paper.name === 'Custom' ? 'paper' : doc.paper.name}`;
-  $('warn').textContent = Engine.fits(doc) ? '' : `${doc.pecha.perSheet} pecha at ${doc.pecha.height} in need ${(doc.pecha.perSheet * doc.pecha.height).toFixed(2)} in, and the sheet is ${doc.paper.h} in tall.`;
+  const badWidth = res.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0);
+  $('warn').textContent = !Engine.fits(doc) ? 'The pecha do not fit between the top and bottom margins. Reduce their height or number per sheet.' : badWidth ? 'The boxes and side margins leave no space for text.' : '';
   $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   updatePrintSteps();
   persist();
@@ -3687,14 +3918,16 @@ function render() {
 
 // pass: 'duplex', 'fronts', 'backs' or 'sequence'; left out, it follows the chosen way of printing.
 function buildPrint(pass) {
-  const res = latest || Engine.run(doc, measure);
+  const res = Engine.run(doc, measure);
+  $('pageStyle').textContent = `@page { size: ${doc.paper.w}in ${doc.paper.h}in; margin: 0; }`;
   const sheets = Engine.impose(doc, res.pages, { pass, firstOnly: doc.print.firstOnly && pass !== 'sequence' && doc.print.sides !== 'sequence' });
   $('printRoot').innerHTML = sheets.map(s => `<div class="sheet-print" style="width:${doc.paper.w}in;height:${doc.paper.h}in">${Engine.sheetSvg(s, doc, measure, res.folioCount, false)}</div>`).join('');
 }
 
 let printPass = null;
 function printNow(pass) {
-  if (!Engine.fits(doc)) toast('The pecha do not fit on this sheet. Reduce the height or the number per sheet.');
+  render(); // include edits made immediately before clicking Print
+  if (!Engine.fits(doc) || latest.pages.some(p => p.boxes.T.x1 <= p.boxes.T.x0)) { toast('The pecha do not fit. Adjust the layout before printing.'); return; }
   printPass = pass;
   buildPrint(pass);
   window.print();
@@ -3788,9 +4021,11 @@ function drawFlags() {
 }
 
 function setDoc(d, sample, src = null) {
+  d = Documents.normalize(d, Engine);
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  sectionIndex = 0;
   showWork();
   buildPanels();
   noteSample();
@@ -3864,7 +4099,7 @@ async function openFile(file) {
       setDoc(d, false);
       toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name} and converted it to Unicode.`);
     } else if (/\.(pecha|json)$/.test(name)) {
-      setDoc(JSON.parse(new TextDecoder().decode(buf)), false);
+      setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
       toast(`Opened ${file.name}.`);
     } else {
       const d = Engine.defaultDoc();
@@ -3877,13 +4112,13 @@ async function openFile(file) {
   }
 }
 
-function saveFile() {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' }));
+function saveFile(kind = 'document') {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(Documents.artifact(doc, kind), null, 1)], { type: 'application/json' }));
   const a = document.createElement('a');
-  a.href = url; a.download = 'pecha.pecha';
+  a.href = url; a.download = kind === 'document' ? 'pecha.pecha' : `pecha-${kind}.pecha`;
   a.click();
   URL.revokeObjectURL(url);
-  toast('Saved pecha.pecha to your downloads.');
+  toast(`Saved ${a.download} to your downloads.`);
 }
 
 // ---------- text helpers ----------
@@ -3892,7 +4127,7 @@ function insertAtCursor(s) {
   const t = $('text'), a = t.selectionStart, b = t.selectionEnd;
   t.setRangeText(s, a, b, 'end');
   t.focus();
-  doc.text = t.value;
+  setEditingText(t.value);
   schedule();
 }
 
@@ -3901,11 +4136,15 @@ function wylieToTibetan(s) {
 }
 
 function init() {
-  const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}']];
+  const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
     const b = document.createElement('button');
     b.className = 'chip'; b.type = 'button'; b.textContent = label; b.title = `Inserts ${code}`;
-    b.addEventListener('click', () => insertAtCursor(code));
+    b.addEventListener('click', () => {
+      const t = $('text');
+      // Formatting controls must never erase a highlighted passage.
+      insertAtCursor(code + t.value.slice(t.selectionStart, t.selectionEnd));
+    });
     $('codes').append(b);
   }
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
@@ -3913,8 +4152,46 @@ function init() {
     document.querySelectorAll('.pane').forEach(p => { p.hidden = p.dataset.pane !== b.dataset.tab; });
     if (b.dataset.tab === 'print') setView('sheets');
   }));
-  $('text').addEventListener('input', e => { doc.text = e.target.value; isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('startSections').addEventListener('click', () => {
+    doc.sections = [{ name: 'Text 1', text: doc.text, folioStart: doc.folio.start, restartLayout: true }];
+    doc.text = ''; sectionIndex = 0; buildSectionPanel(); schedule();
+  });
+  $('sectionPick').addEventListener('change', e => { sectionIndex = +e.target.value; $('text').value = editingText(); buildSectionPanel(); });
+  $('addSection').addEventListener('click', () => {
+    if (doc.sections.length >= 200) { toast('This volume has reached the limit of 200 texts. Save it and start a new volume.'); return; }
+    doc.sections.push({ name: `Text ${doc.sections.length + 1}`, text: '', folioStart: 1, restartLayout: true });
+    sectionIndex = doc.sections.length - 1; $('text').value = ''; buildSectionPanel(); schedule(); $('text').focus();
+  });
+  $('sectionName').addEventListener('input', e => { doc.sections[sectionIndex].name = e.target.value; $('sectionPick').options[sectionIndex].textContent = `${sectionIndex + 1}. ${e.target.value || 'Untitled text'}`; schedule(); });
+  $('sectionFolio').addEventListener('input', e => { if (e.target.value !== '') { doc.sections[sectionIndex].folioStart = Math.max(0, Math.min(9999, Math.round(+e.target.value) || 0)); schedule(); } });
+  $('sectionOpening').addEventListener('change', e => { doc.sections[sectionIndex].restartLayout = e.target.checked; schedule(); });
+  for (const side of ['Left', 'Right']) $('section' + side).addEventListener('change', e => { doc.sectionLabels[side.toLowerCase()] = e.target.checked; schedule(); });
+  for (const [id, direction] of [['sectionEarlier', -1], ['sectionLater', 1]]) $(id).addEventListener('click', () => {
+    const next = sectionIndex + direction;
+    if (next < 0 || next >= doc.sections.length) return;
+    [doc.sections[sectionIndex], doc.sections[next]] = [doc.sections[next], doc.sections[sectionIndex]];
+    sectionIndex = next; buildSectionPanel(); schedule();
+  });
   $('flow').addEventListener('change', e => { doc.flow = e.target.checked; schedule(); });
+  $('orientation').addEventListener('change', e => {
+    const short = Math.min(doc.paper.w, doc.paper.h), long = Math.max(doc.paper.w, doc.paper.h);
+    [doc.paper.w, doc.paper.h] = e.target.value === 'portrait' ? [short, long] : [long, short];
+    buildPanels(); schedule();
+  });
+  $('rolePick').addEventListener('change', buildRolePanel);
+  $('applyRole').addEventListener('click', () => {
+    const t = $('text'), a = t.selectionStart, b = t.selectionEnd, role = $('rolePick').value;
+    if (a === b) { insertAtCursor(`{${role}}`); return; }
+    // Resume the previous role after the selection instead of leaking the new role into following text.
+    const before = Engine.parseStream(t.value.slice(0, b), false).filter(x => x.k === 'text').at(-1);
+    const prior = before && before.style;
+    const restore = prior ? `{${prior.role || '/role'}}${prior.size ? `{${prior.size}}` : ''}${prior.bold === null ? '' : prior.bold ? '{b}' : '{/b}'}` : '{/role}';
+    insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
+  });
+  $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
+  $('loadPart').addEventListener('click', () => $('partFile').click());
+  $('partFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('noteSide').addEventListener('change', e => { noteSide = e.target.value; buildNotePanel(); });
   $('wylie').addEventListener('input', e => { $('wyliePreview').textContent = wylieToTibetan(e.target.value); });
   $('wylieInsert').addEventListener('click', () => {
@@ -3927,7 +4204,7 @@ function init() {
   $('pasteText').addEventListener('click', () => { setDoc(Engine.defaultDoc(), false); $('text').focus(); });
   $('tryExample').addEventListener('click', () => setDoc(sampleDoc(), true));
   $('resume').addEventListener('click', () => { const s = restore(); if (s) setDoc(s.doc, s.isSample); });
-  $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); doc.text = d.text; $('text').value = d.text; schedule(); } });
+  $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); setEditingText(d.text); $('text').value = d.text; schedule(); } });
   let depth = 0;
   window.addEventListener('dragenter', e => { e.preventDefault(); depth++; document.body.classList.add('dragging'); });
   window.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove('dragging'); });
@@ -3938,7 +4215,7 @@ function init() {
     const f = e.dataTransfer.files[0];
     if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
   });
-  $('saveDoc').addEventListener('click', saveFile);
+  $('saveDoc').addEventListener('click', () => saveFile());
   $('printBtn').addEventListener('click', openPrintPanel);
   $('printSteps').addEventListener('click', e => { const b = e.target.closest('[data-pass]'); if (b) printNow(b.dataset.pass); });
   // The browser's own print command prints both sides in one file, or the proof.
