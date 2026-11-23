@@ -59,6 +59,17 @@ const Documents = (() => {
     if (saved.kind === 'template' && !combined.images.some(p => p.id === combined.yigo.image)) combined.yigo.image = '';
     return normalize(combined, Engine);
   }
-  return { normalize, artifact, apply };
+  function newContent(current, Engine) {
+    const d = Engine.defaultDoc();
+    if (!current) return d;
+    d.notes = clone(current.notes); d.yigo = clone(current.yigo);
+    d.folio.rhino = current.folio.rhino;
+    // Retain only the active yi-go image, never prior body/page pictures.
+    d.images = clone(current.images.filter(p => p.kind === 'yigo' && p.id === d.yigo.image));
+    d.assets = clone(current.assets.filter(a => d.images.some(p => p.asset === a.id)));
+    if (!d.images.length) d.yigo.image = '';
+    return d;
+  }
+  return { normalize, artifact, apply, newContent };
 })();
 if (typeof module !== 'undefined') module.exports = Documents;

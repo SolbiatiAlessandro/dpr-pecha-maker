@@ -596,7 +596,7 @@ function noteSample() {
 }
 
 function docFromPdf(result, keepOther) {
-  const d = Engine.defaultDoc();
+  const d = Documents.newContent(doc, Engine);
   d.text = PdfRead.compose(result.pages, keepOther).text;
   return d;
 }
@@ -650,7 +650,7 @@ async function openFile(file) {
       setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
       toast(`Opened ${file.name}.`);
     } else {
-      const d = Engine.defaultDoc();
+      const d = Documents.newContent(doc, Engine);
       d.text = new TextDecoder().decode(buf);
       setDoc(d, false);
       toast(`Opened ${file.name}.`);
@@ -802,7 +802,7 @@ function init() {
   });
   $('newDoc').addEventListener('click', () => showStart());
   $('openFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
-  $('pasteText').addEventListener('click', () => { setDoc(Engine.defaultDoc(), false); $('text').focus(); });
+  $('pasteText').addEventListener('click', () => { setDoc(Documents.newContent(doc, Engine), false); $('text').focus(); });
   $('tryExample').addEventListener('click', () => setDoc(sampleDoc(), true));
   $('resume').addEventListener('click', () => { const s = restore(); if (s) setDoc(s.doc, s.isSample); });
   $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); setEditingText(d.text); $('text').value = d.text; schedule(); } });

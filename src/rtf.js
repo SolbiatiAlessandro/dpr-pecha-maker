@@ -93,7 +93,11 @@ const Rtf = (() => {
     });
     const defaultFont = all.find(t => t.name === 'deff')?.value || 0;
     const doc = JSON.parse(JSON.stringify(current || Engine.defaultDoc()));
-    doc.text = ''; doc.flow = false; doc.textSize = null; doc.sections = []; doc.assets = []; doc.images = []; doc.yigo.image = '';
+    doc.text = ''; doc.flow = false; doc.textSize = null; doc.sections = [];
+    doc.images = doc.images.filter(p => p.kind === 'yigo' && p.id === doc.yigo.image);
+    doc.assets = doc.assets.filter(a => doc.images.some(p => p.asset === a.id));
+    if (!doc.images.length) doc.yigo.image = '';
+    const uniqueId = (prefix, items) => { let i=items.length; while(items.some(x=>x.id===prefix+i)) i++; return prefix+i; };
     const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0,align:'l',uc:1,codepage:1252};
     let output = '', lastStyle = '', fallback = 0;
     const fontToken = id => table[fonts[id]] ? 'jomolhari' : /tibetan|jomolhari/i.test(fonts[id] || '') ? (/noto/i.test(fonts[id]) ? 'noto' : 'jomolhari') : 'serif';
@@ -126,9 +130,9 @@ const Rtf = (() => {
       let binary = ''; for (const b of bytes) binary += String.fromCharCode(b);
       const data = 'data:image/png;base64,' + btoa(binary);
       let asset = doc.assets.find(a => a.data === data);
-      if (!asset) {asset = {id:'rtf-asset-' + doc.assets.length, data, width, height}; doc.assets.push(asset);}
+      if (!asset) {asset = {id:uniqueId('rtf-asset-',doc.assets), data, width, height}; doc.assets.push(asset);}
       const goal = value('picwgoal'), dpi = goal > 0 ? width * 1440 / goal : PechaImages.pngDpi(bytes) || 96;
-      const p = PechaImages.placement({id:'rtf-image-' + doc.images.length,asset:asset.id,dpi,scale:value('picscalex') || 100});
+      const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,scale:value('picscalex') || 100});
       if ((value('picscaley') && value('picscaley') !== p.scale) || (goal && value('pichgoal') && Math.abs(width/height - goal/value('pichgoal')) > .01)) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
       doc.images.push(p); output += `{image:${p.id}}`;
     }

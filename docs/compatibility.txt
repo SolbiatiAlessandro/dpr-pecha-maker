@@ -15,7 +15,7 @@ AVAILABLE IN THE WEB APP
 - One tab interval with tab-aligned text, plus independent Tibetan baseline adjustment.
 - Automatic yi-go, Rinchen/Yang shad options, and final dzog thik with separate segment heights and inch/whitespace-percent rise controls. Exact edge behavior and whitespace endpoints still need Windows comparison.
 - Duplex/manual/proof print preparation, reversed back rows, optional reverse back sheets, cut marks and test-sheet mode. Physical printer calibration remains necessary.
-- Browser autosave, full web document save/open, separate web layout/content/annotation files.
+- Browser autosave, full web document save/open, separate web layout/content/annotation files. New text and text/PDF/RTF imports retain annotations, yi-go and fixed folio phrase.
 - Unicode RTF body export with fonts/styles/colours and inline PNGs. Automatic marks, labels, page-attached images and pecha layout are excluded; inline image baseline/side spacing is not preserved by this exporter. RTF readers need suitable Tibetan fonts.
 
 ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
@@ -42,7 +42,7 @@ NOT IMPLEMENTED YET
 - TCC/Sambhota legacy keyboard maps, locked keyboard mode and character-selection palette.
 - Non-pecha page mode, baseline/hint-colour display controls, exact original compact-view controls.
 - Kerning switch.
-- Configurable timed recovery/revert controls, command-line imports, original New/Import default-retention behavior.
+- Configurable timed recovery/revert controls, command-line imports, original Close/startup-defaults workflow.
 - Typeover/format-code navigation, original direct-page editing and structured multilingual columns.
 - Arbitrary page rearrangement within a text; reordering is by whole text section.
 

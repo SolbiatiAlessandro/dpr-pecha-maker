@@ -247,3 +247,12 @@ Annotation size correction: installed guide2.0 p36 specifies one size per positi
 applied across mixed-font text. Annotation rendering now overrides inline size
 marks with the slot's size while preserving fonts/emphasis/colour. Main-text size
 continues to have no effect on annotations.
+
+### New/import defaults
+
+Starting blank text or importing plain text/PDF keeps current margin annotations,
+yi-go (including its active embedded image), and the fixed folio phrase. RTF also
+keeps those settings; its existing layout preservation is unchanged. Body/page
+images and prior text sections are cleared. This follows guide2.0 p36 and author
+release1.13.2 forum post157; a separate Close-to-startup-defaults workflow remains
+unimplemented. Native full-file loading continues to use the file's own settings.

@@ -488,6 +488,21 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(d.sections[1].text,'{image:i5}Second');
 }
 
+// New/plain-text import retains documented annotation/yi-go/seru settings, not content.
+{
+  const d=Engine.defaultDoc(); d.text='old'; d.sections=[{text:'old section'}];
+  d.notes.sets['body.front'].inL.text='Keep'; d.folio.rhino='Phrase'; d.yigo.text='Custom'; d.yigo.image='yi';
+  d.images=[PechaImages.placement({id:'yi',asset:'a',kind:'yigo'}),PechaImages.placement({id:'body',asset:'b'})];
+  d.assets=[{id:'a',data:'yi'},{id:'b',data:'body'}];
+  const rtfNew=require('../src/rtf').read(String.raw`{\rtf1 new}`,Engine,{},d).doc;
+  assert.strictEqual(rtfNew.yigo.image,'yi'); assert.deepStrictEqual(rtfNew.assets,[d.assets[0]]);
+  const n=Documents.newContent(d,Engine);
+  assert.strictEqual(n.text,''); assert.deepStrictEqual(n.sections,[]);
+  assert.strictEqual(n.notes.sets['body.front'].inL.text,'Keep'); assert.strictEqual(n.folio.rhino,'Phrase');
+  assert.strictEqual(n.yigo.text,'Custom'); assert.deepStrictEqual(n.assets,[d.assets[0]]);
+  n.notes.sets['body.front'].inL.text='Changed'; assert.strictEqual(d.notes.sets['body.front'].inL.text,'Keep');
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);
