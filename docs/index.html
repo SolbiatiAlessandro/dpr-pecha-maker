@@ -2352,7 +2352,7 @@ const PechaImages = (() => {
   const clamp = (v, lo, hi, fallback) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : fallback;
   function placement(over = {}) {
     return {id: '', asset: '', kind: 'inline', page: 1, anchor: 'text-left', scale: 100,
-      dpi: 96, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
+      dpi: 96, dpiY: null, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
   }
   function normalize(input) {
     const assets = [], images = [], seen = new Set();
@@ -2368,6 +2368,7 @@ const PechaImages = (() => {
       p.anchor = anchors.includes(x.anchor) ? x.anchor : 'text-left';
       p.page = Math.round(clamp(x.page, 1, 3000, 1)); p.scale = clamp(x.scale, p.kind === 'page' ? 20 : 10, 200, 100);
       p.dpi = clamp(x.dpi, 10, 2400, 96); p.ignoreDpi = x.ignoreDpi === true; p.addTibetan = x.addTibetan === true;
+      p.dpiY = x.dpiY == null ? null : clamp(x.dpiY, 10, 2400, p.dpi);
       for (const k of ['above','down','inward']) p[k] = clamp(x[k], -30, 30, p[k]);
       for (const k of ['space','margin']) p[k] = clamp(x[k], 0, 20, p[k]);
       images.push(p); seen.add(p.id);
@@ -2392,7 +2393,7 @@ const PechaImages = (() => {
       for (const s of doc.sections) s.text = s.text.split(token).join('');
       doc.images = doc.images.filter(p => p.id !== id);
     }
-    const added = placement({id:newId, asset:original.asset, dpi:original.dpi});
+    const added = placement({id:newId, asset:original.asset, dpi:original.dpi, dpiY:original.dpiY ?? null});
     doc.images.push(added);
     const inserted = `{image:${newId}}`;
     target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
@@ -2401,8 +2402,10 @@ const PechaImages = (() => {
   function dimensions(doc, p) {
     const asset = doc.assets.find(a => a.id === p.asset);
     if (!asset) return null;
-    const factor = 72 / (p.ignoreDpi ? 96 : p.dpi) * p.scale / 100;
-    return {asset, w: asset.width * factor, h: asset.height * factor};
+    const dpiX = p.ignoreDpi ? 96 : p.dpi;
+    const dpiY = p.ignoreDpi ? 96 : (p.dpiY ?? p.dpi);
+    return {asset, w: asset.width * 72 / dpiX * p.scale / 100,
+      h: asset.height * 72 / dpiY * p.scale / 100};
   }
   function pageRect(doc, placement, boxes, type) {
     if (placement.kind !== 'page') return null;
@@ -2416,19 +2419,21 @@ const PechaImages = (() => {
     return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
       y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
   }
-  function pngDpi(bytes) {
+  function pngResolution(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     for (let i = 8; i + 12 <= bytes.length;) {
       const len = view.getUint32(i); if (i + 12 + len > bytes.length) break;
       if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9 && bytes[i + 16] === 1) {
-        const density = view.getUint32(i + 8) * .0254; return density > 0 ? density : null;
+        const x = view.getUint32(i + 8) * .0254, y = view.getUint32(i + 12) * .0254;
+        return x > 0 && y > 0 ? {x, y} : null;
       }
       i += len + 12;
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, transferInline};
+  const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -2891,7 +2896,7 @@ const Engine = (() => {
         if (a.image) {
           const im = PechaImages.dimensions(doc, a.image);
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" preserveAspectRatio="none" href="${im.asset.data}"/>`;
           continue;
         }
         out += textEl(T.x0 + (line.offset || 0) + a.x, baseline - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
@@ -2990,7 +2995,7 @@ const Engine = (() => {
   function drawPageImages(p, doc) {
     return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
       const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
-      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" href="${r.asset.data}"/>`;
+      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" preserveAspectRatio="none" href="${r.asset.data}"/>`;
     }).join('');
   }
 
@@ -3324,9 +3329,12 @@ const Rtf = (() => {
       const data = 'data:image/png;base64,' + btoa(binary);
       let asset = doc.assets.find(a => a.data === data);
       if (!asset) {asset = {id:uniqueId('rtf-asset-',doc.assets), data, width, height}; doc.assets.push(asset);}
-      const goal = value('picwgoal'), dpi = goal > 0 ? width * 1440 / goal : PechaImages.pngDpi(bytes) || 96;
-      const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,scale:value('picscalex') || 100});
-      if ((value('picscaley') && value('picscaley') !== p.scale) || (goal && value('pichgoal') && Math.abs(width/height - goal/value('pichgoal')) > .01)) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
+      const resolution = PechaImages.pngResolution(bytes), goal = value('picwgoal'), heightGoal = value('pichgoal');
+      const dpi = goal > 0 ? width * 1440 / goal : resolution?.x || 96;
+      const dpiY = heightGoal > 0 ? height * 1440 / heightGoal : resolution?.y || 96;
+      const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
+        dpiY:dpiY === dpi ? null : dpiY,scale:value('picscalex') || 100});
+      if (value('picscaley') && value('picscaley') !== p.scale) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
       doc.images.push(p); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);
@@ -3673,12 +3681,19 @@ const Pxp = (() => {
       if(!asset){asset={id:'native-asset-'+index,data,width,height};assets.push(asset);}
       assetIds.set(index,asset.id);
     });
+    const resolution = source => {
+      // The original uses its display fallback on BOTH axes if either source DPI is missing.
+      if (!(source.dibXDPI > 0 && source.dibYDPI > 0)) {
+        warnings.push('Missing native image resolution; both axes use the web fallback of 96 DPI.');
+        return {dpi:96,dpiY:null};
+      }
+      return {dpi:source.dibXDPI,dpiY:source.dibYDPI === source.dibXDPI ? null : source.dibYDPI};
+    };
     groups.LIINFO.forEach((info,index)=>{
       if(!info||!assetIds.has(info.iInfoIndex))return;
       const source=groups.IINFO[info.iInfoIndex];
-      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
       images.push(PechaImages.placement({id:'native-inline-'+index,asset:assetIds.get(info.iInfoIndex),
-        dpi:source.dibXDPI>0?source.dibXDPI:96,ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
+        ...resolution(source),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
         above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
     });
     const nativeAnchors={0:'outer-left',1:'inner-left',2:'text-left',4:'text-right',5:'inner-right',6:'outer-right'};
@@ -3688,9 +3703,8 @@ const Pxp = (() => {
         warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
       }
       const source=groups.IINFO[info.iInfoIndex];
-      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
       images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
-        page:info.pageNbr,anchor:nativeAnchors[info.slot],dpi:source.dibXDPI>0?source.dibXDPI:96,
+        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolution(source),
         ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
         inward:info.xAdj_float||0,margin:info.xMar_float||0}));
     });
@@ -4528,7 +4542,8 @@ function buildImagePanel() {
   const page = latest?.pages.find(p => p.n === image.page);
   fill($('imageFields'), [
     {path: `${p}.scale`, label: 'Scale, %', min: image.kind === 'page' ? 20 : 10, max: 200, step: 1, onChange: updateImageWarning},
-    {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpi`, label: 'Horizontal resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpiY`, label: 'Vertical resolution, DPI', nullable: true, placeholder: 'Same as horizontal', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
     {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
     ...(image.kind === 'page' ? [
       {path: `${p}.page`, label: 'Volume page number', event: 'change', min: 1, max: latest?.pages.length || 1, step: 1, onChange: buildImagePanel},
@@ -4565,13 +4580,21 @@ async function addImage(file) {
     const img = new Image(); img.src = url; await img.decode();
     if (img.naturalWidth * img.naturalHeight > 16000000) throw new Error('Choose an image with fewer than 16 million pixels.');
     const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-    canvas.getContext('2d').drawImage(img, 0, 0); const data = canvas.toDataURL('image/png');
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    let data = canvas.toDataURL('image/png');
+    // Keep an existing PNG intact so Download PNG retains its resolution metadata.
+    if (file.type === 'image/png') {
+      let binary = ''; for (const byte of sourceBytes) binary += String.fromCharCode(byte);
+      data = 'data:image/png;base64,' + btoa(binary);
+    }
     if (data.length > 12000000) throw new Error('The converted PNG is too large. Use a smaller image.');
     let asset = doc.assets.find(a => a.data === data);
     if (!asset) { asset = {id: 'a' + crypto.randomUUID(), data, width: canvas.width, height: canvas.height}; doc.assets.push(asset); }
     const kind = $('newImageKind').value;
-    const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
-    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
+    const resolution = PechaImages.pngResolution(sourceBytes);
+    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind,
+      dpi: resolution?.x || 96, dpiY: resolution && resolution.x !== resolution.y ? resolution.y : null});
     doc.images.push(p); imageId = p.id;
     if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
     buildPanels(); toast('Image embedded in this document.');

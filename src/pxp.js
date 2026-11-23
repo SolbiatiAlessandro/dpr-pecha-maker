@@ -190,12 +190,19 @@ const Pxp = (() => {
       if(!asset){asset={id:'native-asset-'+index,data,width,height};assets.push(asset);}
       assetIds.set(index,asset.id);
     });
+    const resolution = source => {
+      // The original uses its display fallback on BOTH axes if either source DPI is missing.
+      if (!(source.dibXDPI > 0 && source.dibYDPI > 0)) {
+        warnings.push('Missing native image resolution; both axes use the web fallback of 96 DPI.');
+        return {dpi:96,dpiY:null};
+      }
+      return {dpi:source.dibXDPI,dpiY:source.dibYDPI === source.dibXDPI ? null : source.dibYDPI};
+    };
     groups.LIINFO.forEach((info,index)=>{
       if(!info||!assetIds.has(info.iInfoIndex))return;
       const source=groups.IINFO[info.iInfoIndex];
-      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
       images.push(PechaImages.placement({id:'native-inline-'+index,asset:assetIds.get(info.iInfoIndex),
-        dpi:source.dibXDPI>0?source.dibXDPI:96,ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
+        ...resolution(source),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
         above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
     });
     const nativeAnchors={0:'outer-left',1:'inner-left',2:'text-left',4:'text-right',5:'inner-right',6:'outer-right'};
@@ -205,9 +212,8 @@ const Pxp = (() => {
         warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
       }
       const source=groups.IINFO[info.iInfoIndex];
-      if(source.dibXDPI!==source.dibYDPI)warnings.push('Unequal native horizontal/vertical image DPI is not reproduced.');
       images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
-        page:info.pageNbr,anchor:nativeAnchors[info.slot],dpi:source.dibXDPI>0?source.dibXDPI:96,
+        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolution(source),
         ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
         inward:info.xAdj_float||0,margin:info.xMar_float||0}));
     });

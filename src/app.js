@@ -237,7 +237,8 @@ function buildImagePanel() {
   const page = latest?.pages.find(p => p.n === image.page);
   fill($('imageFields'), [
     {path: `${p}.scale`, label: 'Scale, %', min: image.kind === 'page' ? 20 : 10, max: 200, step: 1, onChange: updateImageWarning},
-    {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpi`, label: 'Horizontal resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
+    {path: `${p}.dpiY`, label: 'Vertical resolution, DPI', nullable: true, placeholder: 'Same as horizontal', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
     {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
     ...(image.kind === 'page' ? [
       {path: `${p}.page`, label: 'Volume page number', event: 'change', min: 1, max: latest?.pages.length || 1, step: 1, onChange: buildImagePanel},
@@ -274,13 +275,21 @@ async function addImage(file) {
     const img = new Image(); img.src = url; await img.decode();
     if (img.naturalWidth * img.naturalHeight > 16000000) throw new Error('Choose an image with fewer than 16 million pixels.');
     const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-    canvas.getContext('2d').drawImage(img, 0, 0); const data = canvas.toDataURL('image/png');
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    let data = canvas.toDataURL('image/png');
+    // Keep an existing PNG intact so Download PNG retains its resolution metadata.
+    if (file.type === 'image/png') {
+      let binary = ''; for (const byte of sourceBytes) binary += String.fromCharCode(byte);
+      data = 'data:image/png;base64,' + btoa(binary);
+    }
     if (data.length > 12000000) throw new Error('The converted PNG is too large. Use a smaller image.');
     let asset = doc.assets.find(a => a.data === data);
     if (!asset) { asset = {id: 'a' + crypto.randomUUID(), data, width: canvas.width, height: canvas.height}; doc.assets.push(asset); }
     const kind = $('newImageKind').value;
-    const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
-    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
+    const resolution = PechaImages.pngResolution(sourceBytes);
+    const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind,
+      dpi: resolution?.x || 96, dpiY: resolution && resolution.x !== resolution.y ? resolution.y : null});
     doc.images.push(p); imageId = p.id;
     if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
     buildPanels(); toast('Image embedded in this document.');

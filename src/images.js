@@ -4,7 +4,7 @@ const PechaImages = (() => {
   const clamp = (v, lo, hi, fallback) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : fallback;
   function placement(over = {}) {
     return {id: '', asset: '', kind: 'inline', page: 1, anchor: 'text-left', scale: 100,
-      dpi: 96, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
+      dpi: 96, dpiY: null, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
   }
   function normalize(input) {
     const assets = [], images = [], seen = new Set();
@@ -20,6 +20,7 @@ const PechaImages = (() => {
       p.anchor = anchors.includes(x.anchor) ? x.anchor : 'text-left';
       p.page = Math.round(clamp(x.page, 1, 3000, 1)); p.scale = clamp(x.scale, p.kind === 'page' ? 20 : 10, 200, 100);
       p.dpi = clamp(x.dpi, 10, 2400, 96); p.ignoreDpi = x.ignoreDpi === true; p.addTibetan = x.addTibetan === true;
+      p.dpiY = x.dpiY == null ? null : clamp(x.dpiY, 10, 2400, p.dpi);
       for (const k of ['above','down','inward']) p[k] = clamp(x[k], -30, 30, p[k]);
       for (const k of ['space','margin']) p[k] = clamp(x[k], 0, 20, p[k]);
       images.push(p); seen.add(p.id);
@@ -44,7 +45,7 @@ const PechaImages = (() => {
       for (const s of doc.sections) s.text = s.text.split(token).join('');
       doc.images = doc.images.filter(p => p.id !== id);
     }
-    const added = placement({id:newId, asset:original.asset, dpi:original.dpi});
+    const added = placement({id:newId, asset:original.asset, dpi:original.dpi, dpiY:original.dpiY ?? null});
     doc.images.push(added);
     const inserted = `{image:${newId}}`;
     target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
@@ -53,8 +54,10 @@ const PechaImages = (() => {
   function dimensions(doc, p) {
     const asset = doc.assets.find(a => a.id === p.asset);
     if (!asset) return null;
-    const factor = 72 / (p.ignoreDpi ? 96 : p.dpi) * p.scale / 100;
-    return {asset, w: asset.width * factor, h: asset.height * factor};
+    const dpiX = p.ignoreDpi ? 96 : p.dpi;
+    const dpiY = p.ignoreDpi ? 96 : (p.dpiY ?? p.dpi);
+    return {asset, w: asset.width * 72 / dpiX * p.scale / 100,
+      h: asset.height * 72 / dpiY * p.scale / 100};
   }
   function pageRect(doc, placement, boxes, type) {
     if (placement.kind !== 'page') return null;
@@ -68,18 +71,20 @@ const PechaImages = (() => {
     return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
       y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
   }
-  function pngDpi(bytes) {
+  function pngResolution(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     for (let i = 8; i + 12 <= bytes.length;) {
       const len = view.getUint32(i); if (i + 12 + len > bytes.length) break;
       if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9 && bytes[i + 16] === 1) {
-        const density = view.getUint32(i + 8) * .0254; return density > 0 ? density : null;
+        const x = view.getUint32(i + 8) * .0254, y = view.getUint32(i + 12) * .0254;
+        return x > 0 && y > 0 ? {x, y} : null;
       }
       i += len + 12;
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, transferInline};
+  const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
