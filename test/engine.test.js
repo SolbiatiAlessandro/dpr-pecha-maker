@@ -533,6 +533,14 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(d.types.title.color,'#112233');
 }
 
+// The native writer appends image metadata/payload after body; never render it as text.
+{
+  const file=Buffer.from('.pxp\n[START NON-BODY]\n[END NON-BODY]\n[START TEMPLATE]\n[END TEMPLATE]\nBody\n[START IMAGES] 1.1\nImageInfoCount=1\nimageOffset=0\ncompSize=8\n[END IINFO 0]\nImages_totalBytes=8\nPAYLOAD!','latin1');
+  const result=Pxp.load(file,'pxp',TABLE,Engine.defaultDoc(),Engine);
+  assert(result.doc.text.includes('Body')); assert(!result.doc.text.includes('PAYLOAD'));
+  assert(!result.doc.text.includes('ImageInfoCount')); assert.strictEqual(result.warnings.length,1);
+}
+
 const dir = process.argv[2];
 if (dir) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.pxp'))) {
   const { doc, unknown } = Pxp.toDoc(fs.readFileSync(path.join(dir, f)), TABLE, Engine.defaultDoc(), Engine);

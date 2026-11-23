@@ -1,5 +1,5 @@
 // Reader for PechaMaker .pxp / .pxc / .pxt / .pxa files. Written from the sample files and the User's
-// Guide, not from the program. A file is: a header with a font table, a NON-BODY block of
+// Guide, with targeted observations of file-format framing. A file is: a header with a font table, a NON-BODY block of
 // "iNiT key=value" lines, a TEMPLATE block in INI form, then the body byte stream.
 const Pxp = (() => {
   const LAT = (b, s, e) => Array.from(b.subarray(s, e), c => String.fromCharCode(c)).join('');
@@ -117,7 +117,11 @@ const Pxp = (() => {
     const nb = sNB >= 0 ? parseNonBody(b, sNB + 17, eNB) : { values: {}, raw: {} };
     const tpl = sT >= 0 ? parseIni(LAT(b, sT + 16, eT)) : {};
     let bodyStart = eT >= 0 ? eT + 15 : (eNB >= 0 ? eNB + 15 : 0);
-    return { version: LAT(b, 0, 12), fonts, nonBody: nb, template: tpl, body: b.subarray(bodyStart) };
+    const imageStart = indexOf(b, '\n[START IMAGES] ', bodyStart);
+    const hasImageBlock = imageStart >= 0 && /^\n\[START IMAGES\] [^\r\n]+\r?\n(?:ImageInfoCount|ImageInfo_SizeOf)=\d+/.test(LAT(b,imageStart,Math.min(b.length,imageStart+160)));
+    return { version: LAT(b, 0, 12), fonts, nonBody: nb, template: tpl,
+      imageBlock: hasImageBlock ? b.subarray(imageStart) : null,
+      body: b.subarray(bodyStart, hasImageBlock ? imageStart : b.length) };
   }
 
   const ALIGN = { 0x32: 'l', 0x33: 'r', 0x34: 'c', 0x35: 'j' };
@@ -250,7 +254,7 @@ const Pxp = (() => {
       }
       d.notes.sets[key] = set;
     });
-    return { doc: d, unknown: Object.keys(unknown).length };
+    return { doc: d, unknown: Object.keys(unknown).length, warnings: p.imageBlock ? ['This native file contains images that are not yet imported. Its image data was excluded from the text.'] : [] };
   }
 
   // Native partial files have different scopes (guide section 3). A template must not erase text.
@@ -279,7 +283,7 @@ const Pxp = (() => {
         for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
       }
     } else throw new Error('Unknown PechaMaker file type');
-    return {doc: base, unknown: result.unknown};
+    return {doc: base, unknown: result.unknown, warnings: result.warnings};
   }
 
   return { parse, decodeStream, eventsToText, toDoc, load };

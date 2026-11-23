@@ -268,3 +268,10 @@ Optional dashed baseline guides and red/green/blue Title/Fancy/Body frame hints
 apply only to screen SVGs. Printed SVGs retain configured frame colours and contain
 no baseline guides. Chrome QA verified mixed40pt/12pt text alignment and visible
 guide/hint toggles; an automated comparison verifies unchanged print SVG output.
+
+Native image-tail guard: image-bearing files append an image header/metadata/payload
+after body bytes. The reader recognizes a structured [START IMAGES] header and
+excludes that tail from decoded body text, reporting unsupported native images.
+This is a corruption-prevention improvement, not image import. Framing was checked
+against the original writer through local static inspection; the regression fixture
+is synthetic and native image specimens remain unavailable.

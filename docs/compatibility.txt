@@ -29,7 +29,7 @@ ADDED WEB WORKFLOWS (NOT CLAIMED ORIGINAL WINDOWS FEATURES)
 PARTIAL COMPATIBILITY
 - RTF body import retains Unicode, common single-byte code pages, mixed font/style/colour, breaks and PNG images while preserving current layout/notes. Tables are flattened; non-PNG pictures and embedded objects are skipped. Multibyte code pages, paragraph geometry and exact source font metrics remain incomplete.
 - Custom yi-go accepts formatting marks; its font/emphasis can differ from the body, its size follows the first character, and its colour can follow that character or its own runs. Exact legacy rich-text paste behavior remains unverified.
-- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. No binary-format round trip is promised.
+- PXP import: five public examples are exercised, but not all settings, old font runs or images survive. Recognized native image-data tails are excluded from body text with an explicit missing-image warning. No binary-format round trip is promised.
 - Experimental PXT/PXC/PXA loading preserves the documented layout/content/annotation scopes. Scope handling is regression-tested with synthetic fixtures; native partial-file exports still need Windows verification.
 - Editing: uses text plus visible formatting marks. The selected-text attribute panel changes only specified attributes, preserving mixed fonts, colours and styles and restoring the following text. It is not a direct-page WYSIWYG editor. Quick formatting chips still insert marks that continue until changed.
 - Annotations: mixed runs use visible formatting marks rather than the original rich-text paste interface. Known native annotation formatting codes are imported; exact legacy fonts and all codes remain unverified.

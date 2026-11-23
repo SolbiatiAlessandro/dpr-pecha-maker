@@ -647,9 +647,9 @@ async function openFile(file) {
       setDoc(result.doc, false);
       toast(result.warnings.length ? result.warnings.join(' ') : 'RTF body text and supported formatting imported. Current page layout and annotations kept.');
     } else if (/\.px[pcta]$/.test(name)) {
-      const { doc: d, unknown } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
+      const { doc: d, unknown, warnings } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
       setDoc(d, false);
-      toast(unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);
+      toast(warnings.length ? warnings.join(' ') : unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);
     } else if (/\.(pecha|json)$/.test(name)) {
       setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
       toast(`Opened ${file.name}.`);
