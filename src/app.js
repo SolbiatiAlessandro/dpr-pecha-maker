@@ -70,7 +70,7 @@ function field(host, def) {
     const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = def.label;
     if (def.type === 'select') {
       el = document.createElement('select');
-      for (const [v, t] of def.options) { const o = document.createElement('option'); o.value = v; o.textContent = t; el.append(o); }
+      for (const [v, t, disabled] of def.options) { const o = document.createElement('option'); o.value = v; o.textContent = t; o.disabled = !!disabled; el.append(o); }
       el.value = String(getPath(def.path));
     } else {
       el = document.createElement('input');
@@ -86,7 +86,7 @@ function field(host, def) {
     el.id = id;
     wrap.append(lab, el);
   }
-  el.addEventListener(def.type === 'select' || def.type === 'check' ? 'change' : 'input', () => {
+  el.addEventListener(def.event || (def.type === 'select' || def.type === 'check' ? 'change' : 'input'), () => {
     let v;
     if (def.type === 'check') v = el.checked;
     else if (def.type === 'select') v = def.number ? +el.value : el.value;
@@ -201,24 +201,40 @@ function buildPanels() {
 function buildImagePanel() {
   const picker = $('imagePick');
   if (!doc.images.some(p => p.id === imageId)) imageId = doc.images[0]?.id || '';
-  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : 'Inline'} image`; return o; }));
+  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : p.kind === 'page' ? 'Page' : 'Inline'} image`; return o; }));
   picker.value = imageId;
   $('exportImage').disabled = $('deleteImage').disabled = !imageId;
   const i = doc.images.findIndex(p => p.id === imageId);
   if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
-  const p = `images.${i}`;
+  const p = `images.${i}`, image = doc.images[i];
+  const page = latest?.pages.find(p => p.n === image.page);
   fill($('imageFields'), [
-    {path: `${p}.scale`, label: 'Scale, %', min: 10, max: 200, step: 1, onChange: updateImageWarning},
+    {path: `${p}.scale`, label: 'Scale, %', min: image.kind === 'page' ? 20 : 10, max: 200, step: 1, onChange: updateImageWarning},
     {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
     {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
+    ...(image.kind === 'page' ? [
+      {path: `${p}.page`, label: 'Volume page number', event: 'change', min: 1, max: latest?.pages.length || 1, step: 1, onChange: buildImagePanel},
+      {path: `${p}.anchor`, label: 'Attach to', type: 'select', wide: true, onChange: buildImagePanel, options: PechaImages.anchors.map(a => [a, a.replace('-', ' '), a.startsWith('outer') ? !page?.type.sideOut : a.startsWith('inner') ? !page?.type.sideIn : false])},
+      {path: `${p}.down`, label: 'Downward shift, in', min: -30, max: 30, step: .01},
+      {path: `${p}.inward`, label: 'Inward shift, in', min: -30, max: 30, step: .01},
+      ...(image.anchor.startsWith('text') ? [{path: `${p}.margin`, label: 'Margin to text, in', min: 0, max: 20, step: .01}] : []),
+    ] : [
     {path: `${p}.above`, label: 'Top above baseline, in', min: -30, max: 30, step: .01},
     {path: `${p}.addTibetan`, label: 'Also apply Tibetan baseline adjustment', type: 'check'},
     {path: `${p}.space`, label: 'Blank space on each side, in', min: 0, max: 20, step: .01},
+    ]),
   ]);
   updateImageWarning();
 }
 function updateImageWarning() {
   const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+  if (p?.kind === 'page') {
+    const page = latest?.pages.find(page => page.n === p.page);
+    const index = doc.images.indexOf(p), input = $('f_images_' + index + '_page');
+    if (input) input.max = latest?.pages.length || 1;
+    $('imageWarning').textContent = !page ? 'The assigned page no longer exists. Choose an existing page to show this image.' : page.blank ? 'This page is an inserted blank back. Choose a content page.' : !PechaImages.pageRect(doc, p, page.boxes, page.type) ? 'This page has no box at that anchor. Choose another anchor.' : '';
+    return;
+  }
   $('imageWarning').textContent = size && size.h > 2 * Math.min(...Object.values(doc.types).map(t => t.lineHeight)) * 72
     ? 'This image is taller than twice a configured line height and may overlap nearby lines. Reduce its scale or increase line spacing.' : '';
 }
@@ -239,7 +255,7 @@ async function addImage(file) {
     const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
     const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
     doc.images.push(p); imageId = p.id;
-    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
+    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
     buildPanels(); toast('Image embedded in this document.');
   } catch (e) { toast(e.message || 'Could not read this image.'); }
   finally { URL.revokeObjectURL(url); }
@@ -396,6 +412,7 @@ function schedule() {
 function render() {
   const res = Engine.run(doc, measure);
   latest = res;
+  updateImageWarning();
   const host = $('table');
   const frag = document.createDocumentFragment();
   const leaf = (tag, svg, sheet) => {
@@ -548,6 +565,7 @@ function setDoc(d, sample, src = null) {
   buildPanels();
   noteSample();
   render();
+  buildImagePanel();
 }
 
 function noteSample() {
@@ -712,6 +730,13 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
     toast('Chosen attributes applied; other formatting kept.');
+  });
+  $('table').addEventListener('contextmenu', e => {
+    const target = e.target.closest('[data-image-id]'); if (!target) return;
+    e.preventDefault(); imageId = target.dataset.imageId;
+    document.querySelector('.tabs button[data-tab="text"]').click();
+    $('imagePick').closest('details').open = true; buildImagePanel();
+    $('imagePick').scrollIntoView({block: 'center'}); $('imagePick').focus();
   });
   $('addImage').addEventListener('click', () => $('imageFile').click());
   $('imageFile').addEventListener('change', e => { addImage(e.target.files[0]); e.target.value = ''; });

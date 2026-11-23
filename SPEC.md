@@ -172,5 +172,12 @@ Image yi-go uses the same eligibility rules as text yi-go. PNG pHYs density is r
 missing density and Ignore DPI use 96 DPI, an explicit web convention still awaiting
 Windows comparison. Full and content saves retain assets and placements; templates
 contain no image bytes. Browser-storage failures prompt the user to Save.
-Page-attached rendering, native image-block formats and original copy/move reset
-semantics remain open. Uploaded image data stays in the browser/local saved document.
+Native image-block formats and original copy/move reset semantics remain open. Uploaded image data stays in the browser/local saved document.
+
+Page images use fixed volume page numbers with six left/right box/text anchors, inward
+and downward shifts, 20–200% scaling and a margin to text for text-side anchors.
+Text lines whose vertical extents overlap an image reserve space from that side.
+Images are painted after box lines. Absent box anchors are disabled; missing-page
+placements remain stored and show a warning. Right-clicking an image opens its controls;
+the image picker also selects overlapping images. Exact rounding, overlap conventions,
+and native page identity after restructuring remain Windows-comparison work.

@@ -32,6 +32,18 @@ const PechaImages = (() => {
     const factor = 72 / (p.ignoreDpi ? 96 : p.dpi) * p.scale / 100;
     return {asset, w: asset.width * factor, h: asset.height * factor};
   }
+  function pageRect(doc, placement, boxes, type) {
+    if (placement.kind !== 'page') return null;
+    const size = dimensions(doc, placement); if (!size) return null;
+    const {I, T, d, lx1, rx1} = boxes, anchor = placement.anchor, right = anchor.endsWith('right');
+    if (anchor.startsWith('outer') && !type.sideOut) return null;
+    if (anchor.startsWith('inner') && !type.sideIn) return null;
+    const edge = anchor.startsWith('text') ? (right ? T.x1 : T.x0)
+      : anchor.startsWith('outer') ? (right ? I.x1 - d : I.x0 + d)
+      : (right ? rx1 - d : lx1 + d);
+    return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
+      y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
+  }
   function pngDpi(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -44,6 +56,6 @@ const PechaImages = (() => {
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pngDpi};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;

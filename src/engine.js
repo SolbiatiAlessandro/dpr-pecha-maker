@@ -330,22 +330,47 @@ const Engine = (() => {
       const type = doc.types[kind];
       const B = boxes(doc, type);
       const W = B.T.x1 - B.T.x0;
-      const lines = [];
       const isFirstFancy = kind === 'fancy' && firstFancy;
       if (kind === 'fancy') firstFancy = false;
-      for (let ln = 0; ln < type.lines && i < atoms.length; ln++) {
-        const nextA = atoms[i];
-        const startsTib = nextA && nextA.s && isTib(nextA.s[0]) && !isYigMgo(nextA.s[0]);
-        const wantYigo = ln === 0 && startsTib && yigoWanted(doc, n, kind, isFirstFancy);
-        const line = fillLine(atoms, i, W, doc, type.fontSize, measure, wantYigo);
-        if (line.next === i) { line.next = i + 1; }        // an atom wider than the line must not stall the loop
-        i = line.next;
-        convertShads(line, doc, kind, ln, measure);
-        const atEnd = i >= atoms.length;
-        reflow(line, W, line.align === 'j' && !line.hard && !atEnd && !line.hasTab);
-        lines.push(line);
-        if (line.pageBreak) break;
+      const fixedImages = doc.images.filter(p => p.kind === 'page' && p.page === n + (doc.pageOffset || 0))
+        .map(p => PechaImages.pageRect(doc, p, B, type)).filter(Boolean);
+      const startIndex = i;
+      const fillPage = estimate => {
+        const lines = []; let next = startIndex;
+        const head = measure.head(doc, doc.textSize || type.fontSize);
+        const startY = type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
+        for (let ln = 0; ln < type.lines && next < atoms.length; ln++) {
+          let left = B.T.x0, right = B.T.x1;
+          const top = startY + ln * type.lineHeight * PT;
+          for (const image of fixedImages) {
+            if (!image.placement.anchor.startsWith('text') || top + head.height <= image.y || top >= image.y + image.h) continue;
+            if (image.placement.anchor === 'text-left') left = Math.max(left, image.x + image.w + image.placement.margin * PT);
+            else right = Math.min(right, image.x - image.placement.margin * PT);
+          }
+          const available = Math.max(0, right - left);
+          if (available < 1) { lines.push({items: [], endX: 0, offset: 0}); continue; }
+          const nextA = atoms[next];
+          const startsTib = nextA && nextA.s && isTib(nextA.s[0]) && !isYigMgo(nextA.s[0]);
+          const wantYigo = ln === 0 && startsTib && yigoWanted(doc, n, kind, isFirstFancy);
+          const line = fillLine(atoms, next, available, doc, type.fontSize, measure, wantYigo);
+          if (line.next === next) line.next = next + 1;
+          next = line.next;
+          convertShads(line, doc, kind, ln, measure);
+          reflow(line, available, line.align === 'j' && !line.hard && next < atoms.length && !line.hasTab);
+          line.offset = left - B.T.x0; line.endX += line.offset;
+          lines.push(line);
+          if (line.pageBreak) break;
+        }
+        return {lines, next};
+      };
+      let result = fillPage(type.lines);
+      if (kind === 'title' && fixedImages.length && type.top === null) {
+        let estimate = type.lines;
+        for (let pass = 0; pass < 4 && result.lines.length !== estimate; pass++) {
+          estimate = Math.max(1, result.lines.length); result = fillPage(estimate);
+        }
       }
+      const lines = result.lines; i = result.next;
       pages.push({ n, kind, lines, front: n % 2 === 1, boxes: B, type });
     } while (i < atoms.length && pages.length < limit);
     return pages;
@@ -404,11 +429,11 @@ const Engine = (() => {
           const im = PechaImages.dimensions(doc, a.image);
           const baseline = top + measure.head(doc, a.f.size).ascent;
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image x="${num(T.x0 + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
           continue;
         }
         const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
-        out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
+        out += textEl(T.x0 + (line.offset || 0) + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
     });
     return out;
@@ -472,12 +497,19 @@ const Engine = (() => {
     return out;
   }
 
+  function drawPageImages(p, doc) {
+    return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
+      const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
+      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" href="${r.asset.data}"/>`;
+    }).join('');
+  }
+
   function pageInner(p, doc, measure, folioCount) {
     if (p.blank) return '';
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
     return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
-      + drawBoxes(p, doc) + text
+      + drawBoxes(p, doc) + drawPageImages(p, doc) + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
       + `</g>`;
@@ -564,7 +596,7 @@ const Engine = (() => {
           const type = doc.types.body;
           pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
         }
-        const sub = { ...doc, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
+        const sub = { ...doc, pageOffset: pages.length, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
         const atoms = atomize(parseStream(sub.text, sub.flow), sub, measure);
         const local = paginate(sub, atoms, measure), offset = pages.length;
         const count = Math.ceil(local.length / 2);

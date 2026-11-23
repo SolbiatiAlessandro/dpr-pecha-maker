@@ -255,7 +255,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <details>
         <summary>Images</summary>
         <p class="hint">Images are embedded in your saved document as PNG. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
-        <label for="newImageKind">Add as</label><select id="newImageKind"><option value="inline">Inline at cursor</option><option value="yigo">Automatic yi-go</option></select>
+        <label for="newImageKind">Add as</label><select id="newImageKind"><option value="inline">Inline at cursor</option><option value="yigo">Automatic yi-go</option><option value="page">Fixed on a page</option></select>
         <button class="btn" type="button" id="addImage">Choose image</button>
         <input type="file" id="imageFile" accept="image/png,image/jpeg,image/webp" hidden>
         <label for="imagePick">Edit image</label><select id="imagePick"></select>
@@ -263,7 +263,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <p class="hint" id="imageWarning" role="status"></p>
         <button class="btn" type="button" id="exportImage">Download PNG</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
-        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page-attached images and native-file image imports are still in development.</p>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; the Windows fallback is not yet verified. Page images stay on the chosen volume page number when text changes. Native-file image imports are still in development.</p>
       </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
@@ -302,7 +302,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still missing: page-attached images, native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still missing: native image import/export, RTF and TibetDoc import/export, Windows legacy keyboard maps, non-pecha editing mode, rich formatting inside annotations, and original-format file export. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -2325,6 +2325,18 @@ const PechaImages = (() => {
     const factor = 72 / (p.ignoreDpi ? 96 : p.dpi) * p.scale / 100;
     return {asset, w: asset.width * factor, h: asset.height * factor};
   }
+  function pageRect(doc, placement, boxes, type) {
+    if (placement.kind !== 'page') return null;
+    const size = dimensions(doc, placement); if (!size) return null;
+    const {I, T, d, lx1, rx1} = boxes, anchor = placement.anchor, right = anchor.endsWith('right');
+    if (anchor.startsWith('outer') && !type.sideOut) return null;
+    if (anchor.startsWith('inner') && !type.sideIn) return null;
+    const edge = anchor.startsWith('text') ? (right ? T.x1 : T.x0)
+      : anchor.startsWith('outer') ? (right ? I.x1 - d : I.x0 + d)
+      : (right ? rx1 - d : lx1 + d);
+    return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
+      y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
+  }
   function pngDpi(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -2337,7 +2349,7 @@ const PechaImages = (() => {
     }
     return null;
   }
-  return {anchors, placement, normalize, dimensions, pngDpi};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -2673,22 +2685,47 @@ const Engine = (() => {
       const type = doc.types[kind];
       const B = boxes(doc, type);
       const W = B.T.x1 - B.T.x0;
-      const lines = [];
       const isFirstFancy = kind === 'fancy' && firstFancy;
       if (kind === 'fancy') firstFancy = false;
-      for (let ln = 0; ln < type.lines && i < atoms.length; ln++) {
-        const nextA = atoms[i];
-        const startsTib = nextA && nextA.s && isTib(nextA.s[0]) && !isYigMgo(nextA.s[0]);
-        const wantYigo = ln === 0 && startsTib && yigoWanted(doc, n, kind, isFirstFancy);
-        const line = fillLine(atoms, i, W, doc, type.fontSize, measure, wantYigo);
-        if (line.next === i) { line.next = i + 1; }        // an atom wider than the line must not stall the loop
-        i = line.next;
-        convertShads(line, doc, kind, ln, measure);
-        const atEnd = i >= atoms.length;
-        reflow(line, W, line.align === 'j' && !line.hard && !atEnd && !line.hasTab);
-        lines.push(line);
-        if (line.pageBreak) break;
+      const fixedImages = doc.images.filter(p => p.kind === 'page' && p.page === n + (doc.pageOffset || 0))
+        .map(p => PechaImages.pageRect(doc, p, B, type)).filter(Boolean);
+      const startIndex = i;
+      const fillPage = estimate => {
+        const lines = []; let next = startIndex;
+        const head = measure.head(doc, doc.textSize || type.fontSize);
+        const startY = type.top === null ? B.T.y0 + (B.T.y1 - B.T.y0 - ((estimate - 1) * type.lineHeight * PT + head.height)) / 2 : B.T.y0 + type.top * PT;
+        for (let ln = 0; ln < type.lines && next < atoms.length; ln++) {
+          let left = B.T.x0, right = B.T.x1;
+          const top = startY + ln * type.lineHeight * PT;
+          for (const image of fixedImages) {
+            if (!image.placement.anchor.startsWith('text') || top + head.height <= image.y || top >= image.y + image.h) continue;
+            if (image.placement.anchor === 'text-left') left = Math.max(left, image.x + image.w + image.placement.margin * PT);
+            else right = Math.min(right, image.x - image.placement.margin * PT);
+          }
+          const available = Math.max(0, right - left);
+          if (available < 1) { lines.push({items: [], endX: 0, offset: 0}); continue; }
+          const nextA = atoms[next];
+          const startsTib = nextA && nextA.s && isTib(nextA.s[0]) && !isYigMgo(nextA.s[0]);
+          const wantYigo = ln === 0 && startsTib && yigoWanted(doc, n, kind, isFirstFancy);
+          const line = fillLine(atoms, next, available, doc, type.fontSize, measure, wantYigo);
+          if (line.next === next) line.next = next + 1;
+          next = line.next;
+          convertShads(line, doc, kind, ln, measure);
+          reflow(line, available, line.align === 'j' && !line.hard && next < atoms.length && !line.hasTab);
+          line.offset = left - B.T.x0; line.endX += line.offset;
+          lines.push(line);
+          if (line.pageBreak) break;
+        }
+        return {lines, next};
+      };
+      let result = fillPage(type.lines);
+      if (kind === 'title' && fixedImages.length && type.top === null) {
+        let estimate = type.lines;
+        for (let pass = 0; pass < 4 && result.lines.length !== estimate; pass++) {
+          estimate = Math.max(1, result.lines.length); result = fillPage(estimate);
+        }
       }
+      const lines = result.lines; i = result.next;
       pages.push({ n, kind, lines, front: n % 2 === 1, boxes: B, type });
     } while (i < atoms.length && pages.length < limit);
     return pages;
@@ -2747,11 +2784,11 @@ const Engine = (() => {
           const im = PechaImages.dimensions(doc, a.image);
           const baseline = top + measure.head(doc, a.f.size).ascent;
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image x="${num(T.x0 + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
           continue;
         }
         const h = measure.head({ ...doc, font: a.f.family }, a.f.size, isTib(a.s[0]));
-        out += textEl(T.x0 + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
+        out += textEl(T.x0 + (line.offset || 0) + a.x, top + h.ascent - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
       }
     });
     return out;
@@ -2815,12 +2852,19 @@ const Engine = (() => {
     return out;
   }
 
+  function drawPageImages(p, doc) {
+    return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
+      const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
+      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" href="${r.asset.data}"/>`;
+    }).join('');
+  }
+
   function pageInner(p, doc, measure, folioCount) {
     if (p.blank) return '';
     const text = drawText(p, doc, measure);
     const isLastPage = p.isLast;
     return `<g text-rendering="geometricPrecision" font-family="${esc(doc.font)}" fill="#14100e">`
-      + drawBoxes(p, doc) + text
+      + drawBoxes(p, doc) + drawPageImages(p, doc) + text
       + (isLastPage && doc.dzog.enabled ? drawDzog(p, doc, measure) : '')
       + drawMargins(p, doc, measure, folioCount)
       + `</g>`;
@@ -2907,7 +2951,7 @@ const Engine = (() => {
           const type = doc.types.body;
           pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
         }
-        const sub = { ...doc, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
+        const sub = { ...doc, pageOffset: pages.length, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
         const atoms = atomize(parseStream(sub.text, sub.flow), sub, measure);
         const local = paginate(sub, atoms, measure), offset = pages.length;
         const count = Math.ceil(local.length / 2);
@@ -3803,7 +3847,7 @@ function field(host, def) {
     const lab = document.createElement('label'); lab.htmlFor = id; lab.textContent = def.label;
     if (def.type === 'select') {
       el = document.createElement('select');
-      for (const [v, t] of def.options) { const o = document.createElement('option'); o.value = v; o.textContent = t; el.append(o); }
+      for (const [v, t, disabled] of def.options) { const o = document.createElement('option'); o.value = v; o.textContent = t; o.disabled = !!disabled; el.append(o); }
       el.value = String(getPath(def.path));
     } else {
       el = document.createElement('input');
@@ -3819,7 +3863,7 @@ function field(host, def) {
     el.id = id;
     wrap.append(lab, el);
   }
-  el.addEventListener(def.type === 'select' || def.type === 'check' ? 'change' : 'input', () => {
+  el.addEventListener(def.event || (def.type === 'select' || def.type === 'check' ? 'change' : 'input'), () => {
     let v;
     if (def.type === 'check') v = el.checked;
     else if (def.type === 'select') v = def.number ? +el.value : el.value;
@@ -3934,24 +3978,40 @@ function buildPanels() {
 function buildImagePanel() {
   const picker = $('imagePick');
   if (!doc.images.some(p => p.id === imageId)) imageId = doc.images[0]?.id || '';
-  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : 'Inline'} image`; return o; }));
+  picker.replaceChildren(...doc.images.map((p, i) => { const o = document.createElement('option'); o.value = p.id; o.textContent = `${i + 1}. ${p.kind === 'yigo' ? 'Yi-go' : p.kind === 'page' ? 'Page' : 'Inline'} image`; return o; }));
   picker.value = imageId;
   $('exportImage').disabled = $('deleteImage').disabled = !imageId;
   const i = doc.images.findIndex(p => p.id === imageId);
   if (i < 0) { $('imageFields').replaceChildren(); $('imageWarning').textContent = ''; return; }
-  const p = `images.${i}`;
+  const p = `images.${i}`, image = doc.images[i];
+  const page = latest?.pages.find(p => p.n === image.page);
   fill($('imageFields'), [
-    {path: `${p}.scale`, label: 'Scale, %', min: 10, max: 200, step: 1, onChange: updateImageWarning},
+    {path: `${p}.scale`, label: 'Scale, %', min: image.kind === 'page' ? 20 : 10, max: 200, step: 1, onChange: updateImageWarning},
     {path: `${p}.dpi`, label: 'Image resolution, DPI', min: 10, max: 2400, step: 1, onChange: updateImageWarning},
     {path: `${p}.ignoreDpi`, label: 'Ignore image DPI (use 96)', type: 'check', onChange: updateImageWarning},
+    ...(image.kind === 'page' ? [
+      {path: `${p}.page`, label: 'Volume page number', event: 'change', min: 1, max: latest?.pages.length || 1, step: 1, onChange: buildImagePanel},
+      {path: `${p}.anchor`, label: 'Attach to', type: 'select', wide: true, onChange: buildImagePanel, options: PechaImages.anchors.map(a => [a, a.replace('-', ' '), a.startsWith('outer') ? !page?.type.sideOut : a.startsWith('inner') ? !page?.type.sideIn : false])},
+      {path: `${p}.down`, label: 'Downward shift, in', min: -30, max: 30, step: .01},
+      {path: `${p}.inward`, label: 'Inward shift, in', min: -30, max: 30, step: .01},
+      ...(image.anchor.startsWith('text') ? [{path: `${p}.margin`, label: 'Margin to text, in', min: 0, max: 20, step: .01}] : []),
+    ] : [
     {path: `${p}.above`, label: 'Top above baseline, in', min: -30, max: 30, step: .01},
     {path: `${p}.addTibetan`, label: 'Also apply Tibetan baseline adjustment', type: 'check'},
     {path: `${p}.space`, label: 'Blank space on each side, in', min: 0, max: 20, step: .01},
+    ]),
   ]);
   updateImageWarning();
 }
 function updateImageWarning() {
   const p = doc.images.find(p => p.id === imageId), size = p && PechaImages.dimensions(doc, p);
+  if (p?.kind === 'page') {
+    const page = latest?.pages.find(page => page.n === p.page);
+    const index = doc.images.indexOf(p), input = $('f_images_' + index + '_page');
+    if (input) input.max = latest?.pages.length || 1;
+    $('imageWarning').textContent = !page ? 'The assigned page no longer exists. Choose an existing page to show this image.' : page.blank ? 'This page is an inserted blank back. Choose a content page.' : !PechaImages.pageRect(doc, p, page.boxes, page.type) ? 'This page has no box at that anchor. Choose another anchor.' : '';
+    return;
+  }
   $('imageWarning').textContent = size && size.h > 2 * Math.min(...Object.values(doc.types).map(t => t.lineHeight)) * 72
     ? 'This image is taller than twice a configured line height and may overlap nearby lines. Reduce its scale or increase line spacing.' : '';
 }
@@ -3972,7 +4032,7 @@ async function addImage(file) {
     const dpi = PechaImages.pngDpi(new Uint8Array(await file.arrayBuffer())) || 96;
     const p = PechaImages.placement({id: 'i' + crypto.randomUUID(), asset: asset.id, kind, dpi});
     doc.images.push(p); imageId = p.id;
-    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
+    if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
     buildPanels(); toast('Image embedded in this document.');
   } catch (e) { toast(e.message || 'Could not read this image.'); }
   finally { URL.revokeObjectURL(url); }
@@ -4129,6 +4189,7 @@ function schedule() {
 function render() {
   const res = Engine.run(doc, measure);
   latest = res;
+  updateImageWarning();
   const host = $('table');
   const frag = document.createDocumentFragment();
   const leaf = (tag, svg, sheet) => {
@@ -4281,6 +4342,7 @@ function setDoc(d, sample, src = null) {
   buildPanels();
   noteSample();
   render();
+  buildImagePanel();
 }
 
 function noteSample() {
@@ -4445,6 +4507,13 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
     toast('Chosen attributes applied; other formatting kept.');
+  });
+  $('table').addEventListener('contextmenu', e => {
+    const target = e.target.closest('[data-image-id]'); if (!target) return;
+    e.preventDefault(); imageId = target.dataset.imageId;
+    document.querySelector('.tabs button[data-tab="text"]').click();
+    $('imagePick').closest('details').open = true; buildImagePanel();
+    $('imagePick').scrollIntoView({block: 'center'}); $('imagePick').focus();
   });
   $('addImage').addEventListener('click', () => $('imageFile').click());
   $('imageFile').addEventListener('change', e => { addImage(e.target.files[0]); e.target.value = ''; });

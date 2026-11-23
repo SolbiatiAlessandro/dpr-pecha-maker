@@ -312,10 +312,10 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(line.items[1].image.id, 'inline1'); assert.strictEqual(line.items[1].w, 86.4);
   let svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
   assert(svg.includes('width="72" height="36" href="data:image/png;base64,'));
-  const y = +svg.match(/<image x="[^"]+" y="([^"]+)"/)[1];
+  const y = +svg.match(/<image[^>]* x="[^"]+" y="([^"]+)"/)[1];
   doc.tibetanRaise = .1; doc.images[0].addTibetan = true;
   r = Engine.run(doc, measure); svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
-  assert(Math.abs(y - +svg.match(/<image x="[^"]+" y="([^"]+)"/)[1] - 7.2) < .01);
+  assert(Math.abs(y - +svg.match(/<image[^>]* x="[^"]+" y="([^"]+)"/)[1] - 7.2) < .01);
   doc.images[0].scale = 50; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 36);
   doc.images[0].dpi = 192; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 18);
   doc.images[0].ignoreDpi = true; assert.strictEqual(PechaImages.dimensions(doc, doc.images[0]).w, 36);
@@ -329,6 +329,35 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   r = Engine.run(doc, measure);
   assert(r.pages[0].lines[0].items[0].image); assert(!r.pages[1].lines[0].items[0].image); assert(r.pages[2].lines[0].items[0].image);
   assert.strictEqual(doc.text, 'ཀ་{page}ཁ་{page}ག་');
+}
+
+// Fixed page images anchor independently of body reflow and reserve text-side margins.
+{
+  const doc = Engine.defaultDoc(); doc.counts = {title: 0, fancy: 0}; doc.types.body.top = .1;
+  doc.yigo.enabled = false; doc.dzog.enabled = false; doc.text = 'word '.repeat(250);
+  doc.assets = [{id: 'a1', data: 'data:image/png;base64,iVBORw0KGgo=', width: 96, height: 48}];
+  doc.images = [PechaImages.placement({id: 'p1', asset: 'a1', kind: 'page', page: 1, margin: .1})];
+  let r = Engine.run(doc, measure); assert(r.pages.length > 1);
+  assert(Math.abs(r.pages[0].lines[0].offset - 79.2) < .001);
+  assert.strictEqual(r.pages[0].lines[1].offset, 0);
+  assert(Engine.pageSvg(r.pages[0], doc, measure, r.folioCount).includes('data-image-id="p1"'));
+  assert(!Engine.pageSvg(r.pages[1], doc, measure, r.folioCount).includes('data-image-id="p1"'));
+  const rect = PechaImages.pageRect(doc, doc.images[0], r.pages[0].boxes, r.pages[0].type);
+  doc.text = 'extra '.repeat(100) + doc.text;
+  r = Engine.run(doc, measure);
+  assert.deepStrictEqual(PechaImages.pageRect(doc, doc.images[0], r.pages[0].boxes, r.pages[0].type), rect);
+  doc.images[0].anchor = 'text-right';
+  const right = PechaImages.pageRect(doc, doc.images[0], r.pages[0].boxes, r.pages[0].type);
+  assert.strictEqual(right.x + right.w, r.pages[0].boxes.T.x1);
+  doc.images[0].anchor = 'inner-left'; assert.strictEqual(PechaImages.pageRect(doc, doc.images[0], r.pages[0].boxes, r.pages[0].type), null);
+  doc.images[0].anchor = 'outer-left';
+  assert(PechaImages.pageRect(doc, doc.images[0], r.pages[0].boxes, r.pages[0].type));
+  assert.strictEqual(Engine.run(doc, measure).pages[0].lines[0].offset, 0, 'box images do not reserve text margin');
+  // Volume anchor page numbers remain global across sections and inserted blank backs.
+  doc.sections = [{name:'A', text:'one', folioStart:1, restartLayout:false}, {name:'B', text:'word '.repeat(30), folioStart:1, restartLayout:false}];
+  doc.images[0].page = 3; doc.images[0].anchor = 'text-left';
+  r = Engine.run(doc, measure); assert(r.pages[1].blank); assert(r.pages[2].lines[0].offset > 0);
+  assert(Engine.pageSvg(r.pages[2], doc, measure, r.folioCount).includes('data-image-id="p1"'));
 }
 
 const dir = process.argv[2];
