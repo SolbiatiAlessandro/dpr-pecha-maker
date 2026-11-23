@@ -466,8 +466,12 @@ Typeover stops before visible formatting/image/page tokens and line boundaries. 
 retain normal replacement. Paste, IME composition, formatting commands and character-picker insertion
 remain normal insertions; a directly typed combining mark extends the preceding base. The native
 browser performs the edit so its undo/redo history is retained. Mode is not saved in document files.
-The original release notes confirm Typeover and its end-of-file fix, but this Unicode/editor policy
-has not been verified against the original legacy-font Windows editor. That parity item remains open.
+New, Close, opening/recovering a full document, and replacing body content return to Insert mode.
+Applying layout or annotation settings keeps the current typing mode because body editing continues.
+Targeted static inspection of the original executable confirms Insert toggling, initial Insert mode,
+and the New/Close reset to Insert. Its ordinary character path protects native control records from
+overwrite, and the release history confirms end-of-file support. These facts do not establish exact
+Unicode stack, keyboard mapping, or IME equivalence; original runtime comparison remains open.
 
 Ctrl/Command+S invokes full document Save while the editor is open. In the text
 editor, Ctrl/Command+Enter inserts a page mark and Ctrl/Command+backslash inserts

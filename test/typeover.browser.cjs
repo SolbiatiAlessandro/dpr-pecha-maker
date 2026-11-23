@@ -53,7 +53,40 @@ const {chromium} = require('playwright');
     const download = await downloadPromise;
     const saved = JSON.parse(require('node:fs').readFileSync(await download.path(), 'utf8'));
     assert.equal(saved.text, await editor.inputValue(), 'full Save retains the typeover edit');
+    assert(await page.locator('#typeover').isChecked(), 'Save does not reset the editing mode');
+    const upload = async (name, content) => {
+      await page.locator('#openFile').setInputFiles({name,mimeType:'application/octet-stream',buffer:Buffer.from(content)});
+      await page.waitForFunction(name => document.getElementById('toast').textContent.startsWith(`Opened ${name}.`), name);
+    };
+    // Applying settings keeps the current editing session, including Typeover.
+    for (const kind of ['template','annotations']) {
+      await upload(`${kind}.pecha`, JSON.stringify({format:'web-pecha-part',version:1,kind,settings:{}}));
+      assert(await page.locator('#typeover').isChecked(), `${kind} preserves typing mode`);
+      assert.equal(await editor.inputValue(),saved.text);
+    }
+    await upload('native-layout.pxt','; PechaMaker Template file.\n[File Version 0.5]\n[PageSetup]\nPaperSize.x=14000\nPaperSize.y=8500\n[PechaControl]\nPechaHeight=3\n');
+    assert(await page.locator('#typeover').isChecked(), 'native layout preserves typing mode');
+    assert.equal(await editor.inputValue(),saved.text);
+    await upload('full.pecha',JSON.stringify(saved));
+    assert(!(await page.locator('#typeover').isChecked()), 'full Open returns to Insert');
+    await page.locator('#typeover').check();
+    await upload('content.pecha',JSON.stringify({format:'web-pecha-part',version:1,kind:'content',settings:{text:'Replacement body'}}));
+    assert(!(await page.locator('#typeover').isChecked()), 'body replacement returns to Insert');
+    assert.equal(await editor.inputValue(),'Replacement body');
+    await page.locator('#typeover').check();
+    await page.locator('#newDoc').click(); await page.locator('#pasteText').click();
+    assert(!(await page.locator('#typeover').isChecked()), 'New returns to Insert');
+    await reset('ABC',1); await page.keyboard.type('x'); assert.equal(await editor.inputValue(),'AxBC');
+    await page.locator('#typeover').check();
+    await page.getByText('Reuse text, layouts and annotations',{exact:true}).click();
+    page.once('dialog',dialog=>dialog.dismiss()); await page.locator('#closeDoc').click();
+    assert(await page.locator('#typeover').isChecked(), 'cancelled Close preserves Typeover');
+    page.once('dialog',dialog=>dialog.accept()); await page.locator('#closeDoc').click();
+    assert(!(await page.locator('#typeover').isChecked()), 'confirmed Close returns to Insert');
+    await page.locator('#resume').click();
+    assert(!(await page.locator('#typeover').isChecked()), 'recovery resumes in Insert mode');
+    assert.equal(await editor.inputValue(),'AxBC');
     assert.deepEqual(errors,[]);
-    console.log('PASS: real Chromium typing, toggle, EOF, selection, Tibetan/emoji clusters, token/line boundaries, native undo/redo, IME commit, paste event filtering, preview, full Save, no page errors');
+    console.log('PASS: real Chromium typing, toggle, EOF, selection, Tibetan/emoji clusters, token/line boundaries, native undo/redo, IME commit, paste event filtering, preview, Save, New/Open/Close/recovery reset, partial-settings retention, no page errors');
   } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
