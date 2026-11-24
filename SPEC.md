@@ -527,3 +527,10 @@ the independent writer/parser. Unit tests cover field units/colors, scope, inval
 values and automatic placement; Chrome covers download, notes, reimport, Save,
 print SVG and PDF generation. These establish web behavior, not Windows acceptance
 or font/layout fidelity. Full native PXP/PXC/PXA export remains unimplemented.
+
+
+Print output hides the editor, start screen and toast; only prepared sheets enter
+the PDF. A malformed print rule had exposed editor controls and extra pages.
+Chrome regression checks print/screen visibility and actual PDF page objects
+against prepared sheets. The 14-by-8.5-inch duplex fixture now produces exactly
+two PDF pages rather than six, corroborated with pdfinfo.

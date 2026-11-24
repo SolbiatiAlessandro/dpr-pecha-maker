@@ -32,9 +32,15 @@ const Engine=require('../src/engine'),Pxp=require('../src/pxp');
   assert.equal(saved.paper.w,14);assert.equal(saved.paper.h,8.5);assert.equal(saved.types.body.baseline,.45);
   assert.equal(saved.types.body.color.toLowerCase(),'#1256ab');assert.equal(saved.folio.start,7);assert.equal(saved.notes.sets['body.front'].inL.text,'Keep annotation');
   await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));
-  assert(await page.locator('#printRoot svg').count()>0);
+  const sheets=await page.locator('#printRoot .sheet-print').count();assert(sheets>0);
+  await page.emulateMedia({media:'print'});
+  assert.equal(await page.locator('.app').evaluate(el=>getComputedStyle(el).display),'none');
+  assert.equal(await page.locator('.start').evaluate(el=>getComputedStyle(el).display),'none');
   const pdf=await page.pdf({preferCSSPageSize:true,printBackground:true});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');assert(pdf.length>5000);
+  assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,sheets,'PDF contains only prepared print sheets');
   if(process.env.QA_PDF)fs.writeFileSync(process.env.QA_PDF,pdf);
+  await page.emulateMedia({media:'screen'});
+  assert.notEqual(await page.locator('.app').evaluate(el=>getComputedStyle(el).display),'none');
   if(process.env.QA_SCREENSHOT)await page.screenshot({path:process.env.QA_SCREENSHOT,fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: PXT download/notes, import scope/geometry, full Save, print SVG and PDF generation, no JS errors');
  } finally {await browser.close();}
