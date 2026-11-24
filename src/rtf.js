@@ -55,6 +55,22 @@ const Rtf = (() => {
     if (!plain) return {...selected,empty:true};
     return {...selected,plain,rtf:write(fragment,Engine)};
   }
+  function copyMark(doc, slot, start, end, Engine, TextFormat) {
+    let source = slot.text;
+    if (!slot.rich) {
+      const literal = s => s.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
+      start = literal(source.slice(0,start)).length;
+      end = literal(source.slice(0,end)).length;
+      source = literal(source);
+    }
+    const selected = TextFormat.selectedRich(source,start,end,Engine);
+    // These fields render text only: layout/image codes are ignored and every run shares the slot size.
+    const text = selected.text.replace(/\{([^{}\n]*)\}/g,(_,body)=>{
+      const kept = body.trim().split(/\s+/).filter(t=>t!=='page' && !t.startsWith('image:'));
+      return kept.length ? '{'+kept.join(' ')+'}' : '';
+    }).replace(/\r\n?|\n|\u2028|\t/g,' ');
+    return copySelection({...doc,font:slot.font||doc.font,textSize:slot.size,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
+  }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
     if (!/^\s*\{\\rtf1\b/.test(source) || source.length > 24000000) throw new Error('Not a supported RTF file (maximum 24 MB).');
@@ -269,6 +285,6 @@ const Rtf = (() => {
   }
 
   const insertNote = (...args) => insertMark(...args);
-  return {write, escape, read, copySelection, insert, insertMark, insertNote};
+  return {write, escape, read, copySelection, copyMark, insert, insertMark, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;

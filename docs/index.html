@@ -381,9 +381,9 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <h3>Rinchen pung shad</h3><div class="grid" id="shadFields"></div>
       <h3>End line</h3><div class="grid" id="dzogFields"></div>
       <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
-      <p class="hint">Formatted paste into the fixed phrase keeps fonts, colours and emphasis. The phrase uses the folio size above.</p>
+      <p class="hint">Formatted paste into the fixed phrase keeps fonts, colours and emphasis. The phrase uses the folio size above. Copy includes the selected phrase text at that size when formatted copy is enabled on the Text tab.</p>
       <h3>Page numbers</h3><div class="grid" id="pageNumFields"></div>
-      <h3>Margin notes</h3><p class="hint">Paste formatted text when your browser supplies RTF, or enable formatting marks and use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {#b03020}colour and {font:noto} or {font:serif}. Each note uses its own size for all fonts. Pasted line breaks become spaces; pictures are skipped with an import note. Main-text size changes do not resize notes.</p>
+      <h3>Margin notes</h3><p class="hint">Paste formatted text when your browser supplies RTF, or enable formatting marks and use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {#b03020}colour and {font:noto} or {font:serif}. Each note uses its own size for all fonts, including when copied. Copy follows the formatted-copy setting on the Text tab. Pasted line breaks become spaces; pictures are skipped with an import note. Main-text size changes do not resize notes.</p>
       <div class="field wide"><label for="noteSide">Notes for</label><select id="noteSide"></select></div>
       <div class="grid" id="noteFields"></div>
     </div>
@@ -3397,6 +3397,22 @@ const Rtf = (() => {
     if (!plain) return {...selected,empty:true};
     return {...selected,plain,rtf:write(fragment,Engine)};
   }
+  function copyMark(doc, slot, start, end, Engine, TextFormat) {
+    let source = slot.text;
+    if (!slot.rich) {
+      const literal = s => s.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
+      start = literal(source.slice(0,start)).length;
+      end = literal(source.slice(0,end)).length;
+      source = literal(source);
+    }
+    const selected = TextFormat.selectedRich(source,start,end,Engine);
+    // These fields render text only: layout/image codes are ignored and every run shares the slot size.
+    const text = selected.text.replace(/\{([^{}\n]*)\}/g,(_,body)=>{
+      const kept = body.trim().split(/\s+/).filter(t=>t!=='page' && !t.startsWith('image:'));
+      return kept.length ? '{'+kept.join(' ')+'}' : '';
+    }).replace(/\r\n?|\n|\u2028|\t/g,' ');
+    return copySelection({...doc,font:slot.font||doc.font,textSize:slot.size,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
+  }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
     if (!/^\s*\{\\rtf1\b/.test(source) || source.length > 24000000) throw new Error('Not a supported RTF file (maximum 24 MB).');
@@ -3611,7 +3627,7 @@ const Rtf = (() => {
   }
 
   const insertNote = (...args) => insertMark(...args);
-  return {write, escape, read, copySelection, insert, insertMark, insertNote};
+  return {write, escape, read, copySelection, copyMark, insert, insertMark, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
 
@@ -4905,6 +4921,18 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
   el.addEventListener('input', event => {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
+  });
+  if (kind !== 'yigo') el.addEventListener('copy', event => {
+    if (!$('copyFormatted').checked || !event.clipboardData) return;
+    try {
+      const size = kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
+      const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
+      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
+      if (result.empty) return;
+      event.clipboardData.setData('text/rtf',result.rtf);
+      event.clipboardData.setData('text/plain',result.plain);
+      event.preventDefault();
+    } catch (error) { toast('Could not copy formatted text: '+error.message); }
   });
   el.addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');

@@ -139,6 +139,18 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
   });
+  if (kind !== 'yigo') el.addEventListener('copy', event => {
+    if (!$('copyFormatted').checked || !event.clipboardData) return;
+    try {
+      const size = kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
+      const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
+      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
+      if (result.empty) return;
+      event.clipboardData.setData('text/rtf',result.rtf);
+      event.clipboardData.setData('text/plain',result.plain);
+      event.preventDefault();
+    } catch (error) { toast('Could not copy formatted text: '+error.message); }
+  });
   el.addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
     if (!rtf) return;
