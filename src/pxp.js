@@ -287,11 +287,6 @@ const Pxp = (() => {
     return out;
   }
 
-  function plainText(bytes, fonts, table, fontCharsets) {
-    if (!bytes || !bytes.length) return '';
-    return decodeStream(bytes, fonts, table, 0, fontCharsets).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
-  }
-
   const nativeFont = (id, fonts, table, Engine) => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
   function richText(bytes, fonts, table, fontCharsets, Engine, yigo = false) {
     if (!bytes || !bytes.length) return '';
@@ -401,7 +396,9 @@ const Pxp = (() => {
     d.folio.start = num(v.FolioStartNum, 1);
     d.folio.onTitle = on(v.FolioNumTitleEn, false);
     d.folio.jyon = on(v.FolioNumJyonEn, false);
-    d.folio.rhino = on(v.FolioRhinoEn, false) ? plainText(raw.FolioRhinoStream, p.fonts, table, p.fontCharsets) : '';
+    d.folio.rhinoEnabled = on(v.FolioRhinoEn, false);
+    d.folio.rhino = richText(raw.FolioRhinoStream, p.fonts, table, p.fontCharsets, Engine);
+    d.folio.rhinoRich = true;
     d.pageNum.start = num(v.PageStartNum, 1);
     d.pageNum.on = d.pageNum.start > 0;
     d.pageNum.onTitle = on(v.PageNumTitleEn, false);
@@ -436,7 +433,7 @@ const Pxp = (() => {
       }
     } else if (extension === 'pxc' || extension === 'pxa') {
       base.notes.sets = imported.notes.sets;
-      for (const key of ['start', 'onTitle', 'jyon', 'rhino']) base.folio[key] = imported.folio[key];
+      for (const key of ['start', 'onTitle', 'jyon', 'rhino', 'rhinoEnabled', 'rhinoRich']) base.folio[key] = imported.folio[key];
       for (const key of ['start', 'on', 'onTitle', 'firstTitle']) base.pageNum[key] = imported.pageNum[key];
       if (parsed.template.PechaAnnotation) {
         for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];

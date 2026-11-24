@@ -20,6 +20,8 @@ const Documents = (() => {
     if (!input || input.version !== 1 || typeof input.text !== 'string') throw new Error('Not a web pecha document');
     if (Array.isArray(input.sections) && input.sections.length > 200) throw new Error('Too many texts in this volume');
     const d = merge(Engine.defaultDoc(), input);
+    // Older web files used a nonempty phrase as their implicit mode switch.
+    if (input.folio && !Object.hasOwn(input.folio,'rhinoEnabled')) d.folio.rhinoEnabled = !!d.folio.rhino;
     Object.assign(d, PechaImages.normalize(input));
     if (!d.images.some(p => p.id === d.yigo.image && p.kind === 'yigo')) d.yigo.image = '';
     d.sections = Array.isArray(input.sections) ? input.sections.map((s, i) => ({
@@ -65,6 +67,8 @@ const Documents = (() => {
     if (!current) return d;
     d.notes = clone(current.notes); d.yigo = clone(current.yigo);
     d.folio.rhino = current.folio.rhino;
+    d.folio.rhinoEnabled = typeof current.folio.rhinoEnabled === 'boolean' ? current.folio.rhinoEnabled : !!current.folio.rhino;
+    d.folio.rhinoRich = !!current.folio.rhinoRich;
     // Retain only the active yi-go image, never prior body/page pictures.
     d.images = clone(current.images.filter(p => p.kind === 'yigo' && p.id === d.yigo.image));
     d.assets = clone(current.assets.filter(a => d.images.some(p => p.asset === a.id)));

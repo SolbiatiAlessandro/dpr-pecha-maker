@@ -52,7 +52,7 @@ const Engine = (() => {
       assets: [], images: [],
       yigo: { rich: false, ignoreColor: true, image: '', enabled: true, text: '༄༅༅། །', fancyStart: true, title2: false },
       dzog: { enabled: true, rise: 0.05, percentEnabled: false, percent: 20, leftUp: 0, rightUp: 0 },
-      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', angle: -90, font: '' },
+      folio: { start: 1, onTitle: false, jyon: false, inset: 0.1, size: 13, rhino: '', rhinoEnabled: false, rhinoRich: false, angle: -90, font: '' },
       pageNum: { start: 1, onTitle: false, firstTitle: true, inset: 0.05, size: 9, on: true, angle: -90, position: 'bottom', font: 'Georgia' },
       notes: {
         outLeft: 0, outRight: 0,
@@ -523,12 +523,12 @@ const Engine = (() => {
       return {s, f, color: it.style.color, width: measure(s, f), head: measure.head({...doc, font: f.family}, f.size)};
     });
   }
-  function richSideText(x, y, slot, doc, measure, anchor) {
-    if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor);
+  function richSideText(x, y, slot, doc, measure, anchor, angle = -90) {
+    if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor, angle);
     const runs = annotationRuns(slot, doc, measure), width = runs.reduce((sum, r) => sum + r.width, 0);
     let cursor = anchor === 'middle' ? -width / 2 : anchor === 'end' ? -width : 0;
     const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color); cursor += r.width; return part; }).join('');
-    return `<g transform="translate(${num(x)} ${num(y)}) rotate(-90)">${text}</g>`;
+    return `<g transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})">${text}</g>`;
   }
 
   function drawMargins(p, doc, measure, folioCount) {
@@ -560,14 +560,16 @@ const Engine = (() => {
 
     const fo = doc.folio;
     const folioStart = p.sectionFolioStart === undefined ? fo.start : p.sectionFolioStart;
-    const showFolio = p.front && folioStart > 0 && (p.kind !== 'title' || fo.onTitle);
+    const showFolio = p.front && (fo.rhinoEnabled || (folioStart > 0 && (p.kind !== 'title' || fo.onTitle)));
     if (showFolio) {
       const number = p.folioNumber === undefined ? fo.start + (p.n - 1) / 2 : p.folioNumber;
       const isLast = p.sectionLastFolio === undefined ? (p.n + 1) / 2 >= folioCount : p.sectionLastFolio;
-      const label = fo.rhino || Folio.words(number) + (fo.jyon && isLast ? Folio.JYON : '');
+      const label = fo.rhinoEnabled ? fo.rhino : Folio.words(number) + (fo.jyon && isLast ? Folio.JYON : '');
       const folioDoc = fo.font ? {...doc, font: `'${fo.font}','Noto Serif Tibetan',serif`} : doc;
-      const x = O.x0 + fo.inset * PT + measure.head(folioDoc, fo.size).ascent;
-      out += sideText(x, midY, label, fo.size, folioDoc, 'middle', fo.angle === undefined ? -90 : fo.angle);
+      const slot = {text:label, size:fo.size, rich:fo.rhinoEnabled && fo.rhinoRich};
+      const ascent = slot.rich ? Math.max(0,...annotationRuns(slot,folioDoc,measure).map(r=>r.head.ascent)) : measure.head(folioDoc,fo.size).ascent;
+      const x = O.x0 + fo.inset * PT + ascent;
+      out += richSideText(x, midY, slot, folioDoc, measure, 'middle', fo.angle === undefined ? -90 : fo.angle);
     }
     const pn = doc.pageNum;
     if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {

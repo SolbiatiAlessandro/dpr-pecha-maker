@@ -255,7 +255,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   assert.strictEqual(annotations.text, target.text); assert.deepStrictEqual(annotations.sections, target.sections);
   assert.deepStrictEqual(annotations.paper, target.paper); assert.strictEqual(annotations.folio.start, 17);
   assert.strictEqual(annotations.pageNum.start, 201); assert.strictEqual(annotations.yigo.enabled, target.yigo.enabled);
-  assert.strictEqual(annotations.folio.rhino, '', 'disabled imported phrase must clear an old phrase');
+  assert.strictEqual(annotations.folio.rhino, '', 'missing imported phrase must clear an old phrase');
   const content = Pxp.load(fixture('pxc'), 'pxc', TABLE, target, Engine).doc;
   assert.strictEqual(content.text, '{font:serif}Imported text'); assert.deepStrictEqual(content.sections, []);
   assert.deepStrictEqual(content.paper, target.paper); assert.strictEqual(content.folio.start, 17);

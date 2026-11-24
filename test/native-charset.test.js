@@ -18,7 +18,7 @@ for(const extension of ['pxp','pxc','pxa']) {
  const file=native({extension,body:extension==='pxa'?[]:bytes,note:bytes,yigo:bytes,rhino:bytes});
  const base=Engine.defaultDoc();base.text='Keep body';
  const result=Pxp.load(file,extension,TABLE,base,Engine);
- assert(result.doc.notes.sets['title.front'].inL.text.includes('“€”—…'));assert.equal(result.doc.folio.rhino,'“€”—…');
+ assert(result.doc.notes.sets['title.front'].inL.text.includes('“€”—…'));assert.equal(plain({text:result.doc.folio.rhino}),'“€”—…');assert(result.doc.folio.rhinoRich);assert(result.doc.folio.rhinoEnabled);
  if(extension==='pxa'){assert.equal(result.doc.text,'Keep body');assert.equal(Pxp.parse(file).fontCharsets[5],0);}
  else {assert.equal(plain(result.doc),'“€”—…');assert.equal(plain({text:result.doc.yigo.text}),'“€”—…');assert(result.doc.yigo.rich);}
  assert.equal(Documents.normalize(Documents.artifact(result.doc,'document'),Engine).text,result.doc.text);

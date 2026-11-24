@@ -496,9 +496,9 @@ shortcut failure. Browser print behavior remains unchanged.
 
 ### Native fixed-shad import
 
-Native byte 0x0B imports as `{hs}` in body and rich annotation streams, preserving
-the exclusion from automatic rinchen-pung conversion. Plain yi-go/rhino text
-uses the visible Tibetan shad. Font-size changes immediately before a fixed shad
+Native byte 0x0B imports as `{hs}` in body, annotation, yi-go and fixed-phrase streams,
+preserving the exclusion from automatic rinchen-pung conversion. It displays as
+the visible Tibetan shad. Font-size changes immediately before a fixed shad
 are retained. Synthetic native fixtures test import, layout and web Save/Open.
 The control identity is supported by the original Hard Shad command and manual;
 original Windows runtime and native export round trips remain unverified.
@@ -706,8 +706,37 @@ glyph switches and size restoration, Tibetan stacks, Save/Open, selected-text
 edits and RTF round trips. Chrome verifies preview/print families and sizes and
 visually distinct text. Fonts unavailable locally use browser fallbacks, with
 an import notice. Native font metrics, original Windows visual comparison,
-legacy custom encodings, native fixed-folio rich font runs and complete font
+legacy custom encodings and complete font
 selection UI parity remain open.
+
+### Fixed-folio phrase mode and rich native phrases
+
+An explicit fixed-phrase toggle chooses a repeated seru/rhino phrase instead of
+incrementing folio numbers. Enabled phrases appear on every folio front,
+including Title pages and when the starting folio number is zero. They do not
+append Jyon. An enabled empty phrase stays blank; switching the mode off restores
+ordinary numbering and keeps the phrase for reuse. This follows the original
+renderer branch, which selects an enabled Rhino stream before testing number
+start and Title visibility.
+
+PXP/PXC/PXA import retains the phrase's enable flag separately from its text,
+including stored disabled phrases. Rich runs retain font, colour, bold, italic,
+underline and strikeout. The inspected original stream renderer handles those
+attributes while skipping size changes; web phrases use the Folio size control.
+Labels are centred using measured run widths and support the existing rotation
+and inset controls. Native PXT scope leaves the phrase and mode untouched.
+
+New web documents provide a separate formatting-marks toggle. Older web saves
+and annotation files with a nonempty plain phrase migrate to enabled fixed mode
+without interpreting literal braces as formatting. Full Save, annotation reuse
+and new-content retention preserve the text and both toggles. Automatic phrases
+remain excluded from RTF body export.
+
+Unit and Chrome tests cover fronts/backs, Title pages, zero starts, disabled and
+empty phrases, mixed formatting, size/rotation, numbering/Jyon restoration,
+Save/Open, partial-file scope and old-file migration. Preview and print SVG
+attributes agree. Actual Windows visual/metric equivalence and unusual native
+phrase controls remain unverified.
 
 ### Native yi-go font and colour import
 

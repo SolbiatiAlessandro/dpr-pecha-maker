@@ -200,14 +200,16 @@ function buildPanels() {
     { path: 'dzog.rightUp', label: 'Raise right segment, in', step: .01, min: 0, max: 2 },
   ]);
   fill($('folioFields'), [
-    { path: 'folio.start', label: 'First folio (0 hides them)', step: 1, min: 0 },
+    { path: 'folio.start', label: 'First folio (0 hides numbers)', step: 1, min: 0 },
     { path: 'folio.font', label: 'Folio font', type: 'select', wide: true, options: [['', 'Use document font'], ...FONTS.map(f => [f, f])] },
     { path: 'folio.size', label: 'Size, pt', step: 1, min: 6 },
     { path: 'folio.inset', label: 'Inset from box, in', step: 0.01, min: 0 },
-    { path: 'folio.onTitle', label: 'Show on Title pages', type: 'check' },
+    { path: 'folio.onTitle', label: 'Show folio numbers on Title pages', type: 'check' },
     { path: 'folio.angle', label: 'Folio label rotation', type: 'select', number: true, wide: true, options: [[-90, '90° counterclockwise'], [90, '90° clockwise'], [0, 'Horizontal']] },
     { path: 'folio.jyon', label: 'Add བྱོན། to the last folio', type: 'check' },
-    { path: 'folio.rhino', label: 'Same phrase on every folio (seru)', type: 'text', wide: true, tibetan: true },
+    { path: 'folio.rhinoEnabled', label: 'Use a fixed phrase on every folio front, including Title pages', type: 'check' },
+    { path: 'folio.rhino', label: 'Fixed phrase (seru / rhino)', type: 'text', wide: true, tibetan: true },
+    { path: 'folio.rhinoRich', label: 'Use formatting marks in the fixed phrase', type: 'check' },
   ]);
   fill($('pageNumFields'), [
     { path: 'pageNum.on', label: 'Show page numbers', type: 'check' },
