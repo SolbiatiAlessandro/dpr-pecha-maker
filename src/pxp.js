@@ -13,18 +13,21 @@ const Pxp = (() => {
   }
 
   function parseFonts(head) {
-    const fonts = {};
+    const fonts = {}, fontCharsets = {};
     const annotationHeader = /^\.pxa 0\.1 u1 u2 u3 u4 (\d+) (\d+) /.exec(head);
     if (annotationHeader && +annotationHeader[1]) {
       // Native PXA inherits five TCC slots; family switching replaces fonts without rewriting streams.
       // Normalize their shared legacy encoding with the independently maintained conversion tables.
-      for (let i=0;i<5;i++) fonts[i] = i ? 'TibetanMachineSkt'+i : 'TibetanMachine';
+      for (let i=0;i<5;i++) {fonts[i] = i ? 'TibetanMachineSkt'+i : 'TibetanMachine'; fontCharsets[i] = 0;}
     }
     const list = annotationHeader ? head.slice(annotationHeader[0].length) : head.replace(/^.*?u4 \d+ \d+ \d+ /s, '');
-    const re = /(\d+) \d+ ([^\0]+)\0/g;
+    const re = /(\d+) (\d+) ([^\0]+)\0/g;
     let m;
-    while ((m = re.exec(list))) fonts[+m[1] + (annotationHeader ? 5 : 0)] = m[2];
-    return fonts;
+    while ((m = re.exec(list))) {
+      const id = +m[1] + (annotationHeader ? 5 : 0);
+      fonts[id] = m[3]; fontCharsets[id] = +m[2];
+    }
+    return {fonts, fontCharsets};
   }
 
   // Values of keys ending in ".s" or "Stream" are raw bytes: newline, slen bytes, newline.
@@ -66,10 +69,14 @@ const Pxp = (() => {
   // Turns a coded byte stream into a list of events.
   //   0x11 op a b c 0x11   format code (font, size, style, colour, alignment)
   //   0x14 x font ch y 0x14  stack character taken from another font of the set
-  function decodeStream(bytes, fonts, table, startFont = 0) {
+  // Windows font charset values map to standard single-byte code pages.
+  // Symbol/custom and multibyte encodings require separate glyph/stream handling.
+  const charsetPages = {0:1252,1:1252,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
+  const byteDecoders = new Map();
+  function decodeStream(bytes, fonts, table, startFont = 0, fontCharsets = {}) {
     const ev = [];
     let font = startFont, buf = '';
-    const unknown = {};
+    const unknown = {}, warnings = new Set();
     const flush = () => { if (buf) { ev.push({ t: 'text', s: buf }); buf = ''; } };
     const map = (fontId, c) => {
       const name = fonts[fontId] || '';
@@ -80,7 +87,24 @@ const Pxp = (() => {
         unknown[name + ':' + c] = (unknown[name + ':' + c] || 0) + 1;
         return '';
       }
-      return String.fromCharCode(c);   // western font: Latin-1 is close enough for a first pass
+      const charset = fontCharsets[fontId] ?? 0, page = charsetPages[charset];
+      let text = null;
+      if (page) {
+        if (!byteDecoders.has(page)) byteDecoders.set(page, Array.from(new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i))));
+        text = byteDecoders.get(page)[c];
+        if (charset === 1 && c >= 128) warnings.add('A system-default font charset was decoded as Windows-1252. The source Windows locale is not recorded; check extended characters.');
+      } else {
+        warnings.add(`Native font charset ${charset} (${name || 'unnamed font'}) is unsupported. Unconverted glyphs appear as �; check against the original.`);
+        // ASCII survives in unsupported text encodings, but symbol glyphs do not.
+        if (c === 32 || (charset !== 2 && c >= 32 && c < 127)) text = String.fromCharCode(c);
+      }
+      if (!text || text === '�' || /[\u0000-\u001f\u007f-\u009f]/.test(text)) {
+        const key = `${name || 'font '+fontId}:charset${charset}:${c}`;
+        unknown[key] = (unknown[key] || 0) + 1;
+        warnings.add('Some native text bytes could not be decoded and appear as �.');
+        return '�';
+      }
+      return text;
     };
     for (let i = 0; i < bytes.length; i++) {
       const c = bytes[i];
@@ -110,7 +134,7 @@ const Pxp = (() => {
       }
     }
     flush();
-    return { ev, unknown };
+    return { ev, unknown, warnings: [...warnings] };
   }
 
   function parse(u8, table) {
@@ -122,16 +146,16 @@ const Pxp = (() => {
     // Standalone template files use the INI layout without the document's font/body wrapper.
     // The original executable exposes this template heading and File Version section.
     if (sNB < 0 && sT < 0 && indexOf(b, '[PageSetup]') >= 0 && indexOf(b, '[PechaControl]') >= 0) {
-      return {version: '', fonts: {}, nonBody: {values: {}, raw: {}}, template: parseIni(LAT(b, 0, b.length)), body: b.subarray(b.length)};
+      return {version: '', fonts: {}, fontCharsets: {}, nonBody: {values: {}, raw: {}}, template: parseIni(LAT(b, 0, b.length)), body: b.subarray(b.length)};
     }
     if (!/^\.px[pcta]$/.test(LAT(b, 0, 4)) && sNB < 0) throw new Error('Not a PechaMaker file');
-    const fonts = parseFonts(LAT(b, 0, sNB < 0 ? 200 : sNB));
+    const {fonts, fontCharsets} = parseFonts(LAT(b, 0, sNB < 0 ? 200 : sNB));
     const nb = sNB >= 0 ? parseNonBody(b, sNB + 17, eNB) : { values: {}, raw: {} };
     const tpl = sT >= 0 ? parseIni(LAT(b, sT + 16, eT)) : {};
     let bodyStart = eT >= 0 ? eT + 15 : (eNB >= 0 ? eNB + 15 : 0);
     const imageStart = indexOf(b, '\n[START IMAGES] ', bodyStart);
     const hasImageBlock = imageStart >= 0 && /^\n\[START IMAGES\] [^\r\n]+\r?\n(?:ImageInfoCount|ImageInfo_SizeOf)=\d+/.test(LAT(b,imageStart,Math.min(b.length,imageStart+160)));
-    return { version: LAT(b, 0, 12), fonts, nonBody: nb, template: tpl,
+    return { version: LAT(b, 0, 12), fonts, fontCharsets, nonBody: nb, template: tpl,
       imageBlock: hasImageBlock ? b.subarray(imageStart) : null,
       body: b.subarray(bodyStart, hasImageBlock ? imageStart : b.length) };
   }
@@ -253,14 +277,14 @@ const Pxp = (() => {
     return out;
   }
 
-  function plainText(bytes, fonts, table) {
+  function plainText(bytes, fonts, table, fontCharsets) {
     if (!bytes || !bytes.length) return '';
-    return decodeStream(bytes, fonts, table).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
+    return decodeStream(bytes, fonts, table, 0, fontCharsets).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
   }
 
-  function richText(bytes, fonts, table) {
+  function richText(bytes, fonts, table, fontCharsets) {
     if (!bytes || !bytes.length) return '';
-    return eventsToText(decodeStream(bytes, fonts, table).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
+    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -283,8 +307,13 @@ const Pxp = (() => {
       const source=d.images.find(im=>im.id==='native-inline-'+num(v.YigoLineImageIndex,-1));
       if(source){const yi={...source,id:'native-yigo',kind:'yigo'};d.images.push(yi);d.yigo.image=yi.id;}
     }
-    const { ev, unknown } = decodeStream(p.body, p.fonts, table);
-    if (Object.values(raw).some(bytes => Object.keys(decodeStream(bytes,p.fonts,table).unknown).length)) nativeImages.warnings.push('Some annotation or yi-go characters could not be converted. Check these marks against the original.');
+    const { ev, unknown, warnings } = decodeStream(p.body, p.fonts, table, 0, p.fontCharsets);
+    nativeImages.warnings.push(...warnings);
+    for (const bytes of Object.values(raw)) {
+      const decoded = decodeStream(bytes,p.fonts,table,0,p.fontCharsets);
+      nativeImages.warnings.push(...decoded.warnings);
+      if (Object.keys(decoded.unknown).length) nativeImages.warnings.push('Some annotation or yi-go characters could not be converted. Check these marks against the original.');
+    }
     if(ev.some(e=>e.t==='image'&&!d.images.some(p=>p.id==='native-inline-'+e.index))) nativeImages.warnings.push('Some inline image references could not be recovered.');
     d.text = eventsToText(ev, id => !!table[p.fonts[id]]).replace(/\s+$/, '');
     d.flow = false;
@@ -347,31 +376,31 @@ const Pxp = (() => {
     d.dzog.leftUp = num(v.DzogThik_VLAdjF, 0);
     d.dzog.rightUp = num(v.DzogThik_VRAdjF, 0);
     d.yigo.enabled = on(v['Yigo.en'], true);
-    const yig = plainText(raw['Yigo.s'], p.fonts, table);
+    const yig = plainText(raw['Yigo.s'], p.fonts, table, p.fontCharsets);
     if (yig) d.yigo.text = yig;
     d.yigo.fancyStart = on(v.YigoStartFancy, true);
     d.yigo.title2 = on(v.YigoStart2ndTitle, false);
     d.folio.start = num(v.FolioStartNum, 1);
     d.folio.onTitle = on(v.FolioNumTitleEn, false);
     d.folio.jyon = on(v.FolioNumJyonEn, false);
-    d.folio.rhino = on(v.FolioRhinoEn, false) ? plainText(raw.FolioRhinoStream, p.fonts, table) : '';
+    d.folio.rhino = on(v.FolioRhinoEn, false) ? plainText(raw.FolioRhinoStream, p.fonts, table, p.fontCharsets) : '';
     d.pageNum.start = num(v.PageStartNum, 1);
     d.pageNum.on = d.pageNum.start > 0;
     d.pageNum.onTitle = on(v.PageNumTitleEn, false);
     d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
-        const text = richText(raw[`${name}[${i}].s`], p.fonts, table);
+        const text = richText(raw[`${name}[${i}].s`], p.fonts, table, p.fontCharsets);
         return { rich: true, on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
       };
       const set = Engine.noteSet({ inL: slot('AnnoInL', 0.1), inR: slot('AnnoInR', 0.1), outL: slot('AnnoOutL', 0.1), outR: slot('AnnoOutR', 0.1) });
       if (i % 2 === 0) {
-        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table);
+        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table, p.fontCharsets);
         set.inB = { rich: true, on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
       }
       d.notes.sets[key] = set;
     });
-    return { doc: d, unknown: Object.keys(unknown).length, warnings: nativeImages.warnings };
+    return { doc: d, unknown: Object.keys(unknown).length, warnings: [...new Set(nativeImages.warnings)] };
   }
 
   // Native partial files have different scopes (guide section 3). A template must not erase text.

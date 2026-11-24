@@ -634,3 +634,33 @@ The original Windows import result is still unverified because guest input
 remains blocked. Tests cover initial/interior/closing/adjacent toggles, existing
 returns, mixed scripts, the public fixture, preview and print geometry, web
 Save/Open and RTF alignment export.
+
+
+### Native font charset decoding
+
+PXP/PXC/PXA import retains the numeric charset in each font-table record, including
+PXA's compact non-TCC IDs starting at5. Standard single-byte charsets use Windows
+code pages1250–1258 and874, preserving Windows punctuation and non-Western text
+in body, annotation, yi-go and fixed folio streams. Existing Tibetan conversion
+tables take priority over the standard charset decoder.
+
+Charset identifiers and code-page meanings follow Microsoft's
+[CharacterSet enumeration](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wmf/0d0b32ac-a836-4bd2-a112-b6000a1b4fc9)
+and [code-page identifiers](https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers).
+The original loader passes the serialized charset into font registration; this
+independent decoder uses the browser's standard TextDecoder mappings.
+
+System-default charset1 falls back to1252 with a warning for extended text because
+the original Windows locale is unknown. Unsupported charsets preserve ASCII where
+applicable and replace unconverted bytes with visible� and warnings; symbol
+charset2 replaces non-space glyphs instead of displaying misleading Latin letters.
+Undefined standard-code-page bytes also receive replacements. Multibyte, Macintosh,
+OEM and custom-font encodings, right-to-left layout and exact Windows rendering
+remain unverified/unsupported. This fixes the former unconditional Latin-1 fallback;
+it does not establish full font or native-format parity.
+
+Generated fixtures test ten code pages, same-family charset changes, framed glyph
+font references, body and partial-file scopes, raw annotation/yi-go/folio streams,
+replacement warnings, locale fallback and web Save. Chrome checks punctuation and
+Cyrillic preview/print, PXA notes, RTF export and Save/Open. Original Windows runtime
+comparison remains blocked by guest input.
