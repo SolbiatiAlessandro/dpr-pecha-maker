@@ -20,7 +20,7 @@ for(const extension of ['pxp','pxc','pxa']) {
  const result=Pxp.load(file,extension,TABLE,base,Engine);
  assert(result.doc.notes.sets['title.front'].inL.text.includes('“€”—…'));assert.equal(result.doc.folio.rhino,'“€”—…');
  if(extension==='pxa'){assert.equal(result.doc.text,'Keep body');assert.equal(Pxp.parse(file).fontCharsets[5],0);}
- else {assert.equal(plain(result.doc),'“€”—…');assert.equal(result.doc.yigo.text,'“€”—…');}
+ else {assert.equal(plain(result.doc),'“€”—…');assert.equal(plain({text:result.doc.yigo.text}),'“€”—…');assert(result.doc.yigo.rich);}
  assert.equal(Documents.normalize(Documents.artifact(result.doc,'document'),Engine).text,result.doc.text);
 }
 for(const [charset,bytes,expected] of [[2,[65,32,66],'� �'],[128,[65,130,160],'A��'],[255,[65,255],'A�'],[77,[65,128],'A�'],[999,[65,255],'A�'],[0,[129],'�']]) {

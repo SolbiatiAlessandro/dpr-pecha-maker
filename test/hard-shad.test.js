@@ -13,7 +13,7 @@ for(const ext of ['pxp','pxc']) {
   const {doc,unknown}=Pxp.load(fixture.native(ext),ext,TABLE,Engine.defaultDoc(),Engine);
   assert.equal(unknown,0); assert.equal(doc.text,expected);
   assert.equal(doc.notes.sets['title.front'].inL.text,'{font:jomolhari}ཀ{hs}');
-  assert.equal(doc.yigo.text,'ཀ།');
+  assert.equal(doc.yigo.text,'{font:jomolhari}ཀ{hs}');assert.equal(doc.yigo.rich,true);
   doc.counts={title:0,fancy:0};doc.yigo.enabled=false;
   const measure=(s,f)=>s.length*f.size*.4;
   measure.head=(doc,size)=>({ascent:size*.5,descent:size*.25,height:size*.75});

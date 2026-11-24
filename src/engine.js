@@ -278,7 +278,7 @@ const Engine = (() => {
         : splitAtoms(doc.yigo.text);
       for (const a of yiAtoms) {
         const style = doc.yigo.rich ? {...a.style, role: null, size: firstSize,
-          color: doc.yigo.ignoreColor ? firstStyle.color : a.style.color} : firstStyle;
+          color: doc.yigo.ignoreColor || a.style.color === null ? firstStyle.color : a.style.color} : firstStyle;
         const p = place({ ...a, style });
         p.x = x + prevGap; x = p.x + p.w; prevGap = p.gapW;
         items.push(p); yigoCount++;
@@ -312,7 +312,7 @@ const Engine = (() => {
     const o = doc.shad;
     if (!o.enabled || !line.items.length) return;
     if (kind === 'title' && (!o.titlePages || lineIndex === 0)) return;
-    if (line.yigoCount && /[།]/.test(doc.yigo.text) && !o.ignoreYigo) return;
+    if (!o.ignoreYigo && line.items.slice(0,line.yigoCount).some(a => /[།]/.test(a.s))) return;
     const idx = line.yigoCount;
     const a = line.items[idx];
     if (!a || !isTib(a.s[0])) return;

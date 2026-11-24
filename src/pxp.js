@@ -293,9 +293,12 @@ const Pxp = (() => {
   }
 
   const nativeFont = (id, fonts, table, Engine) => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
-  function richText(bytes, fonts, table, fontCharsets, Engine) {
+  function richText(bytes, fonts, table, fontCharsets, Engine, yigo = false) {
     if (!bytes || !bytes.length) return '';
-    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => Object.hasOwn(table,fonts[id]), id => nativeFont(id,fonts,table,Engine)).replace(/[\r\n]/g, ' ');
+    let events = decodeStream(bytes, fonts, table, 0, fontCharsets).ev;
+    // The original yi-go renderer handles font and colour codes; its size follows the page's first character.
+    if (yigo) events = events.filter(e => e.t !== 'code' || e.op === 0x20 || e.op === 0x22);
+    return eventsToText(events, id => Object.hasOwn(table,fonts[id]), id => nativeFont(id,fonts,table,Engine)).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -389,8 +392,10 @@ const Pxp = (() => {
     d.dzog.leftUp = num(v.DzogThik_VLAdjF, 0);
     d.dzog.rightUp = num(v.DzogThik_VRAdjF, 0);
     d.yigo.enabled = on(v['Yigo.en'], true);
-    const yig = plainText(raw['Yigo.s'], p.fonts, table, p.fontCharsets);
-    if (yig) d.yigo.text = yig;
+    if (raw['Yigo.s'] !== undefined) {
+      d.yigo.text = richText(raw['Yigo.s'], p.fonts, table, p.fontCharsets, Engine, true);
+      d.yigo.rich = true;
+    }
     d.yigo.fancyStart = on(v.YigoStartFancy, true);
     d.yigo.title2 = on(v.YigoStart2ndTitle, false);
     d.folio.start = num(v.FolioStartNum, 1);

@@ -706,5 +706,31 @@ glyph switches and size restoration, Tibetan stacks, Save/Open, selected-text
 edits and RTF round trips. Chrome verifies preview/print families and sizes and
 visually distinct text. Fonts unavailable locally use browser fallbacks, with
 an import notice. Native font metrics, original Windows visual comparison,
-legacy custom encodings, native yi-go/folio rich font runs and complete font
+legacy custom encodings, native fixed-folio rich font runs and complete font
 selection UI parity remain open.
+
+### Native yi-go font and colour import
+
+PXP/PXC yi-go streams now retain font and colour runs as formatted Unicode text
+instead of flattening them to plain text. Font and colour are the two formatting
+opcodes handled by the inspected original yi-go renderer; stored size and
+emphasis codes are skipped. Size follows the first character on the page.
+Known legacy Tibetan fonts use their Unicode substitute; named Western fonts
+use the browser's local fonts/fallbacks. Trailing source spaces are retained.
+
+The current "Match yi-go colour to the first character" choice survives native
+import. The inspected writer serializes the yi-go stream and eligibility flags,
+but not this runtime colour preference. When colour matching is off, explicit
+source colours apply; text without a colour code inherits the first character's
+colour. An explicitly empty native stream clears the ornament; an absent stream
+keeps the current text. Native PXA/PXT scopes keep the existing yi-go unchanged.
+Shad conversion checks rendered ornament characters, including `{hs}`, rather
+than searching its formatting-mark source string.
+
+Unit and Chrome tests cover mixed faces/colours, size inheritance, colour-toggle
+behaviour, front/back eligibility, empty/missing streams, partial-file scope,
+full web Save and layout reuse, and preview/print consistency. Automatic yi-go
+remains excluded from RTF body export. All five bundled examples still pass;
+Jangchub Tungshak's explicit black yi-go colour is now retained. Native runtime
+visual comparison, historical font metrics, body-emphasis inheritance and
+unusual ornament control sequences remain unverified.
