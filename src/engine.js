@@ -527,7 +527,7 @@ const Engine = (() => {
     if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor, angle);
     const runs = annotationRuns(slot, doc, measure), width = runs.reduce((sum, r) => sum + r.width, 0);
     let cursor = anchor === 'middle' ? -width / 2 : anchor === 'end' ? -width : 0;
-    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color); cursor += r.width; return part; }).join('');
+    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color, ' style="white-space:pre"'); cursor += r.width; return part; }).join('');
     return `<g transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})">${text}</g>`;
   }
 

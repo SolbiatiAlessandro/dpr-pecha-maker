@@ -115,6 +115,40 @@ function field(host, def) {
     schedule();
   });
   host.append(wrap);
+  if (def.notePaste) bindNotePaste(el,def.notePaste);
+}
+
+function bindNotePaste(el, path) {
+  const states = new Map([[el.value,!!getPath(path).rich]]);
+  const setRich = rich => {
+    getPath(path).rich = rich;
+    const control = $('f_'+(path+'.rich').replace(/\W/g,'_'));
+    if (control) control.checked = rich;
+  };
+  const remember = () => {
+    states.set(el.value,!!getPath(path).rich);
+    if (states.size > 100) states.delete(states.keys().next().value);
+  };
+  el.addEventListener('input', event => {
+    if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
+    remember();
+  });
+  el.addEventListener('paste', event => {
+    const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
+    if (!rtf) return;
+    event.preventDefault();
+    try {
+      const slot = getPath(path), result = Rtf.insertNote(rtf,{...slot,text:el.value},el.selectionStart,el.selectionEnd,Engine,LEGACY_TABLE,TextFormat);
+      reportImport(result.warnings);
+      if (result.empty) { toast('The pasted RTF contains no supported note text.'); return; }
+      remember(); setRich(true);
+      el.focus(); el.setSelectionRange(result.start,result.end);
+      if (!document.execCommand('insertText',false,result.replacement)) el.setRangeText(result.replacement,result.start,result.end,'end');
+      slot.text = el.value; slot.on = !!slot.text; remember();
+      el.setSelectionRange(result.cursor,result.cursor); schedule();
+      toast(result.warnings.length ? 'Formatted note pasted. Review the import notes.' : 'Formatted note pasted; the note size is unchanged.');
+    } catch (error) { toast('Could not paste RTF: '+error.message); }
+  });
 }
 
 function fill(host, defs) {
@@ -397,7 +431,7 @@ function buildTypePanel() {
 function buildNotePanel() {
   const base = `notes.sets.${noteSide.replace('.', '|')}`;
   const slot = (key, label) => [
-    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
+    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, notePaste: `${base}.${key}`, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
     { path: `${base}.${key}.rich`, label: 'Use formatting marks in this note', type: 'check' },
     { path: `${base}.${key}.size`, label: 'Size, pt', step: 1, min: 5 },
     { path: `${base}.${key}.inset`, label: 'Inset, in', step: 0.01, min: 0 },

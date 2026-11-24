@@ -227,6 +227,33 @@ const Rtf = (() => {
     return {...TextFormat.insertRich(source,start,end,text,Engine),assets,images,warnings:imported.warnings};
   }
 
-  return {write, escape, read, insert};
+  function insertNote(input, slot, start, end, Engine, table, TextFormat) {
+    const imported = read(input,Engine,table), warnings = new Set(imported.warnings);
+    const literal = s => s.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
+    let fragment = '', hasText = false;
+    for (const run of Engine.parseStream(imported.doc.text,false)) {
+      if (run.k === 'image') { warnings.add('Pictures were skipped: margin notes contain text only.'); continue; }
+      if (run.k === 'page') { fragment += ' '; warnings.add('Line and page breaks were converted to spaces in the single-line note.'); continue; }
+      if (run.k !== 'text') continue;
+      if (/[\r\n\u2028\t]/.test(run.s)) warnings.add('Line and page breaks were converted to spaces in the single-line note.');
+      const s = run.style;
+      // Each annotation position owns its size; clipboard sizes and paragraph layout do not apply.
+      fragment += '{'+[s.font ? 'font:'+s.font : 'font',s.bold?'b':'/b',s.italic?'i':'/i',s.underline?'u':'/u',s.strike?'s':'/s',s.color||'color'].join(' ')+'}'+literal(run.s.replace(/[\r\n\u2028\t]/g,' '));
+      hasText ||= !!run.s.trim();
+    }
+    if (!hasText) return {empty:true,warnings:[...warnings]};
+    let source = slot.text;
+    if (!slot.rich) {
+      start = literal(source.slice(0,start)).length;
+      end = literal(source.slice(0,end)).length;
+      source = literal(source);
+    }
+    const result = TextFormat.insertRich(source,start,end,fragment,Engine);
+    // Convert literal braces outside the selection in the same undoable edit when enabling rich text.
+    if (!slot.rich) Object.assign(result,{start:0,end:slot.text.length,replacement:result.text});
+    return {...result,warnings:[...warnings]};
+  }
+
+  return {write, escape, read, insert, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;

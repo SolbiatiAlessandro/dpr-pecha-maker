@@ -379,7 +379,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <h3>End line</h3><div class="grid" id="dzogFields"></div>
       <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
       <h3>Page numbers</h3><div class="grid" id="pageNumFields"></div>
-      <h3>Margin notes</h3><p class="hint">For mixed formatting, enable formatting marks in a note. Use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {18}size, {#b03020}colour, and {font:noto} or {font:serif}. {size} returns to the note’s size. Main-text size changes do not resize notes.</p>
+      <h3>Margin notes</h3><p class="hint">Paste formatted text when your browser supplies RTF, or enable formatting marks and use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {#b03020}colour and {font:noto} or {font:serif}. Each note uses its own size for all fonts. Pasted line breaks become spaces; pictures are skipped with an import note. Main-text size changes do not resize notes.</p>
       <div class="field wide"><label for="noteSide">Notes for</label><select id="noteSide"></select></div>
       <div class="grid" id="noteFields"></div>
     </div>
@@ -3006,7 +3006,7 @@ const Engine = (() => {
     if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor, angle);
     const runs = annotationRuns(slot, doc, measure), width = runs.reduce((sum, r) => sum + r.width, 0);
     let cursor = anchor === 'middle' ? -width / 2 : anchor === 'end' ? -width : 0;
-    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color); cursor += r.width; return part; }).join('');
+    const text = runs.map(r => { const part = textEl(cursor, 0, r.s, r.f, r.color, ' style="white-space:pre"'); cursor += r.width; return part; }).join('');
     return `<g transform="translate(${num(x)} ${num(y)}) rotate(${num(angle)})">${text}</g>`;
   }
 
@@ -3542,7 +3542,34 @@ const Rtf = (() => {
     return {...TextFormat.insertRich(source,start,end,text,Engine),assets,images,warnings:imported.warnings};
   }
 
-  return {write, escape, read, insert};
+  function insertNote(input, slot, start, end, Engine, table, TextFormat) {
+    const imported = read(input,Engine,table), warnings = new Set(imported.warnings);
+    const literal = s => s.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
+    let fragment = '', hasText = false;
+    for (const run of Engine.parseStream(imported.doc.text,false)) {
+      if (run.k === 'image') { warnings.add('Pictures were skipped: margin notes contain text only.'); continue; }
+      if (run.k === 'page') { fragment += ' '; warnings.add('Line and page breaks were converted to spaces in the single-line note.'); continue; }
+      if (run.k !== 'text') continue;
+      if (/[\r\n\u2028\t]/.test(run.s)) warnings.add('Line and page breaks were converted to spaces in the single-line note.');
+      const s = run.style;
+      // Each annotation position owns its size; clipboard sizes and paragraph layout do not apply.
+      fragment += '{'+[s.font ? 'font:'+s.font : 'font',s.bold?'b':'/b',s.italic?'i':'/i',s.underline?'u':'/u',s.strike?'s':'/s',s.color||'color'].join(' ')+'}'+literal(run.s.replace(/[\r\n\u2028\t]/g,' '));
+      hasText ||= !!run.s.trim();
+    }
+    if (!hasText) return {empty:true,warnings:[...warnings]};
+    let source = slot.text;
+    if (!slot.rich) {
+      start = literal(source.slice(0,start)).length;
+      end = literal(source.slice(0,end)).length;
+      source = literal(source);
+    }
+    const result = TextFormat.insertRich(source,start,end,fragment,Engine);
+    // Convert literal braces outside the selection in the same undoable edit when enabling rich text.
+    if (!slot.rich) Object.assign(result,{start:0,end:slot.text.length,replacement:result.text});
+    return {...result,warnings:[...warnings]};
+  }
+
+  return {write, escape, read, insert, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
 
@@ -4813,6 +4840,40 @@ function field(host, def) {
     schedule();
   });
   host.append(wrap);
+  if (def.notePaste) bindNotePaste(el,def.notePaste);
+}
+
+function bindNotePaste(el, path) {
+  const states = new Map([[el.value,!!getPath(path).rich]]);
+  const setRich = rich => {
+    getPath(path).rich = rich;
+    const control = $('f_'+(path+'.rich').replace(/\W/g,'_'));
+    if (control) control.checked = rich;
+  };
+  const remember = () => {
+    states.set(el.value,!!getPath(path).rich);
+    if (states.size > 100) states.delete(states.keys().next().value);
+  };
+  el.addEventListener('input', event => {
+    if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
+    remember();
+  });
+  el.addEventListener('paste', event => {
+    const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
+    if (!rtf) return;
+    event.preventDefault();
+    try {
+      const slot = getPath(path), result = Rtf.insertNote(rtf,{...slot,text:el.value},el.selectionStart,el.selectionEnd,Engine,LEGACY_TABLE,TextFormat);
+      reportImport(result.warnings);
+      if (result.empty) { toast('The pasted RTF contains no supported note text.'); return; }
+      remember(); setRich(true);
+      el.focus(); el.setSelectionRange(result.start,result.end);
+      if (!document.execCommand('insertText',false,result.replacement)) el.setRangeText(result.replacement,result.start,result.end,'end');
+      slot.text = el.value; slot.on = !!slot.text; remember();
+      el.setSelectionRange(result.cursor,result.cursor); schedule();
+      toast(result.warnings.length ? 'Formatted note pasted. Review the import notes.' : 'Formatted note pasted; the note size is unchanged.');
+    } catch (error) { toast('Could not paste RTF: '+error.message); }
+  });
 }
 
 function fill(host, defs) {
@@ -5095,7 +5156,7 @@ function buildTypePanel() {
 function buildNotePanel() {
   const base = `notes.sets.${noteSide.replace('.', '|')}`;
   const slot = (key, label) => [
-    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
+    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, notePaste: `${base}.${key}`, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
     { path: `${base}.${key}.rich`, label: 'Use formatting marks in this note', type: 'check' },
     { path: `${base}.${key}.size`, label: 'Size, pt', step: 1, min: 5 },
     { path: `${base}.${key}.inset`, label: 'Inset, in', step: 0.01, min: 0 },
