@@ -30,3 +30,14 @@ assert.equal(imported.notes.sets['body.front'].inL.text,'keep');assert.equal(imp
 const roundtrip=Documents.normalize(Documents.artifact(imported,'document'),Engine);assert.equal(roundtrip.text,imported.text);
 const m=(s,f)=>s.length*f.size*.4;m.head=()=>({ascent:12,descent:4,height:16});assert(Engine.run(imported,m).pages.length>0);
 console.log('PASS: public DCT fixture (documented ornament discrepancy), per-glyph fonts, Latin/tab/page/line controls, warnings, rejection bounds, retention and web save/load');
+
+assert.deepEqual(Dct.importSettings(),{tibetanSize:28,latinSize:18,latinFont:'serif'});
+for(const options of [{tibetanSize:6},{latinSize:4},{latinSize:201},{tibetanSize:NaN},{latinFont:'bad'},{tibetanSize:28.5}])assert.throws(()=>Dct.importSettings(options));
+const notoBase=Engine.defaultDoc();notoBase.fontName='Noto Serif Tibetan';notoBase.font="'Noto Serif Tibetan','Jomolhari',serif";
+const chosen=Dct.read(wrap([33,16,65,33]),Engine,TABLE,notoBase,{tibetanSize:40,latinSize:22,latinFont:'jomolhari'}).doc;
+const runs=Engine.parseStream(chosen.text,false).filter(r=>r.k==='text');
+assert.deepEqual(runs.map(r=>[r.style.font,r.style.size]),[['noto',30],['jomolhari',22],['noto',30]]);
+assert(Object.values(chosen.types).every(t=>t.fontSize===30));
+assert.equal(Documents.normalize(chosen,Engine).text,chosen.text);
+assert.equal(Documents.normalize(chosen,Engine).types.body.fontSize,30);
+console.log('PASS: DCT import settings defaults, validation, current Tibetan face, independent Latin font/size and normalized Save');

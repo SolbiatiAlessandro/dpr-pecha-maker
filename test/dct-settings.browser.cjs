@@ -1,0 +1,44 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=require('playwright');
+global.PechaImages=require('../src/images');global.Folio=require('../src/folio');
+const Engine=require('../src/engine');
+const fixture=Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\t123\t9\t0\t0\tTibetanAnsi\r\nhdr\t0\r\n1\t!\t','latin1'),Buffer.from([33,16,65,33])]);
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try {
+  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
+  page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+  const url=process.argv[2]||'http://127.0.0.1:8788/';
+  await page.goto(url);await page.locator('#pasteText').click();
+  const upload=async(name,buffer)=>{await page.locator('#openFile').setInputFiles({name,mimeType:'application/octet-stream',buffer});if(name.endsWith('.dct'))await page.locator('#dctDialog').waitFor({state:'visible'});};
+  const base=Engine.defaultDoc();base.text='keep me';base.fontName='Noto Serif Tibetan';base.font="'Noto Serif Tibetan','Jomolhari',serif";
+  await upload('base.pecha',Buffer.from(JSON.stringify(base)));
+  await page.waitForFunction(()=>document.querySelector('#text').value==='keep me');
+  await page.locator('#typeover').check();
+  await upload('mixed.dct',fixture);
+  assert.equal(await page.locator('#dctTibetanSize').inputValue(),'28');assert.equal(await page.locator('#dctLatinSize').inputValue(),'18');
+  assert.equal(await page.locator('#dctTibetanFont').textContent(),'Noto Serif Tibetan');
+  await page.locator('#dctTibetanSize').fill('0');await page.locator('#dctImport').click();
+  assert(await page.locator('#dctDialog').evaluate(el=>el.open));assert.equal(await page.locator('#text').inputValue(),'keep me');
+  await page.locator('#dctCancel').click();assert.equal(await page.locator('#text').inputValue(),'keep me');assert(await page.locator('#typeover').isChecked());
+  await upload('mixed.dct',fixture);assert.equal(await page.locator('#dctTibetanSize').inputValue(),'28');
+  await page.locator('#dctTibetanSize').fill('40');await page.locator('#dctLatinSize').fill('22');await page.locator('#dctLatinFont').selectOption('jomolhari');
+  if(process.env.QA_SCREENSHOT)await page.screenshot({path:process.env.QA_SCREENSHOT,fullPage:true});
+  await page.locator('#dctLatinSize').press('Enter');
+  const expected='{font:noto 30}ཀ{font:jomolhari 22}A{font:noto 30}ཀ';
+  await page.waitForFunction(text=>document.querySelector('#text').value===text,expected);
+  assert(!(await page.locator('#typeover').isChecked()));
+  const savedPrefs=await page.evaluate(()=>JSON.parse(localStorage.getItem('dpr-pecha-maker-dct-import')));
+  assert.deepEqual(savedPrefs,{tibetanSize:40,latinSize:22,latinFont:'jomolhari'});
+  assert((await page.locator('#importMessages').textContent()).includes('40 legacy points'));
+  await page.waitForFunction(()=>document.querySelectorAll('#table svg').length>0);
+  const spans=await page.locator('#table text').evaluateAll(nodes=>nodes.map(n=>[n.textContent,n.getAttribute('font-family'),n.getAttribute('font-size')]));
+  assert(spans.some(([text,font,size])=>text.includes('ཀ')&&font.startsWith("'Noto")&&Number(size)===30));
+  assert(spans.some(([text,font,size])=>text.includes('A')&&font.startsWith("'Jomolhari")&&Number(size)===22));
+  await upload('cancel-again.dct',fixture);await page.locator('#dctTibetanSize').fill('50');await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#text').inputValue(),expected);
+  await page.reload();await page.locator('#pasteText').click();await upload('remembered.dct',fixture);
+  assert.equal(await page.locator('#dctTibetanSize').inputValue(),'40');assert.equal(await page.locator('#dctLatinSize').inputValue(),'22');assert.equal(await page.locator('#dctLatinFont').inputValue(),'jomolhari');
+  await page.locator('#dctCancel').click();
+  assert.deepEqual(errors,[]);console.log('PASS: DCT settings defaults/current font, validation, cancel/Escape, Enter import, size/font rendering, successful-only persistence and reload');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

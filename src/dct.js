@@ -1,7 +1,14 @@
 // Bounded, independent reader for the modern PKTC TibetDoc single-body format.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
-  function read(input, Engine, table, base = null) {
+  function importSettings(input = {}) {
+    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',...input};
+    for (const key of ['tibetanSize','latinSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin 5–200.');
+    if (!['serif','jomolhari','noto'].includes(result.latinFont)) throw new Error('Unsupported DCT Latin font.');
+    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont};
+  }
+  function read(input, Engine, table, base = null, options = {}) {
+    const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     if (!bytes.length || bytes.length > 4000000) throw new Error('DCT import requires a file smaller than 4 MB.');
     let pos = bytes[0] === 0 ? 1 : 0;
@@ -22,15 +29,17 @@ const Dct = (() => {
     if (!found) throw new Error('No supported DCT body record was found.');
     const warnings = new Set([
       'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
-      'DCT layout and formatting are not reproduced. Tibetan uses the web body size and Latin text uses 18 points.',
+      `DCT layout and formatting are not reproduced. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
     doc.text = ''; doc.sections = []; doc.flow = false; doc.textSize = null;
+    for (const type of Object.values(doc.types)) type.fontSize = tibetanSize;
+    const tibetanFont = doc.fontName === 'Noto Serif Tibetan' ? 'noto' : 'jomolhari';
     let font = null, output = '', unknown = 0;
     const ansi = new TextDecoder('windows-1252');
     const emit = (text, tibetan) => {
-      if (font !== tibetan) {output += tibetan ? `{font:jomolhari ${doc.types.body.fontSize}}` : '{font:serif 18}';font = tibetan;}
+      if (font !== tibetan) {output += tibetan ? `{font:${tibetanFont} ${tibetanSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;font = tibetan;}
       output += text.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
     };
     const glyph = (kind,b) => {
@@ -70,6 +79,6 @@ const Dct = (() => {
     doc.text = output;
     return {doc,warnings:[...warnings],unknown};
   }
-  return {read};
+  return {read,importSettings};
 })();
 if(typeof module !== 'undefined')module.exports=Dct;

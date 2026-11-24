@@ -574,3 +574,21 @@ This discrepancy is deliberately recorded in tests and shown as an import warnin
 not normalized away or claimed equivalent. Original Windows import remains
 unverified because guest filename entry is still ineffective. All DCT parity
 items beyond the bounded tested path remain open; no DCT export is implemented.
+
+
+### TibetDoc import typography choices
+
+Opening DCT now asks for Tibetan legacy point size and Latin font/point size, with
+Import/Cancel and Escape cancellation. The Tibetan face inherits the current web
+document face (Jomolhari or Noto Serif Tibetan). Embedded native defaults are
+28 Tibetan points and 18 ANSI points. As with other legacy imports, Tibetan points
+use a 0.75 web conversion; this is a font-substitution approximation, not verified
+native metrics. The choices are encoded into imported runs and survive web Save.
+
+Successful preferences persist separately in browser storage; cancellation and
+failed imports do not update them. Validation requires whole Tibetan points7–200
+and Latin points5–200, a web-supported bound rather than a verified native limit.
+Latin choices use the three supported web faces; Georgia substitutes for native
+Times New Roman. Diacritical/symbol conversion and native Times_CSX+ remapping
+remain unsupported and explicitly described. Native runtime dialog behavior and
+Windows font fidelity remain unverified.

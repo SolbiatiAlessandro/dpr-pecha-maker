@@ -108,6 +108,11 @@ header {
 .table.compact .leaf .tag { display: none; }
 .table.compact .leaf svg { box-shadow: none; }
 button:disabled { opacity: .55; cursor: default; }
+#dctDialog { width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
+#dctDialog::backdrop { background: #0008; }
+#dctDialog form { display: flex; flex-direction: column; gap: 10px; }
+#dctDialog h2, #dctDialog p { margin: 0; }
+#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
@@ -169,7 +174,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 }
 @media print {
   html, body { background: #fff; height: auto; }
-  .app, .start, #toast { display: none !important; }
+  .app, .start, #toast, #dctDialog { display: none !important; }
   #printRoot { display: block; }
   .sheet-print { break-after: page; break-inside: avoid; overflow: hidden; }
   .sheet-print svg { display: block; }
@@ -403,5 +408,21 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   </main>
 </div>
 <div id="printRoot"></div>
+<dialog id="dctDialog" aria-labelledby="dctTitle">
+  <form method="dialog">
+    <h2 id="dctTitle">Import TibetDoc</h2>
+    <p id="dctFilename"></p>
+    <p class="hint">Experimental modern DCT import. Source layout and styling are not retained.</p>
+    <label for="dctTibetanSize">Tibetan size (legacy points)</label>
+    <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
+    <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
+    <label for="dctLatinFont">Latin font</label>
+    <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+    <label for="dctLatinSize">Latin size (points)</label>
+    <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
+    <p class="hint">Diacritical and symbol-font conversion remains unsupported. Those glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
+  </form>
+</dialog>
 <div id="toast" hidden></div>
 <script>/*SCRIPTS*/</script>

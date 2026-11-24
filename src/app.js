@@ -1,6 +1,9 @@
 // Interface: holds one document, writes form changes into it, and redraws the pages.
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
+const DCT_PREF_KEY = 'dpr-pecha-maker-dct-import';
+let dctPreferences = Dct.importSettings();
+try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved); } catch (_) {}
 const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
 let recoveryMinutes = 0;
 try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
@@ -727,14 +730,37 @@ function reportImport(messages) {
   $('importReport').open = true;
 }
 
+function chooseDctSettings(name, currentFont) {
+  const dialog = $('dctDialog');
+  if (dialog.open) throw new Error('Finish or cancel the current DCT import first.');
+  $('dctFilename').textContent = name;
+  $('dctTibetanFont').textContent = currentFont;
+  $('dctTibetanSize').value = dctPreferences.tibetanSize;
+  $('dctLatinSize').value = dctPreferences.latinSize;
+  $('dctLatinFont').value = dctPreferences.latinFont;
+  dialog.returnValue = '';
+  return new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value
+    } : null), {once:true});
+    dialog.showModal();
+  });
+}
+
 async function openFile(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
     if (name.endsWith('.dct')) {
-      const result = Dct.read(buf, Engine, LEGACY_TABLE, Documents.newContent(doc, Engine));
+      const settings = await chooseDctSettings(file.name, doc?.fontName || 'Jomolhari');
+      if (!settings) return;
+      const base = Documents.newContent(doc, Engine);
+      if (doc) {base.font = doc.font; base.fontName = doc.fontName;}
+      const result = Dct.read(buf, Engine, LEGACY_TABLE, base, settings);
       setDoc(result.doc, false); reportImport(result.warnings);
+      dctPreferences = Dct.importSettings(settings);
+      try {localStorage.setItem(DCT_PREF_KEY,JSON.stringify(dctPreferences));} catch (_) {}
       toast('Experimental TibetDoc import complete. Review the import notes before printing.');
     } else if (name.endsWith('.rtf')) {
       const result = Rtf.read(buf, Engine, LEGACY_TABLE, doc || Engine.defaultDoc());
@@ -790,6 +816,7 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
     const b = document.createElement('button');
@@ -1002,7 +1029,7 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (!doc || $('work').hidden || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (!doc || $('work').hidden || $('dctDialog').open || event.altKey || !(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
     if (key === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();

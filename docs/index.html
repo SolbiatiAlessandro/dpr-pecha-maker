@@ -115,6 +115,11 @@ header {
 .table.compact .leaf .tag { display: none; }
 .table.compact .leaf svg { box-shadow: none; }
 button:disabled { opacity: .55; cursor: default; }
+#dctDialog { width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
+#dctDialog::backdrop { background: #0008; }
+#dctDialog form { display: flex; flex-direction: column; gap: 10px; }
+#dctDialog h2, #dctDialog p { margin: 0; }
+#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
@@ -176,7 +181,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 }
 @media print {
   html, body { background: #fff; height: auto; }
-  .app, .start, #toast { display: none !important; }
+  .app, .start, #toast, #dctDialog { display: none !important; }
   #printRoot { display: block; }
   .sheet-print { break-after: page; break-inside: avoid; overflow: hidden; }
   .sheet-print svg { display: block; }
@@ -410,6 +415,22 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   </main>
 </div>
 <div id="printRoot"></div>
+<dialog id="dctDialog" aria-labelledby="dctTitle">
+  <form method="dialog">
+    <h2 id="dctTitle">Import TibetDoc</h2>
+    <p id="dctFilename"></p>
+    <p class="hint">Experimental modern DCT import. Source layout and styling are not retained.</p>
+    <label for="dctTibetanSize">Tibetan size (legacy points)</label>
+    <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
+    <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
+    <label for="dctLatinFont">Latin font</label>
+    <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+    <label for="dctLatinSize">Latin size (points)</label>
+    <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
+    <p class="hint">Diacritical and symbol-font conversion remains unsupported. Those glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
+  </form>
+</dialog>
 <div id="toast" hidden></div>
 <script>
 function newHashSet() {
@@ -3428,7 +3449,14 @@ if (typeof module !== 'undefined') module.exports = Rtf;
 // Bounded, independent reader for the modern PKTC TibetDoc single-body format.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
-  function read(input, Engine, table, base = null) {
+  function importSettings(input = {}) {
+    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',...input};
+    for (const key of ['tibetanSize','latinSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin 5–200.');
+    if (!['serif','jomolhari','noto'].includes(result.latinFont)) throw new Error('Unsupported DCT Latin font.');
+    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont};
+  }
+  function read(input, Engine, table, base = null, options = {}) {
+    const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     if (!bytes.length || bytes.length > 4000000) throw new Error('DCT import requires a file smaller than 4 MB.');
     let pos = bytes[0] === 0 ? 1 : 0;
@@ -3449,15 +3477,17 @@ const Dct = (() => {
     if (!found) throw new Error('No supported DCT body record was found.');
     const warnings = new Set([
       'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
-      'DCT layout and formatting are not reproduced. Tibetan uses the web body size and Latin text uses 18 points.',
+      `DCT layout and formatting are not reproduced. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
     doc.text = ''; doc.sections = []; doc.flow = false; doc.textSize = null;
+    for (const type of Object.values(doc.types)) type.fontSize = tibetanSize;
+    const tibetanFont = doc.fontName === 'Noto Serif Tibetan' ? 'noto' : 'jomolhari';
     let font = null, output = '', unknown = 0;
     const ansi = new TextDecoder('windows-1252');
     const emit = (text, tibetan) => {
-      if (font !== tibetan) {output += tibetan ? `{font:jomolhari ${doc.types.body.fontSize}}` : '{font:serif 18}';font = tibetan;}
+      if (font !== tibetan) {output += tibetan ? `{font:${tibetanFont} ${tibetanSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;font = tibetan;}
       output += text.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
     };
     const glyph = (kind,b) => {
@@ -3497,7 +3527,7 @@ const Dct = (() => {
     doc.text = output;
     return {doc,warnings:[...warnings],unknown};
   }
-  return {read};
+  return {read,importSettings};
 })();
 if(typeof module !== 'undefined')module.exports=Dct;
 
@@ -4472,6 +4502,9 @@ if (typeof module !== 'undefined') module.exports = { SAMPLE_TEXT, SAMPLE_SHORT_
 // Interface: holds one document, writes form changes into it, and redraws the pages.
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
+const DCT_PREF_KEY = 'dpr-pecha-maker-dct-import';
+let dctPreferences = Dct.importSettings();
+try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved); } catch (_) {}
 const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
 let recoveryMinutes = 0;
 try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
@@ -5198,14 +5231,37 @@ function reportImport(messages) {
   $('importReport').open = true;
 }
 
+function chooseDctSettings(name, currentFont) {
+  const dialog = $('dctDialog');
+  if (dialog.open) throw new Error('Finish or cancel the current DCT import first.');
+  $('dctFilename').textContent = name;
+  $('dctTibetanFont').textContent = currentFont;
+  $('dctTibetanSize').value = dctPreferences.tibetanSize;
+  $('dctLatinSize').value = dctPreferences.latinSize;
+  $('dctLatinFont').value = dctPreferences.latinFont;
+  dialog.returnValue = '';
+  return new Promise(resolve => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value
+    } : null), {once:true});
+    dialog.showModal();
+  });
+}
+
 async function openFile(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
     if (name.endsWith('.dct')) {
-      const result = Dct.read(buf, Engine, LEGACY_TABLE, Documents.newContent(doc, Engine));
+      const settings = await chooseDctSettings(file.name, doc?.fontName || 'Jomolhari');
+      if (!settings) return;
+      const base = Documents.newContent(doc, Engine);
+      if (doc) {base.font = doc.font; base.fontName = doc.fontName;}
+      const result = Dct.read(buf, Engine, LEGACY_TABLE, base, settings);
       setDoc(result.doc, false); reportImport(result.warnings);
+      dctPreferences = Dct.importSettings(settings);
+      try {localStorage.setItem(DCT_PREF_KEY,JSON.stringify(dctPreferences));} catch (_) {}
       toast('Experimental TibetDoc import complete. Review the import notes before printing.');
     } else if (name.endsWith('.rtf')) {
       const result = Rtf.read(buf, Engine, LEGACY_TABLE, doc || Engine.defaultDoc());
@@ -5261,6 +5317,7 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
     const b = document.createElement('button');
@@ -5473,7 +5530,7 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (!doc || $('work').hidden || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (!doc || $('work').hidden || $('dctDialog').open || event.altKey || !(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
     if (key === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
