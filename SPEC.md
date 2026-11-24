@@ -466,3 +466,13 @@ and Shift+period are also recognized for browsers reporting unshifted key names)
 Chrome QA verified page/hard-shad tokens, pecha-download Save dialog, and both
 Control/Command format navigation. The physical-key fallback fixed an observed
 shortcut failure. Browser print behavior remains unchanged.
+
+
+### Native fixed-shad import
+
+Native byte 0x0B imports as `{hs}` in body and rich annotation streams, preserving
+the exclusion from automatic rinchen-pung conversion. Plain yi-go/rhino text
+uses the visible Tibetan shad. Font-size changes immediately before a fixed shad
+are retained. Synthetic native fixtures test import, layout and web Save/Open.
+The control identity is supported by the original Hard Shad command and manual;
+original Windows runtime and native export round trips remain unverified.

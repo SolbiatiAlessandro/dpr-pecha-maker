@@ -95,6 +95,9 @@ const Pxp = (() => {
         i += 5;
       } else if (c === 0x13 && i + 5 < bytes.length) {
         flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
+      } else if (c === 11) {
+        // Native Hard Shad is a one-byte control, independent of the active font.
+        flush(); ev.push({ t: 'hardShad' });
       } else if (c === 13 || c === 10) {
         flush(); ev.push({ t: 'hr' });
         if (c === 13 && bytes[i + 1] === 10) i++;
@@ -221,10 +224,10 @@ const Pxp = (() => {
   function eventsToText(ev, isTibetanFont, fontMarks = false) {
     let out = fontMarks ? (isTibetanFont(0) ? '{font:jomolhari}' : '{font:serif}') : '', written = null, raw = null, font = 0;
     for (const e of ev) {
-      if (e.t === 'text') {
+      if (e.t === 'text' || e.t === 'hardShad') {
         const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
         if (v && v !== written) { out += `{${v}}`; written = v; }
-        out += e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
+        out += e.t === 'hardShad' ? '{hs}' : e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
       }
       else if (e.t === 'image') out += `{image:native-inline-${e.index}}`;
       else if (e.t === 'hr') out += '\n';
@@ -246,7 +249,7 @@ const Pxp = (() => {
 
   function plainText(bytes, fonts, table) {
     if (!bytes || !bytes.length) return '';
-    return decodeStream(bytes, fonts, table).ev.filter(e => e.t === 'text').map(e => e.s).join('').trim();
+    return decodeStream(bytes, fonts, table).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
   }
 
   function richText(bytes, fonts, table) {
