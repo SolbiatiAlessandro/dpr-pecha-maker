@@ -139,10 +139,11 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
   });
-  if (kind !== 'yigo') el.addEventListener('copy', event => {
+  el.addEventListener('copy', event => {
     if (!$('copyFormatted').checked || !event.clipboardData) return;
     try {
-      const size = kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
+      // The native yi-go entry control uses 18 pt, independently of its page size.
+      const size = kind === 'yigo' ? 18 : kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
       const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
       const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
       if (result.empty) return;

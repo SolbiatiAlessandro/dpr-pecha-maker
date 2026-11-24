@@ -377,7 +377,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 
     <div class="pane" data-pane="marks" hidden>
       <h3>Yi-go</h3><div class="grid" id="yigoFields"></div>
-      <p class="hint">Paste formatted text when your browser supplies RTF, or choose a suggested yi-go. Pasting keeps fonts and colours; the yi-go size follows the first character on the page.</p>
+      <p class="hint">Paste formatted text when your browser supplies RTF, or choose a suggested yi-go. Pasting keeps fonts and colours; the yi-go size follows the first character on the page. Formatted Copy uses 18-point text from this field and follows the setting on the Text tab.</p>
       <h3>Rinchen pung shad</h3><div class="grid" id="shadFields"></div>
       <h3>End line</h3><div class="grid" id="dzogFields"></div>
       <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
@@ -4922,10 +4922,11 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
   });
-  if (kind !== 'yigo') el.addEventListener('copy', event => {
+  el.addEventListener('copy', event => {
     if (!$('copyFormatted').checked || !event.clipboardData) return;
     try {
-      const size = kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
+      // The native yi-go entry control uses 18 pt, independently of its page size.
+      const size = kind === 'yigo' ? 18 : kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
       const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
       const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
       if (result.empty) return;
