@@ -561,7 +561,7 @@ converted output. All file parsing stays local.
 Byte markers select one ANSI or TCC subfont glyph and then return to the header
 default. The reader reuses the existing TibetanMachine conversion tables; Latin
 text uses Windows-1252. Explicit tabs, line and page breaks are retained. Source
-formatting controls are ignored with a warning; unsupported diacritical/symbol
+centering toggles are retained; other formatting controls are ignored with a warning; unsupported diacritical/symbol
 or unmapped glyphs become visible replacement characters with counts. Import starts a new
 web document using New's annotation/yi-go retention, resets typing mode and uses
 the typography choices described below. The import dialog provides a subset of
@@ -616,3 +616,21 @@ style, unsupported replacements, preference migration, cancellation, web Save/Op
 RTF export and preview/print text. Only synthetic mixed-diacritic fixtures have
 been tested; the public DCT fixture contains no such glyphs. Original Windows
 import and exact legacy metrics remain unverified.
+
+
+### TibetDoc centering toggles
+
+DCT control bytes25,101 toggle center alignment on and left alignment off.
+The entering toggle starts a new line unless it is the first body token; the
+closing toggle always starts a new line. Existing returns and ignored control
+prefixes are not collapsed. This follows independently observed native import
+behavior, including its return to left rather than the previous alignment.
+
+The alignment opcodes are corroborated by the original RTF writer's center/left
+output. The public modern DCT fixture contains this toggle, so its rendered
+line/page layout changes with this correction. Other DCT formatting controls
+remain unsupported with warnings; no broad style-preservation claim is made.
+The original Windows import result is still unverified because guest input
+remains blocked. Tests cover initial/interior/closing/adjacent toggles, existing
+returns, mixed scripts, the public fixture, preview and print geometry, web
+Save/Open and RTF alignment export.

@@ -419,7 +419,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <form method="dialog">
     <h2 id="dctTitle">Import TibetDoc</h2>
     <p id="dctFilename"></p>
-    <p class="hint">Experimental modern DCT import. Source layout and styling are not retained.</p>
+    <p class="hint">Experimental modern DCT import. Source layout and most styling are not retained.</p>
     <label for="dctTibetanSize">Tibetan size (legacy points)</label>
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
@@ -3497,9 +3497,11 @@ const Dct = (() => {
       if (!line().startsWith('hdr\t')) throw new Error('Unsupported DCT record before the body.');
     }
     if (!found) throw new Error('No supported DCT body record was found.');
+    const bodyStart = pos;
+    let centered = false;
     const warnings = new Set([
       'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
-      `DCT layout and formatting are not reproduced. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
+      `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
@@ -3549,7 +3551,17 @@ const Dct = (() => {
         else glyph(c,b);
         continue;
       }
-      if (c === 25 || c === 27) {following();warnings.add('DCT formatting control records were ignored. Check alignment, styling and spacing.');continue;}
+      if (c === 25 || c === 27) {
+        const control = following();
+        if (c === 25 && control === 101) {
+          // Native import begins a new line except when entering at body byte 0.
+          // The matching close returns to left alignment, not the prior style.
+          if (centered || pos-2 !== bodyStart) output += '\n';
+          centered = !centered;
+          output += centered ? '{c}' : '{l}';
+        } else warnings.add('Unsupported DCT formatting control records were ignored. Check alignment, styling and spacing.');
+        continue;
+      }
       if (c < 32) throw new Error('Unsupported DCT control 0x'+c.toString(16).padStart(2,'0')+'.');
       glyph(settings[6] === 'TibetanAnsi' ? 17 : 16,c);
     }

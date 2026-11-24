@@ -41,9 +41,11 @@ const Dct = (() => {
       if (!line().startsWith('hdr\t')) throw new Error('Unsupported DCT record before the body.');
     }
     if (!found) throw new Error('No supported DCT body record was found.');
+    const bodyStart = pos;
+    let centered = false;
     const warnings = new Set([
       'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
-      `DCT layout and formatting are not reproduced. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
+      `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
@@ -93,7 +95,17 @@ const Dct = (() => {
         else glyph(c,b);
         continue;
       }
-      if (c === 25 || c === 27) {following();warnings.add('DCT formatting control records were ignored. Check alignment, styling and spacing.');continue;}
+      if (c === 25 || c === 27) {
+        const control = following();
+        if (c === 25 && control === 101) {
+          // Native import begins a new line except when entering at body byte 0.
+          // The matching close returns to left alignment, not the prior style.
+          if (centered || pos-2 !== bodyStart) output += '\n';
+          centered = !centered;
+          output += centered ? '{c}' : '{l}';
+        } else warnings.add('Unsupported DCT formatting control records were ignored. Check alignment, styling and spacing.');
+        continue;
+      }
       if (c < 32) throw new Error('Unsupported DCT control 0x'+c.toString(16).padStart(2,'0')+'.');
       glyph(settings[6] === 'TibetanAnsi' ? 17 : 16,c);
     }
