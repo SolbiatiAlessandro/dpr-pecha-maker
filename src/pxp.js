@@ -357,6 +357,20 @@ const Pxp = (() => {
       d.pageNum.size = num(A.PageNumPtSz, 12);
       d.pageNum.position = on(A.PageNumCenter, false) ? 'center' : 'bottom';
       d.pageNum.angle = num(A.PageNumAngle, 90) === 0 ? 0 : -90;
+      if (A.PageNumFIndex !== undefined) {
+        // Full documents keep font-table IDs. PXA writes the source ID unchanged
+        // despite compacting its font table; standalone PXT has no font table.
+        const index = /^\d+$/.test(A.PageNumFIndex) ? +A.PageNumFIndex : -1;
+        const name = p.fonts[index];
+        if (p.version.startsWith('.pxa') || !p.version) {
+          nativeImages.warnings.push('The partial file’s page-number font reference is not portable. The current page-number font was kept; check it against the original.');
+        } else if (!name || !Engine.fontToken(name)) {
+          nativeImages.warnings.push('The native page-number font reference could not be resolved. The current page-number font was kept.');
+        } else if (Object.hasOwn(table,name)) {
+          d.pageNum.font = 'Jomolhari';
+          nativeImages.warnings.push('The legacy page-number font uses the Unicode Jomolhari substitute. Check numeral appearance against the original.');
+        } else d.pageNum.font = name;
+      }
     }
     let prevEnd = 0;
     for (const i of [0, 1, 2]) {
@@ -438,6 +452,7 @@ const Pxp = (() => {
       if (parsed.template.PechaAnnotation) {
         for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
+        if (extension === 'pxc') base.pageNum.font = imported.pageNum.font;
       }
       if (extension === 'pxc') {
         base.text = imported.text; base.sections = []; base.flow = false; base.assets = imported.assets; base.images = imported.images;

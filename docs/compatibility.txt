@@ -53,6 +53,8 @@ PARTIAL COMPATIBILITY
 - Templates: reusable web .pecha JSON plus experimental Windows .pxt layout export. PXT preserves numeric layout settings, not text, fonts, images, automatic marks or web styles. Automatic first-line placement becomes fixed; size/rotation conversions are reported. Windows opening and exact layout remain unverified. Full native PXP/PXC/PXA export remains absent.
 - Printing: browser print/save-PDF. Match the paper size and orientation, use 100% scale and no margins, and disable browser headers/footers. Browser and printer settings can otherwise add pages or alter alignment.
 
+- Native Arabic page-number fonts: full PXP imports retain the referenced named family (including Times New Roman in the bundled examples), with local fallback if unavailable. Web Save and annotation presets preserve it. Nonportable PXA/PXT font references retain the current family and report a warning. Exact Windows numeral appearance remains unverified.
+
 NOT IMPLEMENTED YET
 - Native image export, unobserved older record sizes, hidden native centered-page-image slot3, and exact original clipboard image semantics.
 - Full TibetDoc/DCT import and export; only the narrow modern import described above is available. Full native Windows PXP/PXC/PXA export remains absent.

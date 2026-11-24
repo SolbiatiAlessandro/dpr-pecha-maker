@@ -3046,7 +3046,7 @@ const Engine = (() => {
     if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {
       const x = O.x1 - pn.inset * PT - 2;
       const center = pn.position === 'center', angle = pn.angle === undefined ? -90 : pn.angle;
-      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="${esc(pn.font ? `'${pn.font}','Noto Serif Tibetan',serif` : doc.font)}">${pn.start + p.n - 1}</text>`;
+      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="${esc(fontFamily(fontToken(pn.font)) || doc.font)}">${pn.start + p.n - 1}</text>`;
     }
     return out;
   }
@@ -3656,7 +3656,7 @@ const Documents = (() => {
     for (const t of Object.values(d.types)) { bound(t, 'lines', 1, 100, true); bound(t, 'fontSize', 5, 200); bound(t, 'lineHeight', 0.05, 10); if(t.baseline !== null) bound(t, 'baseline', 0, 30); }
     for (const r of Object.values(d.roles)) { bound(r, 'size', 5, 200); if (!['Jomolhari', 'Noto Serif Tibetan'].includes(r.font)) r.font = 'Jomolhari'; }
     if (!['', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.folio.font)) d.folio.font = '';
-    if (!['Georgia', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.pageNum.font)) d.pageNum.font = 'Georgia';
+    if (!Engine.fontToken(d.pageNum.font)) d.pageNum.font = 'Georgia';
     if (d.pecha.placement === 'top') d.pecha.perSheet = 1;
     return d;
   }
@@ -4066,6 +4066,20 @@ const Pxp = (() => {
       d.pageNum.size = num(A.PageNumPtSz, 12);
       d.pageNum.position = on(A.PageNumCenter, false) ? 'center' : 'bottom';
       d.pageNum.angle = num(A.PageNumAngle, 90) === 0 ? 0 : -90;
+      if (A.PageNumFIndex !== undefined) {
+        // Full documents keep font-table IDs. PXA writes the source ID unchanged
+        // despite compacting its font table; standalone PXT has no font table.
+        const index = /^\d+$/.test(A.PageNumFIndex) ? +A.PageNumFIndex : -1;
+        const name = p.fonts[index];
+        if (p.version.startsWith('.pxa') || !p.version) {
+          nativeImages.warnings.push('The partial file’s page-number font reference is not portable. The current page-number font was kept; check it against the original.');
+        } else if (!name || !Engine.fontToken(name)) {
+          nativeImages.warnings.push('The native page-number font reference could not be resolved. The current page-number font was kept.');
+        } else if (Object.hasOwn(table,name)) {
+          d.pageNum.font = 'Jomolhari';
+          nativeImages.warnings.push('The legacy page-number font uses the Unicode Jomolhari substitute. Check numeral appearance against the original.');
+        } else d.pageNum.font = name;
+      }
     }
     let prevEnd = 0;
     for (const i of [0, 1, 2]) {
@@ -4147,6 +4161,7 @@ const Pxp = (() => {
       if (parsed.template.PechaAnnotation) {
         for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
+        if (extension === 'pxc') base.pageNum.font = imported.pageNum.font;
       }
       if (extension === 'pxc') {
         base.text = imported.text; base.sections = []; base.flow = false; base.assets = imported.assets; base.images = imported.images;
@@ -4842,7 +4857,7 @@ function buildPanels() {
   fill($('pageNumFields'), [
     { path: 'pageNum.on', label: 'Show page numbers', type: 'check' },
     { path: 'pageNum.start', label: 'First page', step: 1, min: 0 },
-    { path: 'pageNum.font', label: 'Page number font', type: 'select', wide: true, options: [['Georgia', 'Western serif'], ...FONTS.map(f => [f, f])] },
+    { path: 'pageNum.font', label: 'Page number font', type: 'select', wide: true, options: [...new Set(['Georgia', 'Times New Roman', 'Arial', 'Courier New', ...FONTS, doc.pageNum.font])].filter(f => Engine.fontToken(f)).map(f => [f, f === 'Georgia' ? 'Western serif (Georgia)' : f]) },
     { path: 'pageNum.size', label: 'Size, pt', step: 1, min: 5 },
     { path: 'pageNum.onTitle', label: 'Show on Title pages', type: 'check' },
     { path: 'pageNum.firstTitle', label: 'Include the first Title page', type: 'check' },

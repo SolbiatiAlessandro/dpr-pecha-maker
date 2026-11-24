@@ -214,7 +214,7 @@ function buildPanels() {
   fill($('pageNumFields'), [
     { path: 'pageNum.on', label: 'Show page numbers', type: 'check' },
     { path: 'pageNum.start', label: 'First page', step: 1, min: 0 },
-    { path: 'pageNum.font', label: 'Page number font', type: 'select', wide: true, options: [['Georgia', 'Western serif'], ...FONTS.map(f => [f, f])] },
+    { path: 'pageNum.font', label: 'Page number font', type: 'select', wide: true, options: [...new Set(['Georgia', 'Times New Roman', 'Arial', 'Courier New', ...FONTS, doc.pageNum.font])].filter(f => Engine.fontToken(f)).map(f => [f, f === 'Georgia' ? 'Western serif (Georgia)' : f]) },
     { path: 'pageNum.size', label: 'Size, pt', step: 1, min: 5 },
     { path: 'pageNum.onTitle', label: 'Show on Title pages', type: 'check' },
     { path: 'pageNum.firstTitle', label: 'Include the first Title page', type: 'check' },

@@ -44,7 +44,7 @@ const Documents = (() => {
     for (const t of Object.values(d.types)) { bound(t, 'lines', 1, 100, true); bound(t, 'fontSize', 5, 200); bound(t, 'lineHeight', 0.05, 10); if(t.baseline !== null) bound(t, 'baseline', 0, 30); }
     for (const r of Object.values(d.roles)) { bound(r, 'size', 5, 200); if (!['Jomolhari', 'Noto Serif Tibetan'].includes(r.font)) r.font = 'Jomolhari'; }
     if (!['', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.folio.font)) d.folio.font = '';
-    if (!['Georgia', 'Jomolhari', 'Noto Serif Tibetan'].includes(d.pageNum.font)) d.pageNum.font = 'Georgia';
+    if (!Engine.fontToken(d.pageNum.font)) d.pageNum.font = 'Georgia';
     if (d.pecha.placement === 'top') d.pecha.perSheet = 1;
     return d;
   }

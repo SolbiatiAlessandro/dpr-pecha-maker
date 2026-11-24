@@ -575,7 +575,7 @@ const Engine = (() => {
     if (pn.on && pn.start > 0 && (p.kind !== 'title' || (pn.onTitle && ((p.localN || p.n) !== 1 || pn.firstTitle !== false)))) {
       const x = O.x1 - pn.inset * PT - 2;
       const center = pn.position === 'center', angle = pn.angle === undefined ? -90 : pn.angle;
-      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="${esc(pn.font ? `'${pn.font}','Noto Serif Tibetan',serif` : doc.font)}">${pn.start + p.n - 1}</text>`;
+      out += `<text transform="translate(${num(x)} ${num(center ? midY : O.y1 - pad)}) rotate(${num(angle)})" text-anchor="${center ? 'middle' : 'start'}" font-size="${num(pn.size)}" font-family="${esc(fontFamily(fontToken(pn.font)) || doc.font)}">${pn.start + p.n - 1}</text>`;
     }
     return out;
   }

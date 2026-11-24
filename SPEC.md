@@ -159,8 +159,9 @@ claim of identical native editing interaction. The whole-text size override stil
 
 Folio labels and Arabic page numbers have independent font selections. Folios default to
 the document font; Arabic numbers default to Western serif. Number font choices persist
-in full documents and annotation presets. Available web typefaces are substitutes; native
-legacy font identities and exact metrics remain a compatibility limitation.
+in full documents and annotation presets. Arabic numbering retains imported named families;
+unavailable local fonts fall back. Legacy Tibetan typefaces and exact metrics remain a
+compatibility limitation.
 
 ### Embedded images
 
@@ -763,3 +764,26 @@ remains excluded from RTF body export. All five bundled examples still pass;
 Jangchub Tungshak's explicit black yi-go colour is now retained. Native runtime
 visual comparison, historical font metrics, body-emphasis inheritance and
 unusual ornament control sequences remain unverified.
+
+### Native Arabic page-number fonts
+
+PXP import resolves `PageNumFIndex` through the document font table. All five bundled
+public examples select Times New Roman; that family is now retained instead of the
+previous Georgia substitution. A PXC with an embedded annotation template uses the
+same mapping; ordinary content-only files without this setting retain the current
+number font. Known legacy Tibetan faces use the Unicode substitute with a warning.
+Invalid or missing font references preserve the current family and report the gap.
+
+PXA compacts its font table but writes the original page-number font index unchanged.
+Standalone PXT has no font table. These references cannot safely identify a portable
+font: their imports preserve the current choice and warn. Native template export
+continues to omit this document-local index. Windows partial-file loading behavior
+and exact numeral metrics still require runtime verification.
+
+The Marks selector includes common Western families and the imported family. Number
+fonts survive full web Save/Open and annotation presets. Names use the existing
+validated, quoted font-family rendering path, including punctuation in a family name.
+`native-number-font.test.js` checks native scopes, all five public font references,
+Save/preset persistence, invalid references and partial-file warnings. Its Chrome
+companion checks upload, selection, preview/print SVG, size/rotation, Save/Open,
+PXA retention and quoted families. These checks do not establish Windows visual parity.
