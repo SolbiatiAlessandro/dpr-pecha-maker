@@ -732,7 +732,11 @@ async function openFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
   try {
-    if (name.endsWith('.rtf')) {
+    if (name.endsWith('.dct')) {
+      const result = Dct.read(buf, Engine, LEGACY_TABLE, Documents.newContent(doc, Engine));
+      setDoc(result.doc, false); reportImport(result.warnings);
+      toast('Experimental TibetDoc import complete. Review the import notes before printing.');
+    } else if (name.endsWith('.rtf')) {
       const result = Rtf.read(buf, Engine, LEGACY_TABLE, doc || Engine.defaultDoc());
       setDoc(result.doc, false);
       reportImport(result.warnings);
@@ -754,7 +758,10 @@ async function openFile(file) {
       toast(`Opened ${file.name}.`);
     }
   } catch (e) {
-    showStart(`Could not read ${file.name}. Use a PDF, or a .pxp, .pecha or .txt file.`, true);
+    if (name.endsWith('.dct')) {
+      const message = `Could not read ${file.name}: ${e.message}`;
+      reportImport([message]); toast(message);
+    } else showStart(`Could not read ${file.name}. Use a PDF, or a .pxp, .pecha or .txt file.`, true);
   }
 }
 

@@ -547,3 +547,30 @@ rendered offsets and browser download/reimport/print SVG geometry. Original Wind
 picture paragraph behavior remains unverified. Unequal RTF scale axes remain
 explicitly warned and reduced to the horizontal scale; this increment does not
 establish original support for those controls.
+
+
+### Experimental modern TibetDoc import
+
+The DCT reader accepts the tested PKTC version-5 signature, optional leading NUL,
+a numeric metadata header with Ansi/TibetanAnsi encoding, header records and one
+`1<TAB>!<TAB>` body. Older signatures, additional body records, oversized input,
+unknown controls and truncated glyph/control pairs are rejected without replacing
+the current document. Limits are 4 MB input, 64 KB per header line and bounded
+converted output. All file parsing stays local.
+
+Byte markers select one ANSI or TCC subfont glyph and then return to the header
+default. The reader reuses the existing TibetanMachine conversion tables; Latin
+text uses Windows-1252. Explicit tabs, line and page breaks are retained. Source
+formatting controls are ignored with a warning; diacritical/symbol or unmapped
+glyphs become visible replacement characters with counts. Import starts a new
+web document using New's annotation/yi-go retention, resets typing mode and uses
+web body sizing plus 18-point Latin text. It does not implement the native DCT
+import-settings dialog or preserve source layout, styles and font identity.
+
+The MIT-licensed public fixture is pinned and attributed under test/fixtures/dct.
+Its text decodes without unknown glyphs, but its opening byte201 maps to U+0F06
+in the existing legacy table; the independent public converter uses U+0F04.
+This discrepancy is deliberately recorded in tests and shown as an import warning,
+not normalized away or claimed equivalent. Original Windows import remains
+unverified because guest filename entry is still ineffective. All DCT parity
+items beyond the bounded tested path remain open; no DCT export is implemented.
