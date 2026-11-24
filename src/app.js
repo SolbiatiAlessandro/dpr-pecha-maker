@@ -634,11 +634,12 @@ function drawFlags() {
   svg.dataset.w = String(W);
 }
 
-function setDoc(d, sample, src = null) {
+function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   d = Documents.normalize(d, Engine);
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  if (!keepTypingMode) $('typeover').checked = false;
   recovery.newDocument();
   savedCheckpoint = {doc: Documents.artifact(d, 'document'), isSample: sample, source: src};
   reportImport([]);
@@ -729,11 +730,13 @@ async function openFile(file) {
       toast(result.warnings.length ? result.warnings.join(' ') : 'RTF body text and supported formatting imported. Current page layout and annotations kept.');
     } else if (/\.px[pcta]$/.test(name)) {
       const { doc: d, unknown, warnings } = Pxp.load(buf, name.slice(-3), LEGACY_TABLE, doc || Engine.defaultDoc(), Engine);
-      setDoc(d, false);
+      setDoc(d, false, null, {keepTypingMode: /\.px[ta]$/.test(name)});
       reportImport([...warnings, ...(unknown ? [`${unknown} characters use an unsupported font. Check them against the original.`] : [])]);
       toast(warnings.length ? warnings.join(' ') : unknown ? `Opened ${file.name}. ${unknown} characters use a font this page cannot convert yet.` : `Opened ${file.name}. ${name.endsWith('.pxt') ? 'Current text and annotations kept.' : name.endsWith('.pxa') ? 'Current text and page layout kept.' : 'Text converted to Unicode.'}`);
     } else if (/\.(pecha|json)$/.test(name)) {
-      setDoc(Documents.apply(doc, JSON.parse(new TextDecoder().decode(buf)), Engine), false);
+      const saved = JSON.parse(new TextDecoder().decode(buf));
+      const keepTypingMode = saved.format === 'web-pecha-part' && ['template', 'annotations'].includes(saved.kind);
+      setDoc(Documents.apply(doc, saved, Engine), false, null, {keepTypingMode});
       toast(`Opened ${file.name}.`);
     } else {
       const d = Documents.newContent(doc, Engine);
@@ -788,6 +791,17 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('keydown', event => {
+    if (event.key === 'Insert' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      if (!event.repeat) $('typeover').checked = !$('typeover').checked;
+    }
+  });
+  $('text').addEventListener('beforeinput', event => {
+    if (!$('typeover').checked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
+    const t = event.target, range = TextFormat.typeoverRange(t.value, t.selectionStart, t.selectionEnd, event.data);
+    if (range) t.setSelectionRange(range.start, range.end);
+  });
   $('startSections').addEventListener('click', () => {
     doc.sections = [{ name: 'Text 1', text: doc.text, folioStart: doc.folio.start, restartLayout: true }];
     doc.text = ''; sectionIndex = 0; buildSectionPanel(); schedule();
@@ -930,6 +944,7 @@ function init() {
     if (!confirm('Close this document and reset the next new pecha to default settings and empty annotations? Download a copy with Save first if needed.')) return;
     persist(true); clearTimeout(timer);
     doc = null; source = null; savedCheckpoint = null; latest = null;
+    $('typeover').checked = false;
     recovery.newDocument(); $('printRoot').replaceChildren();
     showStart('Document closed. A new pecha will start with default settings. Browser recovery, when available, can reopen the previous document.');
   });

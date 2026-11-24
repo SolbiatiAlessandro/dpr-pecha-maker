@@ -242,6 +242,8 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         </div>
       </details>
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
+      <label class="check"><input id="typeover" type="checkbox"><span>Typeover (Insert key)</span></label>
+      <p class="hint">Typeover replaces the next character, including its Tibetan stack or vowel marks. It stops at formatting marks and line breaks. Paste and input-method composition keep normal insertion; newly typed vowel marks extend the preceding character.</p>
       <div class="chips" id="codes"></div>
       <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it. In the editor, Ctrl/Command+Enter inserts a page break; Ctrl/Command+\ inserts a fixed shad.</p>
       <div class="chips">
