@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 global.PechaImages=require('../src/images');global.Folio=require('../src/folio');
 const Pxp=require('../src/pxp'), Engine=require('../src/engine'), TABLE=require('../src/legacy-table'), fixture=require('./hard-shad-fixture');
-const expected='{30}{hs}\nཀ{hs} {hs}\nཀ། །{page}ཀ{hs}';
+const expected='{font:jomolhari}{30}{hs}\nཀ{hs} {hs}\nཀ། །{page}ཀ{hs}';
 for (const fonts of [{0:'TibetanMachine'}, {0:'Western'}, {}]) {
   const r=Pxp.decodeStream(Uint8Array.from([11,11]),fonts,TABLE);
   assert.deepEqual(r.unknown,{}); assert.equal(Pxp.eventsToText(r.ev,()=>false),'{hs}{hs}');

@@ -75,12 +75,13 @@ const Pxp = (() => {
   const byteDecoders = new Map();
   function decodeStream(bytes, fonts, table, startFont = 0, fontCharsets = {}) {
     const ev = [];
-    let font = startFont, buf = '';
+    let font = startFont, buf = '', bufFont = startFont;
     const unknown = {}, warnings = new Set();
-    const flush = () => { if (buf) { ev.push({ t: 'text', s: buf }); buf = ''; } };
+    const flush = () => { if (buf) { ev.push({ t: 'text', s: buf, font: bufFont }); buf = ''; } };
+    const append = (text, id) => { if (id !== bufFont) flush(); bufFont = id; buf += text; };
     const map = (fontId, c) => {
       const name = fonts[fontId] || '';
-      const t = table[name];
+      const t = Object.hasOwn(table,name) ? table[name] : null;
       if (t) {
         if (t[c] !== undefined) return t[c];
         if (c === 32) return ' ';
@@ -115,22 +116,22 @@ const Pxp = (() => {
         ev.push({ t: 'code', op, a, b, d, font });
         i += 5;
       } else if (c === 0x14 && bytes[i + 5] === 0x14) {
-        buf += map(bytes[i + 2], bytes[i + 3]);
+        append(map(bytes[i + 2], bytes[i + 3]), bytes[i + 2]);
         i += 5;
       } else if (c === 0x13 && i + 5 < bytes.length) {
         flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
       } else if (c === 11) {
         // Native Hard Shad is a one-byte control, independent of the active font.
-        flush(); ev.push({ t: 'hardShad' });
+        flush(); ev.push({ t: 'hardShad', font });
       } else if (c === 13 || c === 10) {
         flush(); ev.push({ t: 'hr' });
         if (c === 13 && bytes[i + 1] === 10) i++;
       } else if (c === 12) {
         flush(); ev.push({ t: 'page' });
       } else if (c === 9) {
-        buf += '\t';
+        append('\t', font);
       } else {
-        buf += map(font, c);
+        append(map(font, c), font);
       }
     }
     flush();
@@ -252,17 +253,25 @@ const Pxp = (() => {
 
   // Events to the {code} text the engine reads. Colours and sizes carry over as the file has them.
   function eventsToText(ev, isTibetanFont, fontMarks = false) {
-    let out = fontMarks ? (isTibetanFont(0) ? '{font:jomolhari}' : '{font:serif}') : '', written = null, raw = null, font = 0;
+    const fontToken = typeof fontMarks === 'function' ? fontMarks : id => isTibetanFont(id) ? 'jomolhari' : 'serif';
+    let face = fontMarks ? fontToken(0) : null;
+    let out = face && ev.length ? `{font:${face}}` : '', written = null, raw = null, font = 0;
+    const writeFont = id => {
+      const next = fontMarks && fontToken(id);
+      if (next && next !== face) { out += `{font:${next}}`; face = next; }
+    };
     for (const e of ev) {
       if (e.t === 'text' || e.t === 'hardShad') {
-        const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
+        const effectiveFont = e.font ?? font;
+        writeFont(effectiveFont);
+        const v = raw === null ? null : Math.round(raw * (isTibetanFont(effectiveFont) ? TIB_SCALE : 1));
         if (v && v !== written) { out += `{${v}}`; written = v; }
         out += e.t === 'hardShad' ? '{hs}' : e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
       }
       else if (e.t === 'image') out += `{image:native-inline-${e.index}}`;
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
-      else if (e.op === 0x20) { font = e.a; if (fontMarks) out += isTibetanFont(font) ? '{font:jomolhari}' : '{font:serif}'; }
+      else if (e.op === 0x20) { font = e.a; writeFont(font); }
       else if (e.op === 0x21) raw = e.b;
       else if (e.op === 0x22) {
         const hex = [e.a, e.b, e.d].map(c => c.toString(16).padStart(2, '0')).join('');
@@ -283,9 +292,10 @@ const Pxp = (() => {
     return decodeStream(bytes, fonts, table, 0, fontCharsets).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
   }
 
-  function richText(bytes, fonts, table, fontCharsets) {
+  const nativeFont = (id, fonts, table, Engine) => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
+  function richText(bytes, fonts, table, fontCharsets, Engine) {
     if (!bytes || !bytes.length) return '';
-    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
+    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => Object.hasOwn(table,fonts[id]), id => nativeFont(id,fonts,table,Engine)).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -316,7 +326,9 @@ const Pxp = (() => {
       if (Object.keys(decoded.unknown).length) nativeImages.warnings.push('Some annotation or yi-go characters could not be converted. Check these marks against the original.');
     }
     if(ev.some(e=>e.t==='image'&&!d.images.some(p=>p.id==='native-inline-'+e.index))) nativeImages.warnings.push('Some inline image references could not be recovered.');
-    d.text = eventsToText(ev, id => !!table[p.fonts[id]]).replace(/\s+$/, '');
+    d.text = eventsToText(ev, id => Object.hasOwn(table,p.fonts[id]), id => nativeFont(id,p.fonts,table,Engine)).replace(/\s+$/, '');
+    if (Object.values(p.fonts).some(name => !Object.hasOwn(table,name))) nativeImages.warnings.push('Native font families are retained for local browser rendering. Unavailable fonts use fallbacks; compare font appearance and line breaks with the original.');
+    if (Object.values(p.fonts).some(name => !Object.hasOwn(table,name) && !Engine.fontToken(name))) nativeImages.warnings.push('An invalid or overlong native font name was replaced with the serif fallback.');
     d.flow = false;
     const S = t.PageSetup;
     if (S) {
@@ -391,12 +403,12 @@ const Pxp = (() => {
     d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
-        const text = richText(raw[`${name}[${i}].s`], p.fonts, table, p.fontCharsets);
+        const text = richText(raw[`${name}[${i}].s`], p.fonts, table, p.fontCharsets, Engine);
         return { rich: true, on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
       };
       const set = Engine.noteSet({ inL: slot('AnnoInL', 0.1), inR: slot('AnnoInR', 0.1), outL: slot('AnnoOutL', 0.1), outR: slot('AnnoOutR', 0.1) });
       if (i % 2 === 0) {
-        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table, p.fontCharsets);
+        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table, p.fontCharsets, Engine);
         set.inB = { rich: true, on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
       }
       d.notes.sets[key] = set;

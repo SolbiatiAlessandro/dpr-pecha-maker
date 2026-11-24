@@ -2564,7 +2564,7 @@ const Engine = (() => {
         else if (tok === '/b') style.bold = false;
         else if (tok === 'bold') style.bold = null;
         else if (tok === 'font') style.font = null;
-        else if (/^font:(jomolhari|noto|serif)$/.test(tok)) style.font = tok.slice(5);
+        else if (tok.startsWith('font:') && fontFamily(tok.slice(5))) style.font = tok.slice(5);
         else if (tok === 'i') style.italic = true;
         else if (tok === '/i') style.italic = false;
         else if (tok === 'u') style.underline = true;
@@ -2693,13 +2693,38 @@ const Engine = (() => {
     return n % 2 === 1;
   }
 
+  const fontFamilies = {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"};
+  function fontToken(name) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 128 || /[\u0000-\u001f\u007f-\u009f;]/.test(name)) return null;
+    name = name.trim();
+    const aliases = {'Jomolhari':'jomolhari','Noto Serif Tibetan':'noto','Georgia':'serif'};
+    if (Object.hasOwn(aliases,name)) return aliases[name];
+    try { return 'family:' + encodeURIComponent(name); } catch { return null; }
+  }
+  function fontFamily(token) {
+    if (Object.hasOwn(fontFamilies, token)) return fontFamilies[token];
+    if (!token?.startsWith('family:') || token.length > 1600) return null;
+    try {
+      const name = decodeURIComponent(token.slice(7));
+      if (!fontToken(name)) return null;
+      // A single quoted CSS family, never an arbitrary CSS declaration or fallback list.
+      return JSON.stringify(name.trim()) + ",'Noto Serif Tibetan',serif";
+    } catch { return null; }
+  }
+  function primaryFont(family) {
+    if (family?.startsWith('"')) {
+      const quoted = /^"(?:[^"\\]|\\.)*"/.exec(family);
+      if (quoted) { try { return JSON.parse(quoted[0]); } catch {} }
+    }
+    return (family || '').split(',')[0].trim().replace(/^'|'$/g, '') || 'Jomolhari';
+  }
   function fontFor(doc, atom, sizeDefault) {
     const st = atom.style || {};
     const role = doc.roles && doc.roles[st.role];
     const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
     return { size, kerning: doc.kerning === false ? 'none' : 'normal', weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
       italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
-      family: st.font ? {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"}[st.font] : role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
+      family: fontFamily(st.font) || (role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font) };
   }
 
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
@@ -3147,7 +3172,7 @@ const Engine = (() => {
     return { pages, folioCount };
   }
 
-  return { PT, defaultDoc, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
+  return { PT, defaultDoc, fontToken, fontFamily, primaryFont, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
 
@@ -3269,7 +3294,7 @@ const Rtf = (() => {
     const s = color.slice(1); return s.length === 3 ? [...s].map(c => c + c).join('') : s;
   };
   function write(doc, Engine) {
-    const colors = [], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
+    const colors = [], fonts = ['Jomolhari','Noto Serif Tibetan','Georgia'], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
     sources.forEach((source, index) => {
       if (index) body.push('\\page\n');
       for (const run of Engine.parseStream(source, false)) {
@@ -3284,13 +3309,16 @@ const Rtf = (() => {
         }
         const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
         if (!colors.includes(color)) colors.push(color);
-        const font = /^'Noto/.test(f.family) ? 1 : /^(Georgia|'Georgia)/.test(f.family) ? 2 : 0;
+        const name = Engine.primaryFont(f.family);
+        if (!fonts.includes(name)) fonts.push(name);
+        const font = fonts.indexOf(name);
         const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
         body.push(`\\${align}\\f${font}\\fs${Math.round(f.size * 2)}\\b${f.weight > 400 ? 1 : 0}\\i${f.italic ? 1 : 0}\\ul${f.underline ? 1 : 0}\\strike${f.strike ? 1 : 0}\\cf${colors.indexOf(color) + 1} ` + escape(run.s.replace(/\uE00D/g, '།')));
       }
     });
     const colorTable = colors.map(h => `\\red${parseInt(h.slice(0,2),16)}\\green${parseInt(h.slice(2,4),16)}\\blue${parseInt(h.slice(4,6),16)};`).join('');
-    return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl{\\f0\\fnil Jomolhari;}{\\f1\\fnil Noto Serif Tibetan;}{\\f2\\froman Georgia;}}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
+    const fontTable = fonts.map((name,id) => `{\\f${id}\\fnil ${escape(name.replace(/;/g,''))};}`).join('');
+    return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl' + fontTable + '}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
   }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
@@ -3330,10 +3358,17 @@ const Rtf = (() => {
     visit(root, list => {
       const dest = destination(list), tokens = flatten(list);
       if (dest === 'fonttbl') {
-        let id = null, name = '';
+        let id = null, name = '', skip = 0, uc = 1;
         for (const t of tokens) {
-          if (t.name === 'f') { id = t.value; name = ''; }
-          for (const c of t.text || '') { if (c === ';') { if (id !== null) fonts[id] = name.trim(); name = ''; } else name += c; }
+          if (t.name === 'f') { id = t.value; name = ''; skip = 0; }
+          if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
+          if (t.name === 'u') { name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
+          const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : new TextDecoder('windows-1252').decode(Uint8Array.of(t.byte)));
+          for (const c of text) {
+            if (skip) { skip--; continue; }
+            if (c === ';') { if (id !== null) fonts[id] = name.trim(); name = ''; }
+            else name += c;
+          }
         }
       }
       if (dest === 'colortbl') {
@@ -3353,9 +3388,9 @@ const Rtf = (() => {
     const uniqueId = (prefix, items) => { let i=items.length; while(items.some(x=>x.id===prefix+i)) i++; return prefix+i; };
     const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0,align:'l',uc:1,codepage:1252};
     let output = '', lastStyle = '', fallback = 0;
-    const fontToken = id => table[fonts[id]] ? 'jomolhari' : /tibetan|jomolhari/i.test(fonts[id] || '') ? (/noto/i.test(fonts[id]) ? 'noto' : 'jomolhari') : 'serif';
+    const fontToken = id => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
     function emitStyle(state) {
-      const size = state.size * (table[fonts[state.font]] ? .75 : 1);
+      const size = state.size * (Object.hasOwn(table,fonts[state.font]) ? .75 : 1);
       const style = `{/role font:${fontToken(state.font)} ${size} ${state.bold?'b':'/b'} ${state.italic?'i':'/i'} ${state.underline?'u':'/u'} ${state.strike?'s':'/s'} ${colors[state.color] || 'color'} ${state.align}}`;
       if (style !== lastStyle) { output += style; lastStyle = style; }
     }
@@ -3366,7 +3401,7 @@ const Rtf = (() => {
     }
     function byte(b, state) {
       if (fallback) { fallback--; return; }
-      const map = table[fonts[state.font]];
+      const map = Object.hasOwn(table,fonts[state.font]) ? table[fonts[state.font]] : null;
       if (map) { if (map[b] !== undefined) emit(map[b], state); else if (b === 32) emit(' ',state); else {emit('�',state); warnings.add('Some legacy font characters could not be mapped.');} }
       else {
         let decoder; try { decoder = new TextDecoder(state.codepage === 10000 ? 'macintosh' : 'windows-' + state.codepage); }
@@ -3412,7 +3447,7 @@ const Rtf = (() => {
           fallback = 0; walk(t.group,state); fallback = 0; continue;
         }
         if (t.text !== undefined) {
-          if (!fallback && !table[fonts[state.font]] && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
+          if (!fallback && !Object.hasOwn(table,fonts[state.font]) && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
           else for (let i=0;i<t.text.length;i++) { const n=t.text.charCodeAt(i); if(n<=255) byte(n,state); else if(!fallback) emit(t.text[i],state); else fallback--; }
           continue;
         }
@@ -3743,12 +3778,13 @@ const Pxp = (() => {
   const byteDecoders = new Map();
   function decodeStream(bytes, fonts, table, startFont = 0, fontCharsets = {}) {
     const ev = [];
-    let font = startFont, buf = '';
+    let font = startFont, buf = '', bufFont = startFont;
     const unknown = {}, warnings = new Set();
-    const flush = () => { if (buf) { ev.push({ t: 'text', s: buf }); buf = ''; } };
+    const flush = () => { if (buf) { ev.push({ t: 'text', s: buf, font: bufFont }); buf = ''; } };
+    const append = (text, id) => { if (id !== bufFont) flush(); bufFont = id; buf += text; };
     const map = (fontId, c) => {
       const name = fonts[fontId] || '';
-      const t = table[name];
+      const t = Object.hasOwn(table,name) ? table[name] : null;
       if (t) {
         if (t[c] !== undefined) return t[c];
         if (c === 32) return ' ';
@@ -3783,22 +3819,22 @@ const Pxp = (() => {
         ev.push({ t: 'code', op, a, b, d, font });
         i += 5;
       } else if (c === 0x14 && bytes[i + 5] === 0x14) {
-        buf += map(bytes[i + 2], bytes[i + 3]);
+        append(map(bytes[i + 2], bytes[i + 3]), bytes[i + 2]);
         i += 5;
       } else if (c === 0x13 && i + 5 < bytes.length) {
         flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
       } else if (c === 11) {
         // Native Hard Shad is a one-byte control, independent of the active font.
-        flush(); ev.push({ t: 'hardShad' });
+        flush(); ev.push({ t: 'hardShad', font });
       } else if (c === 13 || c === 10) {
         flush(); ev.push({ t: 'hr' });
         if (c === 13 && bytes[i + 1] === 10) i++;
       } else if (c === 12) {
         flush(); ev.push({ t: 'page' });
       } else if (c === 9) {
-        buf += '\t';
+        append('\t', font);
       } else {
-        buf += map(font, c);
+        append(map(font, c), font);
       }
     }
     flush();
@@ -3920,17 +3956,25 @@ const Pxp = (() => {
 
   // Events to the {code} text the engine reads. Colours and sizes carry over as the file has them.
   function eventsToText(ev, isTibetanFont, fontMarks = false) {
-    let out = fontMarks ? (isTibetanFont(0) ? '{font:jomolhari}' : '{font:serif}') : '', written = null, raw = null, font = 0;
+    const fontToken = typeof fontMarks === 'function' ? fontMarks : id => isTibetanFont(id) ? 'jomolhari' : 'serif';
+    let face = fontMarks ? fontToken(0) : null;
+    let out = face && ev.length ? `{font:${face}}` : '', written = null, raw = null, font = 0;
+    const writeFont = id => {
+      const next = fontMarks && fontToken(id);
+      if (next && next !== face) { out += `{font:${next}}`; face = next; }
+    };
     for (const e of ev) {
       if (e.t === 'text' || e.t === 'hardShad') {
-        const v = raw === null ? null : Math.round(raw * (isTibetanFont(font) ? TIB_SCALE : 1));
+        const effectiveFont = e.font ?? font;
+        writeFont(effectiveFont);
+        const v = raw === null ? null : Math.round(raw * (isTibetanFont(effectiveFont) ? TIB_SCALE : 1));
         if (v && v !== written) { out += `{${v}}`; written = v; }
         out += e.t === 'hardShad' ? '{hs}' : e.s.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
       }
       else if (e.t === 'image') out += `{image:native-inline-${e.index}}`;
       else if (e.t === 'hr') out += '\n';
       else if (e.t === 'page') out += '{page}';
-      else if (e.op === 0x20) { font = e.a; if (fontMarks) out += isTibetanFont(font) ? '{font:jomolhari}' : '{font:serif}'; }
+      else if (e.op === 0x20) { font = e.a; writeFont(font); }
       else if (e.op === 0x21) raw = e.b;
       else if (e.op === 0x22) {
         const hex = [e.a, e.b, e.d].map(c => c.toString(16).padStart(2, '0')).join('');
@@ -3951,9 +3995,10 @@ const Pxp = (() => {
     return decodeStream(bytes, fonts, table, 0, fontCharsets).ev.filter(e => e.t === 'text' || e.t === 'hardShad').map(e => e.t === 'hardShad' ? '།' : e.s).join('').trim();
   }
 
-  function richText(bytes, fonts, table, fontCharsets) {
+  const nativeFont = (id, fonts, table, Engine) => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
+  function richText(bytes, fonts, table, fontCharsets, Engine) {
     if (!bytes || !bytes.length) return '';
-    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => !!table[fonts[id]], true).replace(/[\r\n]/g, ' ');
+    return eventsToText(decodeStream(bytes, fonts, table, 0, fontCharsets).ev, id => Object.hasOwn(table,fonts[id]), id => nativeFont(id,fonts,table,Engine)).replace(/[\r\n]/g, ' ');
   }
 
   const num = (v, d) => (v === undefined || v === '' || Number.isNaN(+v) ? d : +v);
@@ -3984,7 +4029,9 @@ const Pxp = (() => {
       if (Object.keys(decoded.unknown).length) nativeImages.warnings.push('Some annotation or yi-go characters could not be converted. Check these marks against the original.');
     }
     if(ev.some(e=>e.t==='image'&&!d.images.some(p=>p.id==='native-inline-'+e.index))) nativeImages.warnings.push('Some inline image references could not be recovered.');
-    d.text = eventsToText(ev, id => !!table[p.fonts[id]]).replace(/\s+$/, '');
+    d.text = eventsToText(ev, id => Object.hasOwn(table,p.fonts[id]), id => nativeFont(id,p.fonts,table,Engine)).replace(/\s+$/, '');
+    if (Object.values(p.fonts).some(name => !Object.hasOwn(table,name))) nativeImages.warnings.push('Native font families are retained for local browser rendering. Unavailable fonts use fallbacks; compare font appearance and line breaks with the original.');
+    if (Object.values(p.fonts).some(name => !Object.hasOwn(table,name) && !Engine.fontToken(name))) nativeImages.warnings.push('An invalid or overlong native font name was replaced with the serif fallback.');
     d.flow = false;
     const S = t.PageSetup;
     if (S) {
@@ -4059,12 +4106,12 @@ const Pxp = (() => {
     d.pageNum.firstTitle = on(v.PageNumTitle1stEn, true);
     ['title.front', 'title.back', 'fancy.front', 'fancy.back', 'body.front', 'body.back'].forEach((key, i) => {
       const slot = (name, inset) => {
-        const text = richText(raw[`${name}[${i}].s`], p.fonts, table, p.fontCharsets);
+        const text = richText(raw[`${name}[${i}].s`], p.fonts, table, p.fontCharsets, Engine);
         return { rich: true, on: on(v[`${name}[${i}].en`], !!text) && !!text, text, size: num(v[`${name}[${i}].ptSz`], 14) * fontScale, inset: num(v[`${name}[${i}].insetF`], inset) };
       };
       const set = Engine.noteSet({ inL: slot('AnnoInL', 0.1), inR: slot('AnnoInR', 0.1), outL: slot('AnnoOutL', 0.1), outR: slot('AnnoOutR', 0.1) });
       if (i % 2 === 0) {
-        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table, p.fontCharsets);
+        const below = richText(raw[`AnnoInLL[${i / 2}].s`], p.fonts, table, p.fontCharsets, Engine);
         set.inB = { rich: true, on: !!below && set.inL.on, text: below, size: set.inL.size, inset: set.inL.inset };
       }
       d.notes.sets[key] = set;

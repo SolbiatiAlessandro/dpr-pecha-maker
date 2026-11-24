@@ -17,7 +17,7 @@ const Rtf = (() => {
     const s = color.slice(1); return s.length === 3 ? [...s].map(c => c + c).join('') : s;
   };
   function write(doc, Engine) {
-    const colors = [], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
+    const colors = [], fonts = ['Jomolhari','Noto Serif Tibetan','Georgia'], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
     sources.forEach((source, index) => {
       if (index) body.push('\\page\n');
       for (const run of Engine.parseStream(source, false)) {
@@ -32,13 +32,16 @@ const Rtf = (() => {
         }
         const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
         if (!colors.includes(color)) colors.push(color);
-        const font = /^'Noto/.test(f.family) ? 1 : /^(Georgia|'Georgia)/.test(f.family) ? 2 : 0;
+        const name = Engine.primaryFont(f.family);
+        if (!fonts.includes(name)) fonts.push(name);
+        const font = fonts.indexOf(name);
         const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
         body.push(`\\${align}\\f${font}\\fs${Math.round(f.size * 2)}\\b${f.weight > 400 ? 1 : 0}\\i${f.italic ? 1 : 0}\\ul${f.underline ? 1 : 0}\\strike${f.strike ? 1 : 0}\\cf${colors.indexOf(color) + 1} ` + escape(run.s.replace(/\uE00D/g, '།')));
       }
     });
     const colorTable = colors.map(h => `\\red${parseInt(h.slice(0,2),16)}\\green${parseInt(h.slice(2,4),16)}\\blue${parseInt(h.slice(4,6),16)};`).join('');
-    return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl{\\f0\\fnil Jomolhari;}{\\f1\\fnil Noto Serif Tibetan;}{\\f2\\froman Georgia;}}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
+    const fontTable = fonts.map((name,id) => `{\\f${id}\\fnil ${escape(name.replace(/;/g,''))};}`).join('');
+    return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl' + fontTable + '}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
   }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
@@ -78,10 +81,17 @@ const Rtf = (() => {
     visit(root, list => {
       const dest = destination(list), tokens = flatten(list);
       if (dest === 'fonttbl') {
-        let id = null, name = '';
+        let id = null, name = '', skip = 0, uc = 1;
         for (const t of tokens) {
-          if (t.name === 'f') { id = t.value; name = ''; }
-          for (const c of t.text || '') { if (c === ';') { if (id !== null) fonts[id] = name.trim(); name = ''; } else name += c; }
+          if (t.name === 'f') { id = t.value; name = ''; skip = 0; }
+          if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
+          if (t.name === 'u') { name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
+          const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : new TextDecoder('windows-1252').decode(Uint8Array.of(t.byte)));
+          for (const c of text) {
+            if (skip) { skip--; continue; }
+            if (c === ';') { if (id !== null) fonts[id] = name.trim(); name = ''; }
+            else name += c;
+          }
         }
       }
       if (dest === 'colortbl') {
@@ -101,9 +111,9 @@ const Rtf = (() => {
     const uniqueId = (prefix, items) => { let i=items.length; while(items.some(x=>x.id===prefix+i)) i++; return prefix+i; };
     const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0,align:'l',uc:1,codepage:1252};
     let output = '', lastStyle = '', fallback = 0;
-    const fontToken = id => table[fonts[id]] ? 'jomolhari' : /tibetan|jomolhari/i.test(fonts[id] || '') ? (/noto/i.test(fonts[id]) ? 'noto' : 'jomolhari') : 'serif';
+    const fontToken = id => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
     function emitStyle(state) {
-      const size = state.size * (table[fonts[state.font]] ? .75 : 1);
+      const size = state.size * (Object.hasOwn(table,fonts[state.font]) ? .75 : 1);
       const style = `{/role font:${fontToken(state.font)} ${size} ${state.bold?'b':'/b'} ${state.italic?'i':'/i'} ${state.underline?'u':'/u'} ${state.strike?'s':'/s'} ${colors[state.color] || 'color'} ${state.align}}`;
       if (style !== lastStyle) { output += style; lastStyle = style; }
     }
@@ -114,7 +124,7 @@ const Rtf = (() => {
     }
     function byte(b, state) {
       if (fallback) { fallback--; return; }
-      const map = table[fonts[state.font]];
+      const map = Object.hasOwn(table,fonts[state.font]) ? table[fonts[state.font]] : null;
       if (map) { if (map[b] !== undefined) emit(map[b], state); else if (b === 32) emit(' ',state); else {emit('�',state); warnings.add('Some legacy font characters could not be mapped.');} }
       else {
         let decoder; try { decoder = new TextDecoder(state.codepage === 10000 ? 'macintosh' : 'windows-' + state.codepage); }
@@ -160,7 +170,7 @@ const Rtf = (() => {
           fallback = 0; walk(t.group,state); fallback = 0; continue;
         }
         if (t.text !== undefined) {
-          if (!fallback && !table[fonts[state.font]] && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
+          if (!fallback && !Object.hasOwn(table,fonts[state.font]) && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
           else for (let i=0;i<t.text.length;i++) { const n=t.text.charCodeAt(i); if(n<=255) byte(n,state); else if(!fallback) emit(t.text[i],state); else fallback--; }
           continue;
         }

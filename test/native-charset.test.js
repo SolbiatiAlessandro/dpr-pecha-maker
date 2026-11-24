@@ -7,7 +7,7 @@ for(const [charset,bytes,expected] of cases) {
  const file=native({fonts:[{name:'Arial',charset}],body:bytes}),parsed=Pxp.parse(file);
  assert.equal(parsed.fontCharsets[0],charset);assert.equal(parsed.fonts[0],'Arial');
  const result=Pxp.load(file,'pxp',TABLE,Engine.defaultDoc(),Engine);
- assert.equal(plain(result.doc),expected);assert.equal(result.unknown,0);assert.equal(result.warnings.length,0);
+ assert.equal(plain(result.doc),expected);assert.equal(result.unknown,0);assert.equal(result.warnings.length,1);assert(result.warnings[0].includes('font families'));
 }
 assert.equal(plain(Pxp.load(sample(),'pxp',TABLE,Engine.defaultDoc(),Engine).doc),'“€”—…\nПривет');
 // Same family, distinct font charset records and framed glyph font overrides.

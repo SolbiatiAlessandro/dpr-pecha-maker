@@ -10,7 +10,7 @@ const fixture=require('./hard-shad-fixture');
     await page.locator('#pasteText').click();
     const upload=(name,buffer)=>page.locator('#openFile').setInputFiles({name,mimeType:'application/octet-stream',buffer});
     await upload('fixed-shad.pxp',fixture.native());
-    const expected='{30}{hs}\nཀ{hs} {hs}\nཀ། །{page}ཀ{hs}';
+    const expected='{font:jomolhari}{30}{hs}\nཀ{hs} {hs}\nཀ། །{page}ཀ{hs}';
     await page.waitForFunction(text=>document.querySelector('#text').value===text,expected);
     await page.waitForFunction(()=>document.querySelectorAll('#table svg').length>0);
     const visible=await page.locator('#table').textContent();

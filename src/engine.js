@@ -93,7 +93,7 @@ const Engine = (() => {
         else if (tok === '/b') style.bold = false;
         else if (tok === 'bold') style.bold = null;
         else if (tok === 'font') style.font = null;
-        else if (/^font:(jomolhari|noto|serif)$/.test(tok)) style.font = tok.slice(5);
+        else if (tok.startsWith('font:') && fontFamily(tok.slice(5))) style.font = tok.slice(5);
         else if (tok === 'i') style.italic = true;
         else if (tok === '/i') style.italic = false;
         else if (tok === 'u') style.underline = true;
@@ -222,13 +222,38 @@ const Engine = (() => {
     return n % 2 === 1;
   }
 
+  const fontFamilies = {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"};
+  function fontToken(name) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 128 || /[\u0000-\u001f\u007f-\u009f;]/.test(name)) return null;
+    name = name.trim();
+    const aliases = {'Jomolhari':'jomolhari','Noto Serif Tibetan':'noto','Georgia':'serif'};
+    if (Object.hasOwn(aliases,name)) return aliases[name];
+    try { return 'family:' + encodeURIComponent(name); } catch { return null; }
+  }
+  function fontFamily(token) {
+    if (Object.hasOwn(fontFamilies, token)) return fontFamilies[token];
+    if (!token?.startsWith('family:') || token.length > 1600) return null;
+    try {
+      const name = decodeURIComponent(token.slice(7));
+      if (!fontToken(name)) return null;
+      // A single quoted CSS family, never an arbitrary CSS declaration or fallback list.
+      return JSON.stringify(name.trim()) + ",'Noto Serif Tibetan',serif";
+    } catch { return null; }
+  }
+  function primaryFont(family) {
+    if (family?.startsWith('"')) {
+      const quoted = /^"(?:[^"\\]|\\.)*"/.exec(family);
+      if (quoted) { try { return JSON.parse(quoted[0]); } catch {} }
+    }
+    return (family || '').split(',')[0].trim().replace(/^'|'$/g, '') || 'Jomolhari';
+  }
   function fontFor(doc, atom, sizeDefault) {
     const st = atom.style || {};
     const role = doc.roles && doc.roles[st.role];
     const size = doc.textSize || st.size || (role && role.size) || sizeDefault;
     return { size, kerning: doc.kerning === false ? 'none' : 'normal', weight: (st.bold === null || st.bold === undefined ? role && role.bold : st.bold) ? 700 : 400,
       italic: !!st.italic, underline: !!st.underline, strike: !!st.strike,
-      family: st.font ? {jomolhari: "'Jomolhari','Noto Serif Tibetan',serif", noto: "'Noto Serif Tibetan','Jomolhari',serif", serif: "Georgia,'Times New Roman',serif"}[st.font] : role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font };
+      family: fontFamily(st.font) || (role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font) };
   }
 
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
@@ -676,6 +701,6 @@ const Engine = (() => {
     return { pages, folioCount };
   }
 
-  return { PT, defaultDoc, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
+  return { PT, defaultDoc, fontToken, fontFamily, primaryFont, fontFor, parseStream, splitAtoms, atomize, paginate, boxes, typeOfPage, pageSvg, sheetSvg, impose, fits, run, noteSet, noteSlot, pageType };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;

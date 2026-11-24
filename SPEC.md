@@ -678,3 +678,33 @@ Generated fixtures cover body/content/annotation imports, mixed attribute
 transitions, custom default colours, Save/Open and RTF round trips. Chrome checks
 actual uploads and matching preview/print SVG attributes. Synthetic fixtures and
 passing tests do not establish exact native fonts, layout or full-format parity.
+
+### Native named fonts and glyph font scope
+
+PXP/PXC/PXA body and rich annotation imports retain non-TCC font family names.
+Known legacy Tibetan fonts still decode through the conversion tables and use
+Jomolhari for Unicode shaping. Native font opcode0x20 persists; a framed0x14
+glyph uses its embedded font ID for that glyph only, then resumes the active
+font. The original RTF writer corroborates this temporary switch and restoration.
+The existing Tibetan size conversion follows the effective glyph font, so a
+Tibetan glyph inside Western text does not inherit an unscaled Western size.
+Consecutive legacy Tibetan font slots share the Unicode face without inserting
+font marks inside converted stacks. Annotation display retains its separate
+per-position size setting rather than using body sizes.
+
+Named families use `{font:family:Courier%20New}` marks with an encoded name.
+The name is rendered as one quoted CSS family, followed by Unicode fallbacks;
+it cannot supply an arbitrary CSS declaration. Invalid/overlong names are
+rejected. The existing font marks and selected-text font choices remain valid.
+Size-only edits retain imported families; selected font changes restore the
+original family afterward. Web Save retains these marks. RTF export creates a
+font-table entry for each used family, and import retains names, including
+escaped punctuation and Unicode names. No font binaries are embedded or fetched.
+
+Tests cover generated PXP/PXC/PXA mixed Arial/Courier/Tibetan runs, temporary
+glyph switches and size restoration, Tibetan stacks, Save/Open, selected-text
+edits and RTF round trips. Chrome verifies preview/print families and sizes and
+visually distinct text. Fonts unavailable locally use browser fallbacks, with
+an import notice. Native font metrics, original Windows visual comparison,
+legacy custom encodings, native yi-go/folio rich font runs and complete font
+selection UI parity remain open.

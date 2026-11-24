@@ -34,10 +34,10 @@ const Engine=require('../src/engine'),Rtf=require('../src/rtf'),{native,font,cyr
   const withNote=JSON.parse(fs.readFileSync(await(await noteSave).path()));assert(withNote.notes.sets['body.front'].inL.text.includes('Привет'));
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('#table text')).filter(n=>n.textContent==='Привет').length===2);
   await upload('unsupported.pxp',native({fonts:[{name:'Wingdings',charset:2}],body:[65,66]}));
-  await page.waitForFunction(()=>document.querySelector('#text').value==='��');
+  await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('��'));
   assert((await page.locator('#importMessages').textContent()).includes('charset 2'));assert((await page.locator('#importMessages').textContent()).includes('�'));
   await upload('locale.pxp',native({fonts:[{name:'Arial',charset:1}],body:[128]}));
-  await page.waitForFunction(()=>document.querySelector('#text').value==='€');
+  await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('€'));
   assert((await page.locator('#importMessages').textContent()).includes('source Windows locale'));
   assert.deepEqual(errors,[]);console.log('PASS: native Windows punctuation/Cyrillic upload, preview/print text, Save/Open, RTF export, PXA charset/scope, unsupported symbol replacements and locale warning');
  }finally{await browser.close();}
