@@ -28,7 +28,7 @@ const fixture=Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\t12
   await page.waitForFunction(text=>document.querySelector('#text').value===text,expected);
   assert(!(await page.locator('#typeover').isChecked()));
   const savedPrefs=await page.evaluate(()=>JSON.parse(localStorage.getItem('dpr-pecha-maker-dct-import')));
-  assert.deepEqual(savedPrefs,{tibetanSize:40,latinSize:22,latinFont:'jomolhari'});
+  assert.deepEqual(savedPrefs,{tibetanSize:40,latinSize:22,latinFont:'jomolhari',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true});
   assert((await page.locator('#importMessages').textContent()).includes('40 legacy points'));
   await page.waitForFunction(()=>document.querySelectorAll('#table svg').length>0);
   const spans=await page.locator('#table text').evaluateAll(nodes=>nodes.map(n=>[n.textContent,n.getAttribute('font-family'),n.getAttribute('font-size')]));

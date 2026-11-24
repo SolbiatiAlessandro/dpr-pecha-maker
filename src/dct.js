@@ -1,11 +1,25 @@
 // Bounded, independent reader for the modern PKTC TibetDoc single-body format.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
+  // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
+  // DCT diacritic-kind letters represent these sounds when CSX+ remapping is on.
+  // https://gretil.sub.uni-goettingen.de/gretil/gretdiac.pdf (pp. 2, 4–5)
+  const coreCsx = {164:'ñ',165:'Ñ',224:'ā',225:'ß',226:'Ā',227:'ī',228:'Ī',229:'ū',230:'Ū',
+    231:'ṛ',232:'Ṛ',233:'ṝ',234:'Ṝ',235:'ḷ',236:'Ḷ',237:'ḹ',238:'Ḹ',239:'ṅ',240:'Ṅ',
+    241:'ṭ',242:'Ṭ',243:'ḍ',244:'Ḍ',245:'ṇ',246:'Ṇ',247:'ś',248:'Ś',249:'ṣ',250:'Ṣ',251:'”',252:'ṃ',253:'Ṃ',254:'ḥ',255:'Ḥ'};
+  const diacriticLetters = Object.fromEntries(Array.from('aAiIuUpPqQkKlLoOtTdDnNsSrRmMhHÑ',
+    (letter,index)=>[letter,Array.from('āĀīĪūŪṛṚṝṜḷḶḹḸṅṄṭṬḍḌṇṆśŚṣṢṃṂḥḤÑ')[index]]));
+  function diacriticGlyph(byte, remap) {
+    const letter = String.fromCharCode(byte);
+    if (remap && diacriticLetters[letter]) return diacriticLetters[letter];
+    return coreCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
+  }
   function importSettings(input = {}) {
-    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',...input};
-    for (const key of ['tibetanSize','latinSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin 5–200.');
-    if (!['serif','jomolhari','noto'].includes(result.latinFont)) throw new Error('Unsupported DCT Latin font.');
-    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont};
+    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
+    for (const key of ['tibetanSize','latinSize','diacriticSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin/diacritical 5–200.');
+    for (const key of ['latinFont','diacriticFont']) if (!['serif','jomolhari','noto'].includes(result[key])) throw new Error('Unsupported DCT font.');
+    if (typeof result.remapDiacritics !== 'boolean') throw new Error('Invalid DCT diacritic remapping choice.');
+    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont,diacriticSize:result.diacriticSize,diacriticFont:result.diacriticFont,remapDiacritics:result.remapDiacritics};
   }
   function read(input, Engine, table, base = null, options = {}) {
     const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
@@ -38,8 +52,11 @@ const Dct = (() => {
     const tibetanFont = doc.fontName === 'Noto Serif Tibetan' ? 'noto' : 'jomolhari';
     let font = null, output = '', unknown = 0;
     const ansi = new TextDecoder('windows-1252');
-    const emit = (text, tibetan) => {
-      if (font !== tibetan) {output += tibetan ? `{font:${tibetanFont} ${tibetanSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;font = tibetan;}
+    const emit = (text, kind) => {
+      if (font !== kind) {
+        output += kind === true ? `{font:${tibetanFont} ${tibetanSize}}` : kind === 'diacritic' ? `{font:${typography.diacriticFont} ${typography.diacriticSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;
+        font = kind;
+      }
       output += text.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
     };
     const glyph = (kind,b) => {
@@ -67,7 +84,12 @@ const Dct = (() => {
       if (c === 12) {output += '{page}';continue;}
       if (c >= 16 && c <= 23) {
         const b = following();
-        if (c === 21 || c === 22) {unknown++;emit('�',false);warnings.add('Diacritical or symbol-font glyphs were replaced with visible replacement characters.');}
+        if (c === 21) {
+          const text = diacriticGlyph(b,typography.remapDiacritics);
+          if (text === null) unknown++;
+          emit(text === null ? '�' : text,'diacritic');
+          warnings.add('Diacritics use Unicode equivalents of the CSX+ core character set with a substitute web font. Extended CSX+ characters remain unsupported and appear as �; compare with the source.');
+        } else if (c === 22) {unknown++;emit('�',false);warnings.add('Symbol-font glyphs were replaced with visible replacement characters.');}
         else glyph(c,b);
         continue;
       }

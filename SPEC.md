@@ -561,11 +561,11 @@ converted output. All file parsing stays local.
 Byte markers select one ANSI or TCC subfont glyph and then return to the header
 default. The reader reuses the existing TibetanMachine conversion tables; Latin
 text uses Windows-1252. Explicit tabs, line and page breaks are retained. Source
-formatting controls are ignored with a warning; diacritical/symbol or unmapped
-glyphs become visible replacement characters with counts. Import starts a new
+formatting controls are ignored with a warning; unsupported diacritical/symbol
+or unmapped glyphs become visible replacement characters with counts. Import starts a new
 web document using New's annotation/yi-go retention, resets typing mode and uses
-web body sizing plus 18-point Latin text. It does not implement the native DCT
-import-settings dialog or preserve source layout, styles and font identity.
+the typography choices described below. The import dialog provides a subset of
+native choices; source layout, styles and font identity are not preserved.
 
 The MIT-licensed public fixture is pinned and attributed under test/fixtures/dct.
 Its text decodes without unknown glyphs, but its opening byte201 maps to U+0F06
@@ -589,6 +589,30 @@ Successful preferences persist separately in browser storage; cancellation and
 failed imports do not update them. Validation requires whole Tibetan points7–200
 and Latin points5–200, a web-supported bound rather than a verified native limit.
 Latin choices use the three supported web faces; Georgia substitutes for native
-Times New Roman. Diacritical/symbol conversion and native Times_CSX+ remapping
-remain unsupported and explicitly described. Native runtime dialog behavior and
-Windows font fidelity remain unverified.
+Times New Roman. Native runtime dialog behavior and Windows font fidelity remain
+unverified. Core diacritic conversion is described below; symbol fonts remain
+unsupported.
+
+
+### TibetDoc core diacritics
+
+Marker21 now converts the core CSX+ diacritical set to Unicode. The optional
+TibetDoc remapping (enabled by default) interprets 31 codes, including a→ā,
+p→ṛ, o→ṅ, s→ś and r→ṣ; disabling it treats the byte as CSX+ directly. Printable
+ASCII and CSX+ bytes164–165 and224–255 are supported. Other extended characters
+and symbol-kind22 remain visible replacements with counts and warnings. This
+is intentionally a bounded subset, not complete CSX+ or DCT parity.
+
+The independent mapping uses encoding facts from the
+[GRETIL concordance](https://gretil.sub.uni-goettingen.de/gretil/gretdiac.pdf),
+combined with observed native DCT code interpretation. No original font assets
+or program code are included. Diacritical text has independent web font and
+size choices (default serif18), saved only after successful import; existing
+preferences gain defaults. The dialog scrolls on short screens and expands the
+diacritical options when their size field is invalid.
+
+Tests cover every supported remap/core byte, default-kind restoration, independent
+style, unsupported replacements, preference migration, cancellation, web Save/Open,
+RTF export and preview/print text. Only synthetic mixed-diacritic fixtures have
+been tested; the public DCT fixture contains no such glyphs. Original Windows
+import and exact legacy metrics remain unverified.

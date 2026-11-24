@@ -108,7 +108,7 @@ header {
 .table.compact .leaf .tag { display: none; }
 .table.compact .leaf svg { box-shadow: none; }
 button:disabled { opacity: .55; cursor: default; }
-#dctDialog { width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
+#dctDialog { max-height: calc(100dvh - 40px); overflow-y: auto; width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
 #dctDialog::backdrop { background: #0008; }
 #dctDialog form { display: flex; flex-direction: column; gap: 10px; }
 #dctDialog h2, #dctDialog p { margin: 0; }
@@ -420,7 +420,15 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
     <label for="dctLatinSize">Latin size (points)</label>
     <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
-    <p class="hint">Diacritical and symbol-font conversion remains unsupported. Those glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <details id="dctDiacriticOptions"><summary>Diacritical text</summary><div>
+      <label class="check"><input id="dctRemapDiacritics" type="checkbox"> Convert TibetDoc diacritic codes</label>
+      <p class="hint">Converts codes such as a → ā. Turn off for text already encoded as CSX+. Only the core CSX+ characters are supported.</p>
+      <label for="dctDiacriticFont">Diacritical font</label>
+      <select id="dctDiacriticFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+      <label for="dctDiacriticSize">Diacritical size (points)</label>
+      <input id="dctDiacriticSize" type="number" min="5" max="200" step="1" required>
+    </div></details>
+    <p class="hint">Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
     <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
   </form>
 </dialog>

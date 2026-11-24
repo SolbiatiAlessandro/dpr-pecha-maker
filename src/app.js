@@ -738,10 +738,14 @@ function chooseDctSettings(name, currentFont) {
   $('dctTibetanSize').value = dctPreferences.tibetanSize;
   $('dctLatinSize').value = dctPreferences.latinSize;
   $('dctLatinFont').value = dctPreferences.latinFont;
+  $('dctDiacriticSize').value = dctPreferences.diacriticSize;
+  $('dctDiacriticFont').value = dctPreferences.diacriticFont;
+  $('dctRemapDiacritics').checked = dctPreferences.remapDiacritics;
   dialog.returnValue = '';
   return new Promise(resolve => {
     dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
-      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value,
+      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:$('dctDiacriticFont').value,remapDiacritics:$('dctRemapDiacritics').checked
     } : null), {once:true});
     dialog.showModal();
   });
@@ -816,6 +820,7 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  $('dctDiacriticSize').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {

@@ -115,7 +115,7 @@ header {
 .table.compact .leaf .tag { display: none; }
 .table.compact .leaf svg { box-shadow: none; }
 button:disabled { opacity: .55; cursor: default; }
-#dctDialog { width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
+#dctDialog { max-height: calc(100dvh - 40px); overflow-y: auto; width: min(440px, calc(100vw - 40px)); border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 24px; }
 #dctDialog::backdrop { background: #0008; }
 #dctDialog form { display: flex; flex-direction: column; gap: 10px; }
 #dctDialog h2, #dctDialog p { margin: 0; }
@@ -427,7 +427,15 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
     <label for="dctLatinSize">Latin size (points)</label>
     <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
-    <p class="hint">Diacritical and symbol-font conversion remains unsupported. Those glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <details id="dctDiacriticOptions"><summary>Diacritical text</summary><div>
+      <label class="check"><input id="dctRemapDiacritics" type="checkbox"> Convert TibetDoc diacritic codes</label>
+      <p class="hint">Converts codes such as a → ā. Turn off for text already encoded as CSX+. Only the core CSX+ characters are supported.</p>
+      <label for="dctDiacriticFont">Diacritical font</label>
+      <select id="dctDiacriticFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+      <label for="dctDiacriticSize">Diacritical size (points)</label>
+      <input id="dctDiacriticSize" type="number" min="5" max="200" step="1" required>
+    </div></details>
+    <p class="hint">Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
     <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
   </form>
 </dialog>
@@ -3449,11 +3457,25 @@ if (typeof module !== 'undefined') module.exports = Rtf;
 // Bounded, independent reader for the modern PKTC TibetDoc single-body format.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
+  // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
+  // DCT diacritic-kind letters represent these sounds when CSX+ remapping is on.
+  // https://gretil.sub.uni-goettingen.de/gretil/gretdiac.pdf (pp. 2, 4–5)
+  const coreCsx = {164:'ñ',165:'Ñ',224:'ā',225:'ß',226:'Ā',227:'ī',228:'Ī',229:'ū',230:'Ū',
+    231:'ṛ',232:'Ṛ',233:'ṝ',234:'Ṝ',235:'ḷ',236:'Ḷ',237:'ḹ',238:'Ḹ',239:'ṅ',240:'Ṅ',
+    241:'ṭ',242:'Ṭ',243:'ḍ',244:'Ḍ',245:'ṇ',246:'Ṇ',247:'ś',248:'Ś',249:'ṣ',250:'Ṣ',251:'”',252:'ṃ',253:'Ṃ',254:'ḥ',255:'Ḥ'};
+  const diacriticLetters = Object.fromEntries(Array.from('aAiIuUpPqQkKlLoOtTdDnNsSrRmMhHÑ',
+    (letter,index)=>[letter,Array.from('āĀīĪūŪṛṚṝṜḷḶḹḸṅṄṭṬḍḌṇṆśŚṣṢṃṂḥḤÑ')[index]]));
+  function diacriticGlyph(byte, remap) {
+    const letter = String.fromCharCode(byte);
+    if (remap && diacriticLetters[letter]) return diacriticLetters[letter];
+    return coreCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
+  }
   function importSettings(input = {}) {
-    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',...input};
-    for (const key of ['tibetanSize','latinSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin 5–200.');
-    if (!['serif','jomolhari','noto'].includes(result.latinFont)) throw new Error('Unsupported DCT Latin font.');
-    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont};
+    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
+    for (const key of ['tibetanSize','latinSize','diacriticSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin/diacritical 5–200.');
+    for (const key of ['latinFont','diacriticFont']) if (!['serif','jomolhari','noto'].includes(result[key])) throw new Error('Unsupported DCT font.');
+    if (typeof result.remapDiacritics !== 'boolean') throw new Error('Invalid DCT diacritic remapping choice.');
+    return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont,diacriticSize:result.diacriticSize,diacriticFont:result.diacriticFont,remapDiacritics:result.remapDiacritics};
   }
   function read(input, Engine, table, base = null, options = {}) {
     const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
@@ -3486,8 +3508,11 @@ const Dct = (() => {
     const tibetanFont = doc.fontName === 'Noto Serif Tibetan' ? 'noto' : 'jomolhari';
     let font = null, output = '', unknown = 0;
     const ansi = new TextDecoder('windows-1252');
-    const emit = (text, tibetan) => {
-      if (font !== tibetan) {output += tibetan ? `{font:${tibetanFont} ${tibetanSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;font = tibetan;}
+    const emit = (text, kind) => {
+      if (font !== kind) {
+        output += kind === true ? `{font:${tibetanFont} ${tibetanSize}}` : kind === 'diacritic' ? `{font:${typography.diacriticFont} ${typography.diacriticSize}}` : `{font:${typography.latinFont} ${typography.latinSize}}`;
+        font = kind;
+      }
       output += text.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
     };
     const glyph = (kind,b) => {
@@ -3515,7 +3540,12 @@ const Dct = (() => {
       if (c === 12) {output += '{page}';continue;}
       if (c >= 16 && c <= 23) {
         const b = following();
-        if (c === 21 || c === 22) {unknown++;emit('�',false);warnings.add('Diacritical or symbol-font glyphs were replaced with visible replacement characters.');}
+        if (c === 21) {
+          const text = diacriticGlyph(b,typography.remapDiacritics);
+          if (text === null) unknown++;
+          emit(text === null ? '�' : text,'diacritic');
+          warnings.add('Diacritics use Unicode equivalents of the CSX+ core character set with a substitute web font. Extended CSX+ characters remain unsupported and appear as �; compare with the source.');
+        } else if (c === 22) {unknown++;emit('�',false);warnings.add('Symbol-font glyphs were replaced with visible replacement characters.');}
         else glyph(c,b);
         continue;
       }
@@ -5239,10 +5269,14 @@ function chooseDctSettings(name, currentFont) {
   $('dctTibetanSize').value = dctPreferences.tibetanSize;
   $('dctLatinSize').value = dctPreferences.latinSize;
   $('dctLatinFont').value = dctPreferences.latinFont;
+  $('dctDiacriticSize').value = dctPreferences.diacriticSize;
+  $('dctDiacriticFont').value = dctPreferences.diacriticFont;
+  $('dctRemapDiacritics').checked = dctPreferences.remapDiacritics;
   dialog.returnValue = '';
   return new Promise(resolve => {
     dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
-      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value,
+      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:$('dctDiacriticFont').value,remapDiacritics:$('dctRemapDiacritics').checked
     } : null), {once:true});
     dialog.showModal();
   });
@@ -5317,6 +5351,7 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  $('dctDiacriticSize').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
