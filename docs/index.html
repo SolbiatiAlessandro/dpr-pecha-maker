@@ -261,11 +261,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="chip" id="nextCode" type="button" title="Ctrl+> or Command+> in the text editor">Next formatting mark</button>
         <button class="chip" id="removeReturns" type="button" title="Select text first. Deletes line breaks without adding spaces; keeps page-break marks.">Remove selected line breaks</button>
       </div>
-      <details>
+      <details id="selectionFormatting">
         <summary>Format selected text</summary>
         <p class="hint">Select text above. Change only the attributes you choose; blank fields keep mixed formatting. With no selection, formatting begins at the cursor. Whole-text size overrides individual sizes until cleared.</p>
         <div class="grid">
-          <label for="selectionFont">Font</label><select id="selectionFont"><option value="">Keep fonts</option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option><option value="serif">Western serif</option></select>
+          <label for="selectionFont">Font</label><select id="selectionFont"><option value="">Keep fonts</option></select>
+          <label for="selectionFontName" id="selectionFontNameLabel" hidden>Other font name</label><input id="selectionFontName" type="text" maxlength="128" placeholder="For example, Verdana" hidden>
           <label for="selectionSize">Size (pt)</label><input id="selectionSize" type="number" min="4" max="200" placeholder="Keep sizes">
           <label for="selectionColor">Colour</label><select id="selectionColor"><option value="">Keep colours</option><option value="#14100e">Black</option><option value="#b03020">Red</option></select>
           <label for="selectionBold">Bold</label><select id="selectionBold"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
@@ -273,6 +274,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <label for="selectionUnderline">Underline</label><select id="selectionUnderline"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
           <label for="selectionStrike">Strikethrough</label><select id="selectionStrike"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
         </div>
+        <p class="hint">Font choices include names used in this document. Choose “Other font…” to enter a local font name. If it is unavailable, the browser uses a fallback.</p>
         <button class="btn" type="button" id="applySelection">Apply chosen attributes</button>
       </details>
       <details>
@@ -3182,6 +3184,19 @@ if (typeof module !== 'undefined') module.exports = Engine;
 const TextFormat = (() => {
   const names = {bold: 'b', italic: 'i', underline: 'u', strike: 's'};
   const role = t => ['root', 'commentary', 'heading', '/role'].includes(t);
+  function fontChoices(doc, Engine) {
+    const choices = new Map();
+    const add = token => {
+      const family = Engine.fontFamily(token);
+      if (family) choices.set(token, Engine.primaryFont(family));
+    };
+    for (const name of ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New',doc.fontName]) add(Engine.fontToken(name));
+    for (const value of Object.values(doc.roles || {})) add(Engine.fontToken(value.font));
+    for (const text of [doc.text, ...(doc.sections || []).map(s => s.text)]) {
+      for (const run of Engine.parseStream(text || '',false)) if (run.style?.font) add(run.style.font);
+    }
+    return [...choices];
+  }
   function token(key, value) {
     if (names[key]) return value === null ? 'bold' : (value ? '' : '/') + names[key];
     if (key === 'size') return value === null ? 'size' : String(value);
@@ -3269,7 +3284,7 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {apply,insertCharacter,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
 
@@ -4777,7 +4792,17 @@ function segment(host, options, active, onPick) {
 
 // ---------- panels ----------
 
+function refreshSelectionFonts() {
+  const select = $('selectionFont'), current = select.value;
+  select.replaceChildren(...[['','Keep fonts'], ...TextFormat.fontChoices(doc,Engine), ['custom','Other font…']].map(([value,label]) => {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
+  }));
+  select.value = [...select.options].some(o => o.value === current) ? current : '';
+  $('selectionFontName').hidden = $('selectionFontNameLabel').hidden = select.value !== 'custom';
+}
+
 function buildPanels() {
+  refreshSelectionFonts();
   buildImagePanel();
   $('text').value = editingText();
   buildSectionPanel();
@@ -5535,11 +5560,20 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
   });
+  $('selectionFormatting').addEventListener('toggle', () => { if ($('selectionFormatting').open) refreshSelectionFonts(); });
+  $('selectionFont').addEventListener('change', () => {
+    const custom = $('selectionFont').value === 'custom';
+    $('selectionFontName').hidden = $('selectionFontNameLabel').hidden = !custom;
+    if (custom) $('selectionFontName').focus();
+  });
   $('applySelection').addEventListener('click', () => {
     const attrs = {}, size = $('selectionSize').value;
     if (size && (!Number.isFinite(+size) || +size < 4 || +size > 200)) { toast('Choose a text size from 4 to 200 pt.'); return; }
     if (size) attrs.size = +size;
-    if ($('selectionFont').value) attrs.font = $('selectionFont').value;
+    if ($('selectionFont').value === 'custom') {
+      attrs.font = Engine.fontToken($('selectionFontName').value);
+      if (!attrs.font) { toast('Enter a font name of 1–128 characters without control characters or semicolons.'); return; }
+    } else if ($('selectionFont').value) attrs.font = $('selectionFont').value;
     if ($('selectionColor').value) attrs.color = $('selectionColor').value;
     for (const key of ['bold', 'italic', 'underline', 'strike']) {
       const value = $('selection' + key[0].toUpperCase() + key.slice(1)).value;
@@ -5548,7 +5582,7 @@ function init() {
     if (!Object.keys(attrs).length) { toast('Choose an attribute to change.'); return; }
     const t = $('text'), result = TextFormat.apply(t.value, t.selectionStart, t.selectionEnd, attrs, Engine);
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
-    setEditingText(t.value); schedule();
+    setEditingText(t.value); refreshSelectionFonts(); schedule();
     toast('Chosen attributes applied; other formatting kept.');
   });
   $('table').addEventListener('contextmenu', e => {

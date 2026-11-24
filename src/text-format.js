@@ -2,6 +2,19 @@
 const TextFormat = (() => {
   const names = {bold: 'b', italic: 'i', underline: 'u', strike: 's'};
   const role = t => ['root', 'commentary', 'heading', '/role'].includes(t);
+  function fontChoices(doc, Engine) {
+    const choices = new Map();
+    const add = token => {
+      const family = Engine.fontFamily(token);
+      if (family) choices.set(token, Engine.primaryFont(family));
+    };
+    for (const name of ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New',doc.fontName]) add(Engine.fontToken(name));
+    for (const value of Object.values(doc.roles || {})) add(Engine.fontToken(value.font));
+    for (const text of [doc.text, ...(doc.sections || []).map(s => s.text)]) {
+      for (const run of Engine.parseStream(text || '',false)) if (run.style?.font) add(run.style.font);
+    }
+    return [...choices];
+  }
   function token(key, value) {
     if (names[key]) return value === null ? 'bold' : (value ? '' : '/') + names[key];
     if (key === 'size') return value === null ? 'size' : String(value);
@@ -89,6 +102,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {apply,insertCharacter,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

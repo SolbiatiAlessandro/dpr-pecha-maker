@@ -254,11 +254,12 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="chip" id="nextCode" type="button" title="Ctrl+> or Command+> in the text editor">Next formatting mark</button>
         <button class="chip" id="removeReturns" type="button" title="Select text first. Deletes line breaks without adding spaces; keeps page-break marks.">Remove selected line breaks</button>
       </div>
-      <details>
+      <details id="selectionFormatting">
         <summary>Format selected text</summary>
         <p class="hint">Select text above. Change only the attributes you choose; blank fields keep mixed formatting. With no selection, formatting begins at the cursor. Whole-text size overrides individual sizes until cleared.</p>
         <div class="grid">
-          <label for="selectionFont">Font</label><select id="selectionFont"><option value="">Keep fonts</option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option><option value="serif">Western serif</option></select>
+          <label for="selectionFont">Font</label><select id="selectionFont"><option value="">Keep fonts</option></select>
+          <label for="selectionFontName" id="selectionFontNameLabel" hidden>Other font name</label><input id="selectionFontName" type="text" maxlength="128" placeholder="For example, Verdana" hidden>
           <label for="selectionSize">Size (pt)</label><input id="selectionSize" type="number" min="4" max="200" placeholder="Keep sizes">
           <label for="selectionColor">Colour</label><select id="selectionColor"><option value="">Keep colours</option><option value="#14100e">Black</option><option value="#b03020">Red</option></select>
           <label for="selectionBold">Bold</label><select id="selectionBold"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
@@ -266,6 +267,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <label for="selectionUnderline">Underline</label><select id="selectionUnderline"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
           <label for="selectionStrike">Strikethrough</label><select id="selectionStrike"><option value="">Keep unchanged</option><option value="on">On</option><option value="off">Off</option></select>
         </div>
+        <p class="hint">Font choices include names used in this document. Choose “Other font…” to enter a local font name. If it is unavailable, the browser uses a fallback.</p>
         <button class="btn" type="button" id="applySelection">Apply chosen attributes</button>
       </details>
       <details>

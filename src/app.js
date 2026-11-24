@@ -134,7 +134,17 @@ function segment(host, options, active, onPick) {
 
 // ---------- panels ----------
 
+function refreshSelectionFonts() {
+  const select = $('selectionFont'), current = select.value;
+  select.replaceChildren(...[['','Keep fonts'], ...TextFormat.fontChoices(doc,Engine), ['custom','Other font…']].map(([value,label]) => {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
+  }));
+  select.value = [...select.options].some(o => o.value === current) ? current : '';
+  $('selectionFontName').hidden = $('selectionFontNameLabel').hidden = select.value !== 'custom';
+}
+
 function buildPanels() {
+  refreshSelectionFonts();
   buildImagePanel();
   $('text').value = editingText();
   buildSectionPanel();
@@ -892,11 +902,20 @@ function init() {
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
     setEditingText(t.value); schedule();
   });
+  $('selectionFormatting').addEventListener('toggle', () => { if ($('selectionFormatting').open) refreshSelectionFonts(); });
+  $('selectionFont').addEventListener('change', () => {
+    const custom = $('selectionFont').value === 'custom';
+    $('selectionFontName').hidden = $('selectionFontNameLabel').hidden = !custom;
+    if (custom) $('selectionFontName').focus();
+  });
   $('applySelection').addEventListener('click', () => {
     const attrs = {}, size = $('selectionSize').value;
     if (size && (!Number.isFinite(+size) || +size < 4 || +size > 200)) { toast('Choose a text size from 4 to 200 pt.'); return; }
     if (size) attrs.size = +size;
-    if ($('selectionFont').value) attrs.font = $('selectionFont').value;
+    if ($('selectionFont').value === 'custom') {
+      attrs.font = Engine.fontToken($('selectionFontName').value);
+      if (!attrs.font) { toast('Enter a font name of 1–128 characters without control characters or semicolons.'); return; }
+    } else if ($('selectionFont').value) attrs.font = $('selectionFont').value;
     if ($('selectionColor').value) attrs.color = $('selectionColor').value;
     for (const key of ['bold', 'italic', 'underline', 'strike']) {
       const value = $('selection' + key[0].toUpperCase() + key.slice(1)).value;
@@ -905,7 +924,7 @@ function init() {
     if (!Object.keys(attrs).length) { toast('Choose an attribute to change.'); return; }
     const t = $('text'), result = TextFormat.apply(t.value, t.selectionStart, t.selectionEnd, attrs, Engine);
     t.value = result.text; t.focus(); t.setSelectionRange(result.start, result.end);
-    setEditingText(t.value); schedule();
+    setEditingText(t.value); refreshSelectionFonts(); schedule();
     toast('Chosen attributes applied; other formatting kept.');
   });
   $('table').addEventListener('contextmenu', e => {

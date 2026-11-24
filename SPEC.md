@@ -787,3 +787,21 @@ validated, quoted font-family rendering path, including punctuation in a family 
 Save/preset persistence, invalid references and partial-file warnings. Its Chrome
 companion checks upload, selection, preview/print SVG, size/rotation, Save/Open,
 PXA retention and quoted families. These checks do not establish Windows visual parity.
+
+### Named-font selection
+
+The selected-text Font control includes common Western and Tibetan choices plus named
+families found in the document body and volume sections. “Other font…” accepts a local
+family name and uses the same bounded, encoded font tokens as native/RTF import. Invalid
+names leave the text unchanged. Font-only edits preserve size, emphasis and colour;
+size-only edits preserve each run's family. The original attributes resume after the
+selection; a caret-only application inserts a continuing font mark. Newly applied
+families become choices and survive web Save/Open and RTF roundtrip.
+
+This follows the guide's font-name selection and used-font toolbar workflow. The web
+panel does not enumerate installed fonts or implement the original locked keyboard and
+legacy automatic mappings. Unavailable fonts use browser fallbacks. The malformed old
+Jomolhari option is replaced by the generated choices. Tests cover mixed attributes,
+section font discovery, custom-name validation, restore scope, caret insertion, browser
+preview/print SVG, persistence and RTF. Native interaction and visual metrics remain
+unverified.
