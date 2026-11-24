@@ -26,7 +26,8 @@ const Rtf = (() => {
           const p = doc.images.find(p => p.id === run.id && p.kind === 'inline'), r = p && PechaImages.dimensions(doc, p);
           if (!r) continue;
           const binary = atob(r.asset.data.split(',')[1]), hex = Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
-          body.push(`{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${Math.round(r.w * 20)}\\pichgoal${Math.round(r.h * 20)}\n${hex}}`);
+          const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
+          body.push(`\\${align}{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${Math.round(r.w * 20)}\\pichgoal${Math.round(r.h * 20)}\n${hex}}`);
           continue;
         }
         const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
@@ -101,11 +102,14 @@ const Rtf = (() => {
     const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0,align:'l',uc:1,codepage:1252};
     let output = '', lastStyle = '', fallback = 0;
     const fontToken = id => table[fonts[id]] ? 'jomolhari' : /tibetan|jomolhari/i.test(fonts[id] || '') ? (/noto/i.test(fonts[id]) ? 'noto' : 'jomolhari') : 'serif';
-    function emit(text, state) {
-      if (!text) return;
+    function emitStyle(state) {
       const size = state.size * (table[fonts[state.font]] ? .75 : 1);
       const style = `{/role font:${fontToken(state.font)} ${size} ${state.bold?'b':'/b'} ${state.italic?'i':'/i'} ${state.underline?'u':'/u'} ${state.strike?'s':'/s'} ${colors[state.color] || 'color'} ${state.align}}`;
       if (style !== lastStyle) { output += style; lastStyle = style; }
+    }
+    function emit(text, state) {
+      if (!text) return;
+      emitStyle(state);
       output += text.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
     }
     function byte(b, state) {
@@ -118,7 +122,7 @@ const Rtf = (() => {
         emit(decoder.decode(new Uint8Array([b])),state);
       }
     }
-    function picture(list) {
+    function picture(list, state) {
       if (!list.some(t => t.name === 'pngblip')) { warnings.add('A non-PNG RTF picture was skipped.'); return; }
       const value = name => list.find(t => t.name === name)?.value;
       const hex = list.map(t => t.text || (t.binary ? Array.from(t.binary,c => c.charCodeAt(0).toString(16).padStart(2,'0')).join('') : '')).join('').replace(/\s/g,'');
@@ -137,7 +141,7 @@ const Rtf = (() => {
       const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
         dpiY:dpiY === dpi ? null : dpiY,scale:value('picscalex') || 100});
       if (value('picscaley') && value('picscaley') !== p.scale) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
-      doc.images.push(p); output += `{image:${p.id}}`;
+      doc.images.push(p); emitStyle(state); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);
     function walk(list, inherited) {
@@ -146,7 +150,7 @@ const Rtf = (() => {
         if (t.group) {
           const dest = destination(t.group), starred = t.group.some((x,i) => i < 2 && x.symbol === '*');
           if (skip.has(dest) || (starred && !['ud','shppict'].includes(dest))) { if (['object','shp','nonshppict'].includes(dest)) warnings.add('Some embedded objects or drawings were skipped.'); continue; }
-          if (dest === 'pict') { picture(t.group); continue; }
+          if (dest === 'pict') { picture(t.group, state); continue; }
           if (dest === 'upr') {
             const branches = t.group.filter(t => t.group);
             const unicode = branches.find(t => destination(t.group) === 'ud');

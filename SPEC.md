@@ -534,3 +534,16 @@ the PDF. A malformed print rule had exposed editor controls and extra pages.
 Chrome regression checks print/screen visibility and actual PDF page objects
 against prepared sheets. The 14-by-8.5-inch duplex fixture now produces exactly
 two PDF pages rather than six, corroborated with pdfinfo.
+
+
+### RTF picture paragraph formatting
+
+Pictures now receive the active paragraph/character style on import even when no
+text precedes them. RTF group restoration applies to the next image or text run.
+Export emits the picture run's paragraph alignment before its PNG group, preserving
+left/center/right/justified image-only paragraphs through the web RTF round trip.
+Tests cover inherited size/bold, nested group restoration, physical dimensions,
+rendered offsets and browser download/reimport/print SVG geometry. Original Windows
+picture paragraph behavior remains unverified. Unequal RTF scale axes remain
+explicitly warned and reduced to the horizontal scale; this increment does not
+establish original support for those controls.
