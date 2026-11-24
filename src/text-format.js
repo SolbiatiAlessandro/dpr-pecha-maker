@@ -70,6 +70,20 @@ const TextFormat = (() => {
     const result=apply(replaced,start,start+character.length,{font},Engine);
     return {text:result.text,cursor:result.end};
   }
+  function styleMark(style) {
+    return '{'+[style.role || '/role', ...['font','size','bold','italic','underline','strike','color'].map(k=>token(k,style[k])), style.align].join(' ')+'}';
+  }
+  function selectedRich(text, start, end, Engine) {
+    if (start === end) return {text:'',start,end};
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
+      const right = m.index+m[0].length;
+      if (start > m.index && start < right) start = m.index;
+      if (end > m.index && end < right) end = right;
+    }
+    // A selection inherits formatting from before its first character, even when no codes are selected.
+    const style = Engine.parseStream(text.slice(0,start)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
+    return {text:styleMark(style)+text.slice(start,end),start,end};
+  }
   function insertRich(text, start, end, fragment, Engine) {
     const collapsed = start === end;
     for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
@@ -79,7 +93,7 @@ const TextFormat = (() => {
       if (end > m.index && end < right) end = right;
     }
     const old = Engine.parseStream(text.slice(0,end)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
-    const restore = '{'+[old.role || '/role', ...['font','size','bold','italic','underline','strike','color'].map(k=>token(k,old[k])), old.align].join(' ')+'}';
+    const restore = styleMark(old);
     // Keep imported paragraphs hard even when the surrounding document uses verse flow.
     const rich = '{/role font size bold /i /u /s color j}'+fragment.replace(/\r\n?|\n/g,'\u2028');
     const replacement = rich+restore;
@@ -117,6 +131,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {fontChoices,apply,insertCharacter,insertRich,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,selectedRich,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

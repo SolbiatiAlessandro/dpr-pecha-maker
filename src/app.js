@@ -916,6 +916,16 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('copy', event => {
+    if (!$('copyFormatted').checked || !event.clipboardData) return;
+    try {
+      const t = $('text'), result = Rtf.copySelection(doc,t.value,t.selectionStart,t.selectionEnd,Engine,TextFormat);
+      if (result.empty) return;
+      event.clipboardData.setData('text/rtf',result.rtf);
+      event.clipboardData.setData('text/plain',result.plain);
+      event.preventDefault();
+    } catch (error) { toast('Could not copy formatted text: '+error.message); }
+  });
   $('text').addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
     if (!rtf) return;

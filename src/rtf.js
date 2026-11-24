@@ -43,6 +43,18 @@ const Rtf = (() => {
     const fontTable = fonts.map((name,id) => `{\\f${id}\\fnil ${escape(name.replace(/;/g,''))};}`).join('');
     return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1\n{\\fonttbl' + fontTable + '}\n{\\colortbl;' + colorTable + '}\n' + body.join('') + '}';
   }
+  function copySelection(doc, source, start, end, Engine, TextFormat) {
+    const selected = TextFormat.selectedRich(source,start,end,Engine);
+    const fragment = {...doc,text:selected.text,sections:[]};
+    let plain = '';
+    for (const run of Engine.parseStream(selected.text,false)) {
+      if (run.k === 'text') plain += run.s.replace(/\uE00D/g,'།').replace(/\u2028/g,'\n');
+      else if (run.k === 'page') plain += '\f';
+      else if (run.k === 'image' && doc.images.some(p=>p.id===run.id && p.kind==='inline' && PechaImages.dimensions(doc,p))) plain += '\uFFFC';
+    }
+    if (!plain) return {...selected,empty:true};
+    return {...selected,plain,rtf:write(fragment,Engine)};
+  }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
     if (!/^\s*\{\\rtf1\b/.test(source) || source.length > 24000000) throw new Error('Not a supported RTF file (maximum 24 MB).');
@@ -257,6 +269,6 @@ const Rtf = (() => {
   }
 
   const insertNote = (...args) => insertMark(...args);
-  return {write, escape, read, insert, insertMark, insertNote};
+  return {write, escape, read, copySelection, insert, insertMark, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
