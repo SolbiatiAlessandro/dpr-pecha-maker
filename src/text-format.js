@@ -84,6 +84,15 @@ const TextFormat = (() => {
     const style = Engine.parseStream(text.slice(0,start)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
     return {text:styleMark(style)+text.slice(start,end),start,end};
   }
+  function removeRich(text, start, end, Engine) {
+    const range = selectedRich(text,start,end,Engine);
+    start = range.start; end = range.end;
+    const stateAt = at => Engine.parseStream(text.slice(0,at)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
+    const before = styleMark(stateAt(start)), after = styleMark(stateAt(end));
+    // Keep following text's appearance when the removed range contains persistent format changes.
+    const replacement = end < text.length && before !== after ? after : '';
+    return {text:text.slice(0,start)+replacement+text.slice(end),start,end,replacement,cursor:start};
+  }
   function insertRich(text, start, end, fragment, Engine) {
     const collapsed = start === end;
     for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
@@ -131,6 +140,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {fontChoices,apply,insertCharacter,selectedRich,insertRich,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;

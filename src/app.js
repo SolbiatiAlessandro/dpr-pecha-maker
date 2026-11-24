@@ -916,15 +916,30 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
-  $('text').addEventListener('copy', event => {
-    if (!$('copyFormatted').checked || !event.clipboardData) return;
+  for (const operation of ['copy','cut']) $('text').addEventListener(operation, event => {
+    if (!$('copyFormatted').checked) return;
+    if (!event.clipboardData) {
+      if (operation === 'cut') { event.preventDefault(); toast('Clipboard unavailable; text was not cut.'); }
+      return;
+    }
     try {
       const t = $('text'), result = Rtf.copySelection(doc,t.value,t.selectionStart,t.selectionEnd,Engine,TextFormat);
       if (result.empty) return;
+      const removal = operation === 'cut' ? TextFormat.removeRich(t.value,result.start,result.end,Engine) : null;
       event.clipboardData.setData('text/rtf',result.rtf);
       event.clipboardData.setData('text/plain',result.plain);
       event.preventDefault();
-    } catch (error) { toast('Could not copy formatted text: '+error.message); }
+      if (removal) {
+        t.focus(); t.setSelectionRange(removal.start,removal.end);
+        const edited = removal.replacement ? document.execCommand('insertText',false,removal.replacement) : document.execCommand('delete',false);
+        if (!edited) t.setRangeText(removal.replacement,removal.start,removal.end,'end');
+        t.setSelectionRange(removal.cursor,removal.cursor); setEditingText(t.value);
+        isSample = false; noteSample(); refreshSelectionFonts(); schedule();
+      }
+    } catch (error) {
+      if (operation === 'cut') event.preventDefault();
+      toast('Could not '+operation+' formatted text: '+error.message);
+    }
   });
   $('text').addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
