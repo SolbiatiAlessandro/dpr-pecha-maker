@@ -44,7 +44,7 @@ outer and inner side boxes, an optional inside box, and an optional squeeze of t
 - Text is Unicode Tibetan mixed with any other script. PechaMaker has no Unicode support; here it is
   the only input encoding, and old files are converted on opening.
 - Format codes sit in the text and apply until changed: `{c}` `{j}` `{l}` `{r}`, `{30}` size, `{size}`
-  default size, `{#b03020}` colour, `{color}` black, `{b}` `{i}` `{u}` `{s}` with slash closing marks,
+  default size, `{#b03020}` colour, `{color}` default colour, `{b}` `{i}` `{u}` `{s}` with slash closing marks,
   `{page}`, `{hs}` fixed shad. Formatting marks apply until changed; buttons insert marks at the cursor.
 - With "Run lines together", a single line break disappears and a blank line is a hard return. A verse
   ending in a shad or tsheg joins the next verse with no added space.
@@ -664,3 +664,17 @@ font references, body and partial-file scopes, raw annotation/yi-go/folio stream
 replacement warnings, locale fallback and web Save. Chrome checks punctuation and
 Cyrillic preview/print, PXA notes, RTF export and Save/Open. Original Windows runtime
 comparison remains blocked by guest input.
+
+### Native strikeout and explicit black
+
+PXP/PXC/PXA text streams preserve opcode0x26 as strikeout on for a nonzero
+argument and off for zero, independently of bold, italic and underline. Native
+RGB black imports as `{#000000}` rather than the web default-colour reset, so a
+coloured page-type default cannot change explicitly black source text. These
+rules also apply to rich annotation streams. The original RTF writer confirms
+opcode0x26 as strikeout; original Windows visual comparison remains unverified.
+
+Generated fixtures cover body/content/annotation imports, mixed attribute
+transitions, custom default colours, Save/Open and RTF round trips. Chrome checks
+actual uploads and matching preview/print SVG attributes. Synthetic fixtures and
+passing tests do not establish exact native fonts, layout or full-format parity.

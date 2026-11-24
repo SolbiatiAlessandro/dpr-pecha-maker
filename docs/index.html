@@ -3934,11 +3934,12 @@ const Pxp = (() => {
       else if (e.op === 0x21) raw = e.b;
       else if (e.op === 0x22) {
         const hex = [e.a, e.b, e.d].map(c => c.toString(16).padStart(2, '0')).join('');
-        out += hex === '000000' ? '{color}' : `{#${hex}}`;
+        out += `{#${hex}}`;  // Native RGB black is explicit, not the web default-color reset.
       }
       else if (e.op === 0x23) out += e.a ? '{b}' : '{/b}';
       else if (e.op === 0x24) out += e.a ? '{i}' : '{/i}';
       else if (e.op === 0x25) out += e.a ? '{u}' : '{/u}';
+      else if (e.op === 0x26) out += e.a ? '{s}' : '{/s}';
       else if (ALIGN[e.op]) out += `{${ALIGN[e.op]}}`;
       else if (e.op === 0x48) out += '\t';
     }
