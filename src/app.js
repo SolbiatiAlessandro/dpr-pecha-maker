@@ -874,6 +874,23 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('paste', event => {
+    const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
+    if (!rtf) return;
+    event.preventDefault();
+    try {
+      const t = $('text'), result = Rtf.insert(rtf,doc,t.value,t.selectionStart,t.selectionEnd,Engine,LEGACY_TABLE,TextFormat);
+      reportImport(result.warnings);
+      if (result.empty) { toast('The pasted RTF contains no supported text or images.'); return; }
+      t.focus(); t.setSelectionRange(result.start,result.end);
+      // Use the browser edit transaction where available so text undo/redo remains usable.
+      if (!document.execCommand('insertText',false,result.replacement)) t.setRangeText(result.replacement,result.start,result.end,'end');
+      doc.assets = result.assets; doc.images = result.images;
+      t.setSelectionRange(result.cursor,result.cursor); setEditingText(t.value);
+      isSample = false; noteSample(); refreshSelectionFonts(); buildImagePanel(); schedule();
+      toast(result.warnings.length ? 'Formatted text pasted. Review the import notes.' : 'Formatted text pasted; surrounding styles kept.');
+    } catch (error) { toast('Could not paste RTF: '+error.message); }
+  });
   $('text').addEventListener('keydown', event => {
     if (event.key === 'Insert' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing) {
       event.preventDefault();

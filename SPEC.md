@@ -823,3 +823,28 @@ rather than assigning Unicode output to the legacy Times_CSX+ encoding.
 preference migration, validation, mixed-script scope, size, preview/print SVG, web Save,
 RTF roundtrip, cancellation and failed-import retention. Local availability, glyph
 fallback, original dialog behavior and Windows font metrics remain unverified.
+
+### RTF clipboard insertion
+
+The main editor handles `text/rtf` or `application/rtf` data supplied in a paste event.
+It uses the existing bounded RTF reader, replaces the selected range, and restores all
+following style fields, including semantic role, implicit font/size/bold defaults and
+alignment. A caret inside a visible format token moves after it; partial token selections
+expand to whole tokens. Imported paragraphs remain hard breaks in verse-flow documents.
+The caret stays before the restoration mark so subsequent typing can continue the pasted
+style. Existing layout, other sections and margin content are retained.
+
+Supported inline PNGs merge into the current image collection with unique placement IDs
+and shared identical pixel assets. Existing page/yi-go placements stay intact. Paste that
+would exceed image limits is rejected before changing the document. Empty or invalid RTF
+leaves the selection unchanged. Text edits use the browser undo transaction where supported;
+image resources remain available for redo. The fallback text replacement does not promise
+native undo on browsers without that editing command.
+
+Plain-text paste remains browser-owned when RTF is absent. HTML clipboard conversion,
+rich copying out of the editor, annotation-field rich paste and actual desktop-app clipboard
+availability remain open. Chrome tests inject clipboard events; they verify handling,
+preview/print SVG, undo/redo, image merge/dedup, Save/Open and active-section scope, not
+that any particular operating system or browser exposes RTF from a given application.
+The original guide documents RTF clipboard formatting; Windows interaction and exact
+clipboard-image behavior still require runtime comparison.

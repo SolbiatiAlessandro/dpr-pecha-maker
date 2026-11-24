@@ -252,6 +252,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         </div>
       </details>
       <textarea id="text" lang="bo" spellcheck="false" aria-label="Pecha text"></textarea>
+      <p class="hint">Pasting keeps formatting and supported inline images when your browser supplies RTF. Otherwise it pastes plain text.</p>
       <label class="check"><input id="typeover" type="checkbox"><span>Typeover (Insert key)</span></label>
       <p class="hint">Typeover replaces the next character, including its Tibetan stack or vowel marks. It stops at formatting marks and line breaks. Paste and input-method composition keep normal insertion; newly typed vowel marks extend the preceding character.</p>
       <div class="chips" id="codes"></div>
@@ -3257,6 +3258,21 @@ const TextFormat = (() => {
     const result=apply(replaced,start,start+character.length,{font},Engine);
     return {text:result.text,cursor:result.end};
   }
+  function insertRich(text, start, end, fragment, Engine) {
+    const collapsed = start === end;
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
+      const right = m.index + m[0].length;
+      if (collapsed && start > m.index && start < right) { start = end = right; break; }
+      if (start > m.index && start < right) start = m.index;
+      if (end > m.index && end < right) end = right;
+    }
+    const old = Engine.parseStream(text.slice(0,end)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
+    const restore = '{'+[old.role || '/role', ...['font','size','bold','italic','underline','strike','color'].map(k=>token(k,old[k])), old.align].join(' ')+'}';
+    // Keep imported paragraphs hard even when the surrounding document uses verse flow.
+    const rich = '{/role font size bold /i /u /s color j}'+fragment.replace(/\r\n?|\n/g,'\u2028');
+    const replacement = rich+restore;
+    return {text:text.slice(0,start)+replacement+text.slice(end),start,end,replacement,cursor:start+rich.length};
+  }
   function findCode(text, start, end, direction) {
     const marks = [...text.matchAll(/\{[^{}\n]*\}/g)];
     const mark = direction < 0 ? marks.reverse().find(m => m.index < start)
@@ -3289,7 +3305,7 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {fontChoices,apply,insertCharacter,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
 
@@ -3507,7 +3523,26 @@ const Rtf = (() => {
     return {doc, warnings:[...warnings]};
   }
 
-  return {write, escape, read};
+  function insert(input, current, source, start, end, Engine, table, TextFormat) {
+    const imported = read(input,Engine,table), fragment = imported.doc;
+    if (!fragment.text) return {empty:true,warnings:imported.warnings};
+    const assets = [...current.assets], images = [...current.images], ids = new Map(), assetIds = new Map();
+    const unique = (prefix, items) => { let n=items.length; while(items.some(x=>x.id===prefix+n)) n++; return prefix+n; };
+    for (const asset of fragment.assets) {
+      let existing = assets.find(a=>a.data===asset.data && a.width===asset.width && a.height===asset.height);
+      if (!existing) { existing = {...asset,id:unique('paste-asset-',assets)}; assets.push(existing); }
+      assetIds.set(asset.id,existing.id);
+    }
+    for (const placement of fragment.images) {
+      const id = unique('paste-image-',images); ids.set(placement.id,id);
+      images.push({...placement,id,asset:assetIds.get(placement.asset)});
+    }
+    if (assets.length > 200 || images.length > 1000) throw new Error('Pasting would exceed the document image limit.');
+    const text = fragment.text.replace(/\{image:([\w-]+)\}/g,(_,id)=>`{image:${ids.get(id)}}`);
+    return {...TextFormat.insertRich(source,start,end,text,Engine),assets,images,warnings:imported.warnings};
+  }
+
+  return {write, escape, read, insert};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
 
@@ -5537,6 +5572,23 @@ function init() {
     if (b.dataset.tab === 'print') setView('sheets');
   }));
   $('text').addEventListener('input', e => { setEditingText(e.target.value); isSample = false; noteSample(); schedule(); });
+  $('text').addEventListener('paste', event => {
+    const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');
+    if (!rtf) return;
+    event.preventDefault();
+    try {
+      const t = $('text'), result = Rtf.insert(rtf,doc,t.value,t.selectionStart,t.selectionEnd,Engine,LEGACY_TABLE,TextFormat);
+      reportImport(result.warnings);
+      if (result.empty) { toast('The pasted RTF contains no supported text or images.'); return; }
+      t.focus(); t.setSelectionRange(result.start,result.end);
+      // Use the browser edit transaction where available so text undo/redo remains usable.
+      if (!document.execCommand('insertText',false,result.replacement)) t.setRangeText(result.replacement,result.start,result.end,'end');
+      doc.assets = result.assets; doc.images = result.images;
+      t.setSelectionRange(result.cursor,result.cursor); setEditingText(t.value);
+      isSample = false; noteSample(); refreshSelectionFonts(); buildImagePanel(); schedule();
+      toast(result.warnings.length ? 'Formatted text pasted. Review the import notes.' : 'Formatted text pasted; surrounding styles kept.');
+    } catch (error) { toast('Could not paste RTF: '+error.message); }
+  });
   $('text').addEventListener('keydown', event => {
     if (event.key === 'Insert' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !event.isComposing) {
       event.preventDefault();

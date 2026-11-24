@@ -208,6 +208,25 @@ const Rtf = (() => {
     return {doc, warnings:[...warnings]};
   }
 
-  return {write, escape, read};
+  function insert(input, current, source, start, end, Engine, table, TextFormat) {
+    const imported = read(input,Engine,table), fragment = imported.doc;
+    if (!fragment.text) return {empty:true,warnings:imported.warnings};
+    const assets = [...current.assets], images = [...current.images], ids = new Map(), assetIds = new Map();
+    const unique = (prefix, items) => { let n=items.length; while(items.some(x=>x.id===prefix+n)) n++; return prefix+n; };
+    for (const asset of fragment.assets) {
+      let existing = assets.find(a=>a.data===asset.data && a.width===asset.width && a.height===asset.height);
+      if (!existing) { existing = {...asset,id:unique('paste-asset-',assets)}; assets.push(existing); }
+      assetIds.set(asset.id,existing.id);
+    }
+    for (const placement of fragment.images) {
+      const id = unique('paste-image-',images); ids.set(placement.id,id);
+      images.push({...placement,id,asset:assetIds.get(placement.asset)});
+    }
+    if (assets.length > 200 || images.length > 1000) throw new Error('Pasting would exceed the document image limit.');
+    const text = fragment.text.replace(/\{image:([\w-]+)\}/g,(_,id)=>`{image:${ids.get(id)}}`);
+    return {...TextFormat.insertRich(source,start,end,text,Engine),assets,images,warnings:imported.warnings};
+  }
+
+  return {write, escape, read, insert};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;

@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+global.PechaImages=require('../src/images');global.Folio=require('../src/folio');
+const E=require('../src/engine'),R=require('../src/rtf'),F=require('../src/text-format'),D=require('../src/documents'),T=require('../src/legacy-table'),{picture}=require('./rtf-picture-fixture');
+const rtf='{\\rtf1\\ansi{\\fonttbl{\\f0 Courier New;}}{\\colortbl;\\red176\\green48\\blue32;}\\f0\\fs36\\b\\i\\ul\\strike\\cf1 New\\par Line}';
+const base=()=>{const d=E.defaultDoc();d.text='{commentary font:noto 27 i u s #123456 r}Before OLD After';d.flow=true;return d;};
+const d=base(),start=d.text.indexOf('OLD');const result=R.insert(rtf,d,d.text,start,start+3,E,T,F);
+assert.equal(d.text,base().text,'planning paste does not mutate document');assert(result.text.includes('\u2028'));assert(!result.text.includes('OLD'));
+const runs=E.parseStream(result.text,false).filter(r=>r.k==='text');assert.equal(runs[0].s,'Before ');assert.equal(runs.at(-1).s,' After');assert.deepEqual(runs[0].style,runs.at(-1).style);
+const middle=runs.filter(r=>r.s.includes('New')||r.s.includes('Line'));assert(middle.every(r=>r.style.font==='family:Courier%20New'&&r.style.size===18&&r.style.bold&&r.style.italic&&r.style.underline&&r.style.strike&&r.style.color==='#b03020'&&r.style.role===null));
+assert.equal(E.parseStream(result.text.slice(0,result.cursor)+'X'+result.text.slice(result.cursor),false).filter(r=>r.k==='text').find(r=>r.s.includes('X')).style.font,'family:Courier%20New');
+const saved=D.normalize({...d,text:result.text,assets:result.assets,images:result.images},E);assert.equal(saved.text,result.text);
+const token=d.text.indexOf('font:')+2,collapsed=R.insert(rtf,d,d.text,token,token,E,T,F);assert.equal(collapsed.start,d.text.indexOf('}')+1);assert.equal(collapsed.start,collapsed.end);
+const selected=R.insert(rtf,d,d.text,token,start+3,E,T,F);assert.equal(selected.start,0);
+assert(R.insert('{\\rtf1}',d,d.text,start,start+3,E,T,F).empty);assert.throws(()=>R.insert('bad',d,d.text,start,start+3,E,T,F));
+// Existing placements of all kinds survive, while repeated pasted pixels are shared and IDs stay unique.
+const withImage='{\\rtf1\\ansi A'+picture()+'B}';const first=R.insert(withImage,d,d.text,start,start+3,E,T,F);
+const target={...d,text:first.text,assets:first.assets,images:first.images};target.images.push({...target.images[0],id:'fixed-page',kind:'page'});target.images.push({...target.images[0],id:'ornament',kind:'yigo'});target.yigo.image='ornament';
+const second=R.insert(withImage,target,target.text,0,0,E,T,F);assert.equal(second.assets.length,1);assert.equal(second.images.length,4);assert.equal(new Set(second.images.map(p=>p.id)).size,4);assert(second.text.includes('{image:paste-image-3}'));
+assert.deepEqual(target.images,second.images.slice(0,3));assert.equal(target.yigo.image,'ornament');
+const full={...target,text:second.text,images:second.images,assets:second.assets};assert.equal(D.normalize(full,E).images.length,4);assert(R.write(full,E).includes('\\pngblip'));
+const capped={...d,images:Array.from({length:1000},(_,i)=>({id:'keep'+i})),assets:[]};assert.throws(()=>R.insert(withImage,capped,d.text,0,0,E,T,F));assert.equal(capped.images.length,1000);
+console.log('PASS: RTF paste styles, complete restoration, caret/token boundaries, hard paragraphs, Save, empty/error retention, unique inline-image merge/dedup and image limit');
+module.exports={rtf};

@@ -70,6 +70,21 @@ const TextFormat = (() => {
     const result=apply(replaced,start,start+character.length,{font},Engine);
     return {text:result.text,cursor:result.end};
   }
+  function insertRich(text, start, end, fragment, Engine) {
+    const collapsed = start === end;
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) {
+      const right = m.index + m[0].length;
+      if (collapsed && start > m.index && start < right) { start = end = right; break; }
+      if (start > m.index && start < right) start = m.index;
+      if (end > m.index && end < right) end = right;
+    }
+    const old = Engine.parseStream(text.slice(0,end)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
+    const restore = '{'+[old.role || '/role', ...['font','size','bold','italic','underline','strike','color'].map(k=>token(k,old[k])), old.align].join(' ')+'}';
+    // Keep imported paragraphs hard even when the surrounding document uses verse flow.
+    const rich = '{/role font size bold /i /u /s color j}'+fragment.replace(/\r\n?|\n/g,'\u2028');
+    const replacement = rich+restore;
+    return {text:text.slice(0,start)+replacement+text.slice(end),start,end,replacement,cursor:start+rich.length};
+  }
   function findCode(text, start, end, direction) {
     const marks = [...text.matchAll(/\{[^{}\n]*\}/g)];
     const mark = direction < 0 ? marks.reverse().find(m => m.index < start)
@@ -102,6 +117,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {fontChoices,apply,insertCharacter,findCode,removeReturns,typeoverRange};
+  return {fontChoices,apply,insertCharacter,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
