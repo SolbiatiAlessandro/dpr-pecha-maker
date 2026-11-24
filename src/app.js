@@ -96,6 +96,11 @@ function field(host, def) {
     }
     el.id = id;
     wrap.append(lab, el);
+    if (def.suggestions) {
+      const list = document.createElement('datalist'); list.id = id+'_choices';
+      for (const value of def.suggestions) { const option = document.createElement('option'); option.value = value; list.append(option); }
+      el.setAttribute('list',list.id); wrap.append(list);
+    }
   }
   if (def.disabled) el.disabled = true;
   el.addEventListener(def.event || (def.type === 'select' || def.type === 'check' ? 'change' : 'input'), () => {
@@ -115,18 +120,19 @@ function field(host, def) {
     schedule();
   });
   host.append(wrap);
-  if (def.notePaste) bindNotePaste(el,def.notePaste);
+  if (def.richPaste) bindMarkPaste(el,def.path,def.richPaste);
 }
 
-function bindNotePaste(el, path) {
-  const states = new Map([[el.value,!!getPath(path).rich]]);
+function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
+  const label = kind === 'yigo' ? 'Yi-go' : kind === 'phrase' ? 'Fixed phrase' : 'Note';
+  const states = new Map([[el.value,!!getPath(richPath)]]);
   const setRich = rich => {
-    getPath(path).rich = rich;
-    const control = $('f_'+(path+'.rich').replace(/\W/g,'_'));
+    setPath(richPath,rich);
+    const control = $('f_'+richPath.replace(/\W/g,'_'));
     if (control) control.checked = rich;
   };
   const remember = () => {
-    states.set(el.value,!!getPath(path).rich);
+    states.set(el.value,!!getPath(richPath));
     if (states.size > 100) states.delete(states.keys().next().value);
   };
   el.addEventListener('input', event => {
@@ -138,15 +144,17 @@ function bindNotePaste(el, path) {
     if (!rtf) return;
     event.preventDefault();
     try {
-      const slot = getPath(path), result = Rtf.insertNote(rtf,{...slot,text:el.value},el.selectionStart,el.selectionEnd,Engine,LEGACY_TABLE,TextFormat);
+      const result = Rtf.insertMark(rtf,{rich:getPath(richPath),text:el.value},el.selectionStart,el.selectionEnd,Engine,LEGACY_TABLE,TextFormat,kind);
       reportImport(result.warnings);
-      if (result.empty) { toast('The pasted RTF contains no supported note text.'); return; }
+      if (result.empty) { toast('The pasted RTF contains no supported text for this field.'); return; }
       remember(); setRich(true);
       el.focus(); el.setSelectionRange(result.start,result.end);
       if (!document.execCommand('insertText',false,result.replacement)) el.setRangeText(result.replacement,result.start,result.end,'end');
-      slot.text = el.value; slot.on = !!slot.text; remember();
+      setPath(textPath,el.value);
+      if (kind === 'note') setPath(textPath.replace(/\.text$/,'.on'),!!el.value);
+      remember();
       el.setSelectionRange(result.cursor,result.cursor); schedule();
-      toast(result.warnings.length ? 'Formatted note pasted. Review the import notes.' : 'Formatted note pasted; the note size is unchanged.');
+      toast(result.warnings.length ? label+' pasted. Review the import notes.' : label+' pasted; existing size settings kept.');
     } catch (error) { toast('Could not paste RTF: '+error.message); }
   });
 }
@@ -223,8 +231,8 @@ function buildPanels() {
   fill($('yigoFields'), [
     { path: 'yigo.image', label: 'Yi-go source', type: 'select', wide: true, options: [['', 'Text yi-go'], ...doc.images.filter(p => p.kind === 'yigo').map((p, i) => [p.id, `Image ${i + 1}`])] },
     { path: 'yigo.enabled', label: 'Add a yi-go on the front of each folio', type: 'check' },
-    ...(doc.yigo.rich ? [{ path: 'yigo.text', label: 'Custom yi-go text and formatting marks', type: 'text', wide: true }] : [{ path: 'yigo.text', label: 'Yi-go', type: 'select', options: [...new Set([doc.yigo.text, ...YIGOS])].map(y => [y, y]), wide: true }]),
-    { path: 'yigo.rich', label: 'Use formatting marks in custom yi-go', type: 'check', onChange: buildPanels },
+    { path: 'yigo.text', label: 'Yi-go text and formatting marks', type: 'text', wide: true, tibetan: true, suggestions: YIGOS, richPaste: {richPath:'yigo.rich',kind:'yigo'} },
+    { path: 'yigo.rich', label: 'Use formatting marks in custom yi-go', type: 'check' },
     { path: 'yigo.ignoreColor', label: 'Match yi-go colour to the first character', type: 'check' },
     { path: 'yigo.fancyStart', label: 'Start on the first Fancy page', type: 'check' },
     { path: 'yigo.title2', label: 'Also on Title pages after the first', type: 'check' },
@@ -252,7 +260,7 @@ function buildPanels() {
     { path: 'folio.angle', label: 'Folio label rotation', type: 'select', number: true, wide: true, options: [[-90, '90° counterclockwise'], [90, '90° clockwise'], [0, 'Horizontal']] },
     { path: 'folio.jyon', label: 'Add བྱོན། to the last folio', type: 'check' },
     { path: 'folio.rhinoEnabled', label: 'Use a fixed phrase on every folio front, including Title pages', type: 'check' },
-    { path: 'folio.rhino', label: 'Fixed phrase (seru / rhino)', type: 'text', wide: true, tibetan: true },
+    { path: 'folio.rhino', label: 'Fixed phrase (seru / rhino)', type: 'text', wide: true, tibetan: true, richPaste: {richPath:'folio.rhinoRich',kind:'phrase'} },
     { path: 'folio.rhinoRich', label: 'Use formatting marks in the fixed phrase', type: 'check' },
   ]);
   fill($('pageNumFields'), [
@@ -431,7 +439,7 @@ function buildTypePanel() {
 function buildNotePanel() {
   const base = `notes.sets.${noteSide.replace('.', '|')}`;
   const slot = (key, label) => [
-    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, notePaste: `${base}.${key}`, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
+    { path: `${base}.${key}.text`, label, type: 'text', wide: true, tibetan: true, richPaste: {richPath:`${base}.${key}.rich`}, onChange: v => { getPath(`${base}.${key}`).on = !!v; } },
     { path: `${base}.${key}.rich`, label: 'Use formatting marks in this note', type: 'check' },
     { path: `${base}.${key}.size`, label: 'Size, pt', step: 1, min: 5 },
     { path: `${base}.${key}.inset`, label: 'Inset, in', step: 0.01, min: 0 },

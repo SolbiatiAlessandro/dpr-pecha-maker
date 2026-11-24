@@ -227,18 +227,20 @@ const Rtf = (() => {
     return {...TextFormat.insertRich(source,start,end,text,Engine),assets,images,warnings:imported.warnings};
   }
 
-  function insertNote(input, slot, start, end, Engine, table, TextFormat) {
+  function insertMark(input, slot, start, end, Engine, table, TextFormat, kind = 'note') {
     const imported = read(input,Engine,table), warnings = new Set(imported.warnings);
     const literal = s => s.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
     let fragment = '', hasText = false;
     for (const run of Engine.parseStream(imported.doc.text,false)) {
-      if (run.k === 'image') { warnings.add('Pictures were skipped: margin notes contain text only.'); continue; }
-      if (run.k === 'page') { fragment += ' '; warnings.add('Line and page breaks were converted to spaces in the single-line note.'); continue; }
+      if (run.k === 'image') { warnings.add('Pictures were skipped: this text field contains text only.'); continue; }
+      if (run.k === 'page') { fragment += ' '; warnings.add('Line breaks, page breaks and tabs were converted to spaces in the single-line field.'); continue; }
       if (run.k !== 'text') continue;
-      if (/[\r\n\u2028\t]/.test(run.s)) warnings.add('Line and page breaks were converted to spaces in the single-line note.');
+      if (/[\r\n\u2028\t]/.test(run.s)) warnings.add('Line breaks, page breaks and tabs were converted to spaces in the single-line field.');
       const s = run.style;
-      // Each annotation position owns its size; clipboard sizes and paragraph layout do not apply.
-      fragment += '{'+[s.font ? 'font:'+s.font : 'font',s.bold?'b':'/b',s.italic?'i':'/i',s.underline?'u':'/u',s.strike?'s':'/s',s.color||'color'].join(' ')+'}'+literal(run.s.replace(/[\r\n\u2028\t]/g,' '));
+      // Automatic marks own their size. Native yi-go streams use font/colour only.
+      const emphasis = kind === 'yigo' ? [] : [s.bold?'b':'/b',s.italic?'i':'/i',s.underline?'u':'/u',s.strike?'s':'/s'];
+      if (kind === 'yigo' && (s.bold || s.italic || s.underline || s.strike)) warnings.add('Yi-go paste keeps fonts and colours; pasted emphasis is ignored.');
+      fragment += '{'+[s.font ? 'font:'+s.font : 'font',...emphasis,s.color||'color'].join(' ')+'}'+literal(run.s.replace(/[\r\n\u2028\t]/g,' '));
       hasText ||= !!run.s.trim();
     }
     if (!hasText) return {empty:true,warnings:[...warnings]};
@@ -254,6 +256,7 @@ const Rtf = (() => {
     return {...result,warnings:[...warnings]};
   }
 
-  return {write, escape, read, insert, insertNote};
+  const insertNote = (...args) => insertMark(...args);
+  return {write, escape, read, insert, insertMark, insertNote};
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
