@@ -131,9 +131,12 @@ const Rtf = (() => {
       const data = 'data:image/png;base64,' + btoa(binary);
       let asset = doc.assets.find(a => a.data === data);
       if (!asset) {asset = {id:uniqueId('rtf-asset-',doc.assets), data, width, height}; doc.assets.push(asset);}
-      const goal = value('picwgoal'), dpi = goal > 0 ? width * 1440 / goal : PechaImages.pngDpi(bytes) || 96;
-      const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,scale:value('picscalex') || 100});
-      if ((value('picscaley') && value('picscaley') !== p.scale) || (goal && value('pichgoal') && Math.abs(width/height - goal/value('pichgoal')) > .01)) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
+      const resolution = PechaImages.pngResolution(bytes), goal = value('picwgoal'), heightGoal = value('pichgoal');
+      const dpi = goal > 0 ? width * 1440 / goal : resolution?.x || 96;
+      const dpiY = heightGoal > 0 ? height * 1440 / heightGoal : resolution?.y || 96;
+      const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
+        dpiY:dpiY === dpi ? null : dpiY,scale:value('picscalex') || 100});
+      if (value('picscaley') && value('picscaley') !== p.scale) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
       doc.images.push(p); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);

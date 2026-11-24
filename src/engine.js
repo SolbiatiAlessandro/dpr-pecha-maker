@@ -457,7 +457,7 @@ const Engine = (() => {
         if (a.image) {
           const im = PechaImages.dimensions(doc, a.image);
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" href="${im.asset.data}"/>`;
+          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" preserveAspectRatio="none" href="${im.asset.data}"/>`;
           continue;
         }
         out += textEl(T.x0 + (line.offset || 0) + a.x, baseline - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
@@ -556,7 +556,7 @@ const Engine = (() => {
   function drawPageImages(p, doc) {
     return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
       const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
-      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" href="${r.asset.data}"/>`;
+      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" preserveAspectRatio="none" href="${r.asset.data}"/>`;
     }).join('');
   }
 

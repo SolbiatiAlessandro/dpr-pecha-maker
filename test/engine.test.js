@@ -333,7 +333,7 @@ assert.strictEqual(Engine.parseStream('ཀ། །\nཁ། །', true)[0].s, 'ཀ
   let r = Engine.run(doc, measure), line = r.pages[0].lines[0];
   assert.strictEqual(line.items[1].image.id, 'inline1'); assert.strictEqual(line.items[1].w, 86.4);
   let svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);
-  assert(svg.includes('width="72" height="36" href="data:image/png;base64,'));
+  assert(svg.includes('width="72" height="36" preserveAspectRatio="none" href="data:image/png;base64,'));
   const y = +svg.match(/<image[^>]* x="[^"]+" y="([^"]+)"/)[1];
   doc.tibetanRaise = .1; doc.images[0].addTibetan = true;
   r = Engine.run(doc, measure); svg = Engine.pageSvg(r.pages[0], doc, measure, r.folioCount);

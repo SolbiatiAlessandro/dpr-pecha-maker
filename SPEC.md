@@ -369,6 +369,18 @@ ordinary path also rounds to reference-display logical units before scaling.
 The web continues to use96CSS pixels/inch; exact display-dependent native
 rounding is not reproduced. There is no universal hardcoded Windows96DPI fallback.
 
+Horizontal and vertical image resolution are now independent. Native1.0/1.1 records
+and PNG pHYs metadata retain both axes; if either native axis is missing, both use
+the documented web96DPI fallback with a warning. Ignore DPI uses96 for both axes.
+The optional vertical DPI field inherits horizontal DPI when blank, preserving old
+web documents. Scale/copy, page-image text exclusion, yi-go, save/load, print SVG,
+and RTF goal-size round trips use the same independent dimensions. SVG images fill
+that physical rectangle without preserving the source pixel aspect ratio. Original
+PNG bytes are retained on PNG upload so Download PNG keeps their density metadata;
+placement overrides remain document settings. JPEG/WebP still convert to PNG at96DPI.
+Synthetic fixtures and browser checks cover a96x48-pixel image at96x48DPI becoming
+one inch square. Actual native display rounding and real image-file parity remain open.
+
 ### Compact page view
 
 Installed guide2.0 §8.8 describes pages pushed together without intervening space
