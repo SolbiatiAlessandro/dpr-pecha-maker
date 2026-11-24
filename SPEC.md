@@ -589,8 +589,9 @@ native metrics. The choices are encoded into imported runs and survive web Save.
 Successful preferences persist separately in browser storage; cancellation and
 failed imports do not update them. Validation requires whole Tibetan points7–200
 and Latin points5–200, a web-supported bound rather than a verified native limit.
-Latin choices use the three supported web faces; Georgia substitutes for native
-Times New Roman. Native runtime dialog behavior and Windows font fidelity remain
+Latin and diacritical choices now include named local fonts and an Other font field.
+Fresh Latin preferences use the documented Times New Roman default; existing saved
+substitute choices remain intact. Native runtime dialog behavior and Windows font fidelity remain
 unverified. Core diacritic conversion is described below; symbol fonts remain
 unsupported.
 
@@ -805,3 +806,20 @@ Jomolhari option is replaced by the generated choices. Tests cover mixed attribu
 section font discovery, custom-name validation, restore scope, caret insertion, browser
 preview/print SVG, persistence and RTF. Native interaction and visual metrics remain
 unverified.
+
+### Named fonts in TibetDoc import settings
+
+Latin and diacritical settings accept the existing validated font tokens, including
+named families, independently. The dialog offers common/document faces and “Other
+font…” fields. Empty/invalid custom names block submission, including when diacritic
+options are collapsed. Choices are encoded into the corresponding converted runs;
+after each one-glyph kind override, the header's default kind resumes. Saved preferences
+are updated only after a successful import and survive reload. Old `serif`/`jomolhari`/
+`noto` preferences remain supported. New Latin preferences use Times New Roman18pt,
+matching the documented original default. Diacritics retain a Unicode serif substitute
+rather than assigning Unicode output to the legacy Times_CSX+ encoding.
+
+`dct-font.test.js` and its Chrome companion cover independent named choices, default and
+preference migration, validation, mixed-script scope, size, preview/print SVG, web Save,
+RTF roundtrip, cancellation and failed-import retention. Local availability, glyph
+fallback, original dialog behavior and Windows font metrics remain unverified.

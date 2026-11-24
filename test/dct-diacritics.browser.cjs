@@ -26,7 +26,7 @@ const wrap=body=>Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\
   await page.setViewportSize({width:1440,height:1000});
   if(process.env.QA_DIALOG)await page.screenshot({path:process.env.QA_DIALOG,fullPage:true});
   await page.locator('#dctImport').click();
-  const expected='{font:serif 18}A{font:noto 24}āśṣṃḥ{font:jomolhari 21}ཀ{font:noto 24}�{font:serif 18}�';
+  const expected='{font:family:Times%20New%20Roman 18}A{font:noto 24}āśṣṃḥ{font:jomolhari 21}ཀ{font:noto 24}�{font:family:Times%20New%20Roman 18}�';
   await page.waitForFunction(text=>document.querySelector('#text').value===text,expected);
   await page.waitForFunction(()=>document.querySelector('#table').textContent.includes('āśṣṃḥ'));
   const spans=await page.locator('#table text').evaluateAll(ns=>ns.map(n=>[n.textContent,n.getAttribute('font-family'),n.getAttribute('font-size')]));
@@ -46,7 +46,7 @@ const wrap=body=>Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\
   await upload('raw-csx.dct',wrap([21,97,21,224,16,65]));
   assert.equal(await page.locator('#dctDiacriticSize').inputValue(),'24');assert.equal(await page.locator('#dctDiacriticFont').inputValue(),'noto');
   await page.locator('#dctRemapDiacritics').uncheck();await page.locator('#dctImport').click();
-  await page.waitForFunction(()=>document.querySelector('#text').value==='{font:noto 24}aā{font:serif 18}A');
+  await page.waitForFunction(()=>document.querySelector('#text').value==='{font:noto 24}aā{font:family:Times%20New%20Roman 18}A');
   await page.reload();await page.locator('#pasteText').click();await upload('remember.dct',fixture);
   await page.locator('#dctDiacriticOptions summary').click();assert(!(await page.locator('#dctRemapDiacritics').isChecked()));
   await page.locator('#dctDiacriticSize').fill('30');await page.locator('#dctCancel').click();

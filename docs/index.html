@@ -119,7 +119,7 @@ button:disabled { opacity: .55; cursor: default; }
 #dctDialog::backdrop { background: #0008; }
 #dctDialog form { display: flex; flex-direction: column; gap: 10px; }
 #dctDialog h2, #dctDialog p { margin: 0; }
-#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-block: 10px; border-top: 1px solid var(--rule); }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
@@ -426,18 +426,23 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
     <label for="dctLatinFont">Latin font</label>
-    <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+    <select id="dctLatinFont"></select>
+    <label id="dctLatinFontNameLabel" for="dctLatinFontName" hidden>Other Latin font name</label>
+    <input id="dctLatinFontName" type="text" maxlength="128" hidden disabled>
     <label for="dctLatinSize">Latin size (points)</label>
     <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
     <details id="dctDiacriticOptions"><summary>Diacritical text</summary><div>
       <label class="check"><input id="dctRemapDiacritics" type="checkbox"> Convert TibetDoc diacritic codes</label>
       <p class="hint">Converts codes such as a → ā. Turn off for text already encoded as CSX+. Only the core CSX+ characters are supported.</p>
       <label for="dctDiacriticFont">Diacritical font</label>
-      <select id="dctDiacriticFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+      <select id="dctDiacriticFont"></select>
+      <label id="dctDiacriticFontNameLabel" for="dctDiacriticFontName" hidden>Other diacritical font name</label>
+      <input id="dctDiacriticFontName" type="text" maxlength="128" hidden disabled>
+      <p class="hint">Choose a font with Unicode diacritics. Legacy Times_CSX+ glyph encoding has already been converted to Unicode.</p>
       <label for="dctDiacriticSize">Diacritical size (points)</label>
       <input id="dctDiacriticSize" type="number" min="5" max="200" step="1" required>
     </div></details>
-    <p class="hint">Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <p class="hint">Named fonts use local browser fonts, with a fallback if unavailable. Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
     <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
   </form>
 </dialog>
@@ -3522,15 +3527,15 @@ const Dct = (() => {
     if (remap && diacriticLetters[letter]) return diacriticLetters[letter];
     return coreCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
   }
-  function importSettings(input = {}) {
-    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
+  function importSettings(input = {}, Engine) {
+    const result = {tibetanSize:28,latinSize:18,latinFont:'family:Times%20New%20Roman',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
     for (const key of ['tibetanSize','latinSize','diacriticSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin/diacritical 5–200.');
-    for (const key of ['latinFont','diacriticFont']) if (!['serif','jomolhari','noto'].includes(result[key])) throw new Error('Unsupported DCT font.');
+    for (const key of ['latinFont','diacriticFont']) if (!Engine.fontFamily(result[key])) throw new Error('Unsupported DCT font.');
     if (typeof result.remapDiacritics !== 'boolean') throw new Error('Invalid DCT diacritic remapping choice.');
     return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont,diacriticSize:result.diacriticSize,diacriticFont:result.diacriticFont,remapDiacritics:result.remapDiacritics};
   }
   function read(input, Engine, table, base = null, options = {}) {
-    const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
+    const typography = importSettings(options, Engine), tibetanSize = typography.tibetanSize * .75;
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     if (!bytes.length || bytes.length > 4000000) throw new Error('DCT import requires a file smaller than 4 MB.');
     let pos = bytes[0] === 0 ? 1 : 0;
@@ -4660,8 +4665,8 @@ if (typeof module !== 'undefined') module.exports = { SAMPLE_TEXT, SAMPLE_SHORT_
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
 const DCT_PREF_KEY = 'dpr-pecha-maker-dct-import';
-let dctPreferences = Dct.importSettings();
-try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved); } catch (_) {}
+let dctPreferences = Dct.importSettings({}, Engine);
+try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved, Engine); } catch (_) {}
 const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
 let recoveryMinutes = 0;
 try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
@@ -5400,6 +5405,24 @@ function reportImport(messages) {
   $('importReport').open = true;
 }
 
+function updateDctFontInput(id) {
+  const custom = $(id).value === 'custom', input = $(id+'Name');
+  input.hidden = $(id+'NameLabel').hidden = !custom;
+  input.disabled = !custom; input.required = custom;
+  input.setCustomValidity(custom && !Engine.fontToken(input.value) ? 'Enter a font name of 1–128 characters without control characters or semicolons.' : '');
+}
+
+function setDctFontChoices(id, current) {
+  const choices = new Map(TextFormat.fontChoices(doc || Engine.defaultDoc(),Engine));
+  if (Engine.fontFamily(current)) choices.set(current,Engine.primaryFont(Engine.fontFamily(current)));
+  $(id).replaceChildren(...[...choices, ['custom','Other font…']].map(([value,label]) => {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
+  }));
+  $(id).value = current; $(id+'Name').value = ''; updateDctFontInput(id);
+}
+
+const dctFontChoice = id => $(id).value === 'custom' ? Engine.fontToken($(id+'Name').value) : $(id).value;
+
 function chooseDctSettings(name, currentFont) {
   const dialog = $('dctDialog');
   if (dialog.open) throw new Error('Finish or cancel the current DCT import first.');
@@ -5407,15 +5430,15 @@ function chooseDctSettings(name, currentFont) {
   $('dctTibetanFont').textContent = currentFont;
   $('dctTibetanSize').value = dctPreferences.tibetanSize;
   $('dctLatinSize').value = dctPreferences.latinSize;
-  $('dctLatinFont').value = dctPreferences.latinFont;
+  setDctFontChoices('dctLatinFont',dctPreferences.latinFont);
   $('dctDiacriticSize').value = dctPreferences.diacriticSize;
-  $('dctDiacriticFont').value = dctPreferences.diacriticFont;
+  setDctFontChoices('dctDiacriticFont',dctPreferences.diacriticFont);
   $('dctRemapDiacritics').checked = dctPreferences.remapDiacritics;
   dialog.returnValue = '';
   return new Promise(resolve => {
     dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
-      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value,
-      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:$('dctDiacriticFont').value,remapDiacritics:$('dctRemapDiacritics').checked
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:dctFontChoice('dctLatinFont'),
+      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:dctFontChoice('dctDiacriticFont'),remapDiacritics:$('dctRemapDiacritics').checked
     } : null), {once:true});
     dialog.showModal();
   });
@@ -5433,7 +5456,7 @@ async function openFile(file) {
       if (doc) {base.font = doc.font; base.fontName = doc.fontName;}
       const result = Dct.read(buf, Engine, LEGACY_TABLE, base, settings);
       setDoc(result.doc, false); reportImport(result.warnings);
-      dctPreferences = Dct.importSettings(settings);
+      dctPreferences = Dct.importSettings(settings, Engine);
       try {localStorage.setItem(DCT_PREF_KEY,JSON.stringify(dctPreferences));} catch (_) {}
       toast('Experimental TibetDoc import complete. Review the import notes before printing.');
     } else if (name.endsWith('.rtf')) {
@@ -5490,6 +5513,11 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  for (const id of ['dctLatinFont','dctDiacriticFont']) {
+    $(id).addEventListener('change', () => updateDctFontInput(id));
+    $(id+'Name').addEventListener('input', () => updateDctFontInput(id));
+  }
+  $('dctDiacriticFontName').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctDiacriticSize').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];

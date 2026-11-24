@@ -31,8 +31,8 @@ const roundtrip=Documents.normalize(Documents.artifact(imported,'document'),Engi
 const m=(s,f)=>s.length*f.size*.4;m.head=()=>({ascent:12,descent:4,height:16});assert(Engine.run(imported,m).pages.length>0);
 console.log('PASS: public DCT fixture (documented ornament discrepancy), per-glyph fonts, Latin/tab/page/line controls, warnings, rejection bounds, retention and web save/load');
 
-assert.deepEqual(Dct.importSettings(),{tibetanSize:28,latinSize:18,latinFont:'serif',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true});
-for(const options of [{tibetanSize:6},{latinSize:4},{latinSize:201},{tibetanSize:NaN},{latinFont:'bad'},{tibetanSize:28.5}])assert.throws(()=>Dct.importSettings(options));
+assert.deepEqual(Dct.importSettings({},Engine),{tibetanSize:28,latinSize:18,latinFont:'family:Times%20New%20Roman',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true});
+for(const options of [{tibetanSize:6},{latinSize:4},{latinSize:201},{tibetanSize:NaN},{latinFont:'bad'},{tibetanSize:28.5}])assert.throws(()=>Dct.importSettings(options,Engine));
 const notoBase=Engine.defaultDoc();notoBase.fontName='Noto Serif Tibetan';notoBase.font="'Noto Serif Tibetan','Jomolhari',serif";
 const chosen=Dct.read(wrap([33,16,65,33]),Engine,TABLE,notoBase,{tibetanSize:40,latinSize:22,latinFont:'jomolhari'}).doc;
 const runs=Engine.parseStream(chosen.text,false).filter(r=>r.k==='text');
@@ -57,10 +57,10 @@ assert.equal(plain(Dct.read(wrap([21,97,21,98,21,123,21,125]),Engine,TABLE,null,
 const mixed=Dct.read(wrap([16,65,21,97,33,21,128,22,65]),Engine,TABLE,null,{diacriticFont:'noto',diacriticSize:24});
 assert.equal(plain(mixed.doc),'Aāཀ��');assert.equal(mixed.unknown,2);
 const mixedRuns=Engine.parseStream(mixed.doc.text,false).filter(r=>r.k==='text');
-assert.deepEqual(mixedRuns.map(r=>[r.style.font,r.style.size]),[['serif',18],['noto',24],['jomolhari',21],['noto',24],['serif',18]]);
+assert.deepEqual(mixedRuns.map(r=>[r.style.font,r.style.size]),[['family:Times%20New%20Roman',18],['noto',24],['jomolhari',21],['noto',24],['family:Times%20New%20Roman',18]]);
 assert(mixed.warnings.some(w=>w.includes('Extended CSX+')));
-for(const options of [{diacriticSize:0},{diacriticSize:201},{diacriticSize:18.5},{diacriticFont:'legacy'},{remapDiacritics:'true'}])assert.throws(()=>Dct.importSettings(options));
-assert.equal(Dct.importSettings({tibetanSize:40,latinFont:'noto',latinSize:22}).diacriticSize,18,'previous saved preferences migrate');
+for(const options of [{diacriticSize:0},{diacriticSize:201},{diacriticSize:18.5},{diacriticFont:'legacy'},{remapDiacritics:'true'}])assert.throws(()=>Dct.importSettings(options,Engine));
+assert.equal(Dct.importSettings({tibetanSize:40,latinFont:'noto',latinSize:22},Engine).diacriticSize,18,'previous saved preferences migrate');
 assert.throws(()=>Dct.read(wrap([21]),Engine,TABLE));
 assert.equal(Documents.normalize(Documents.artifact(mixed.doc,'document'),Engine).text,mixed.doc.text);
 console.log('PASS: all 31 DCT diacritic remaps, 34 core CSX+ bytes, raw mode, one-glyph scope, independent style, unsupported counts, migration and Save');

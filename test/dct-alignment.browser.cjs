@@ -9,7 +9,7 @@ const Engine=require('../src/engine'),Rtf=require('../src/rtf'),Documents=requir
   await page.goto(process.argv[2]||'http://127.0.0.1:49536/');await page.locator('#pasteText').click();
   const upload=(name,buffer)=>page.locator('#openFile').setInputFiles({name,mimeType:'application/octet-stream',buffer});
   await upload('centered.dct',sample());await page.locator('#dctDialog').waitFor({state:'visible'});await page.locator('#dctImport').click();
-  const expected='{font:serif 18}Before\n{c}Center\n{l}After';
+  const expected='{font:family:Times%20New%20Roman 18}Before\n{c}Center\n{l}After';
   await page.waitForFunction(text=>document.querySelector('#text').value===text,expected);
   await page.waitForFunction(()=>document.querySelector('#table').textContent.includes('Center'));
   assert(!(await page.locator('#importMessages').textContent()).includes('Unsupported DCT formatting'));

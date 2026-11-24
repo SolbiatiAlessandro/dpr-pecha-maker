@@ -112,7 +112,7 @@ button:disabled { opacity: .55; cursor: default; }
 #dctDialog::backdrop { background: #0008; }
 #dctDialog form { display: flex; flex-direction: column; gap: 10px; }
 #dctDialog h2, #dctDialog p { margin: 0; }
-#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+#dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-block: 10px; border-top: 1px solid var(--rule); }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
@@ -419,18 +419,23 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
     <label for="dctLatinFont">Latin font</label>
-    <select id="dctLatinFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+    <select id="dctLatinFont"></select>
+    <label id="dctLatinFontNameLabel" for="dctLatinFontName" hidden>Other Latin font name</label>
+    <input id="dctLatinFontName" type="text" maxlength="128" hidden disabled>
     <label for="dctLatinSize">Latin size (points)</label>
     <input id="dctLatinSize" type="number" min="5" max="200" step="1" required>
     <details id="dctDiacriticOptions"><summary>Diacritical text</summary><div>
       <label class="check"><input id="dctRemapDiacritics" type="checkbox"> Convert TibetDoc diacritic codes</label>
       <p class="hint">Converts codes such as a → ā. Turn off for text already encoded as CSX+. Only the core CSX+ characters are supported.</p>
       <label for="dctDiacriticFont">Diacritical font</label>
-      <select id="dctDiacriticFont"><option value="serif">Georgia (serif substitute)</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select>
+      <select id="dctDiacriticFont"></select>
+      <label id="dctDiacriticFontNameLabel" for="dctDiacriticFontName" hidden>Other diacritical font name</label>
+      <input id="dctDiacriticFontName" type="text" maxlength="128" hidden disabled>
+      <p class="hint">Choose a font with Unicode diacritics. Legacy Times_CSX+ glyph encoding has already been converted to Unicode.</p>
       <label for="dctDiacriticSize">Diacritical size (points)</label>
       <input id="dctDiacriticSize" type="number" min="5" max="200" step="1" required>
     </div></details>
-    <p class="hint">Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
+    <p class="hint">Named fonts use local browser fonts, with a fallback if unavailable. Unsupported extended diacritics and symbol-font glyphs appear as replacement characters with import notes. Successful choices are remembered when browser storage is available.</p>
     <div class="dialog-actions"><button class="btn" id="dctCancel" type="button">Cancel</button><button class="btn primary" id="dctImport" value="import">Import</button></div>
   </form>
 </dialog>

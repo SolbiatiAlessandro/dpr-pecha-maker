@@ -2,8 +2,8 @@
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
 const DCT_PREF_KEY = 'dpr-pecha-maker-dct-import';
-let dctPreferences = Dct.importSettings();
-try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved); } catch (_) {}
+let dctPreferences = Dct.importSettings({}, Engine);
+try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved, Engine); } catch (_) {}
 const recovery = new Recovery(value => localStorage.setItem(STORE_KEY, JSON.stringify(value)));
 let recoveryMinutes = 0;
 try { const value = Number(localStorage.getItem(RECOVERY_PREF_KEY)); if ([-1,0,1,5,10,30].includes(value)) recoveryMinutes = value; } catch (_) {}
@@ -742,6 +742,24 @@ function reportImport(messages) {
   $('importReport').open = true;
 }
 
+function updateDctFontInput(id) {
+  const custom = $(id).value === 'custom', input = $(id+'Name');
+  input.hidden = $(id+'NameLabel').hidden = !custom;
+  input.disabled = !custom; input.required = custom;
+  input.setCustomValidity(custom && !Engine.fontToken(input.value) ? 'Enter a font name of 1–128 characters without control characters or semicolons.' : '');
+}
+
+function setDctFontChoices(id, current) {
+  const choices = new Map(TextFormat.fontChoices(doc || Engine.defaultDoc(),Engine));
+  if (Engine.fontFamily(current)) choices.set(current,Engine.primaryFont(Engine.fontFamily(current)));
+  $(id).replaceChildren(...[...choices, ['custom','Other font…']].map(([value,label]) => {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
+  }));
+  $(id).value = current; $(id+'Name').value = ''; updateDctFontInput(id);
+}
+
+const dctFontChoice = id => $(id).value === 'custom' ? Engine.fontToken($(id+'Name').value) : $(id).value;
+
 function chooseDctSettings(name, currentFont) {
   const dialog = $('dctDialog');
   if (dialog.open) throw new Error('Finish or cancel the current DCT import first.');
@@ -749,15 +767,15 @@ function chooseDctSettings(name, currentFont) {
   $('dctTibetanFont').textContent = currentFont;
   $('dctTibetanSize').value = dctPreferences.tibetanSize;
   $('dctLatinSize').value = dctPreferences.latinSize;
-  $('dctLatinFont').value = dctPreferences.latinFont;
+  setDctFontChoices('dctLatinFont',dctPreferences.latinFont);
   $('dctDiacriticSize').value = dctPreferences.diacriticSize;
-  $('dctDiacriticFont').value = dctPreferences.diacriticFont;
+  setDctFontChoices('dctDiacriticFont',dctPreferences.diacriticFont);
   $('dctRemapDiacritics').checked = dctPreferences.remapDiacritics;
   dialog.returnValue = '';
   return new Promise(resolve => {
     dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
-      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:$('dctLatinFont').value,
-      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:$('dctDiacriticFont').value,remapDiacritics:$('dctRemapDiacritics').checked
+      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:dctFontChoice('dctLatinFont'),
+      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:dctFontChoice('dctDiacriticFont'),remapDiacritics:$('dctRemapDiacritics').checked
     } : null), {once:true});
     dialog.showModal();
   });
@@ -775,7 +793,7 @@ async function openFile(file) {
       if (doc) {base.font = doc.font; base.fontName = doc.fontName;}
       const result = Dct.read(buf, Engine, LEGACY_TABLE, base, settings);
       setDoc(result.doc, false); reportImport(result.warnings);
-      dctPreferences = Dct.importSettings(settings);
+      dctPreferences = Dct.importSettings(settings, Engine);
       try {localStorage.setItem(DCT_PREF_KEY,JSON.stringify(dctPreferences));} catch (_) {}
       toast('Experimental TibetDoc import complete. Review the import notes before printing.');
     } else if (name.endsWith('.rtf')) {
@@ -832,6 +850,11 @@ function wylieToTibetan(s) {
 }
 
 function init() {
+  for (const id of ['dctLatinFont','dctDiacriticFont']) {
+    $(id).addEventListener('change', () => updateDctFontInput(id));
+    $(id+'Name').addEventListener('input', () => updateDctFontInput(id));
+  }
+  $('dctDiacriticFontName').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctDiacriticSize').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];

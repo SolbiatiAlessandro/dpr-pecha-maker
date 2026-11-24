@@ -14,15 +14,15 @@ const Dct = (() => {
     if (remap && diacriticLetters[letter]) return diacriticLetters[letter];
     return coreCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
   }
-  function importSettings(input = {}) {
-    const result = {tibetanSize:28,latinSize:18,latinFont:'serif',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
+  function importSettings(input = {}, Engine) {
+    const result = {tibetanSize:28,latinSize:18,latinFont:'family:Times%20New%20Roman',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
     for (const key of ['tibetanSize','latinSize','diacriticSize']) if (!Number.isInteger(result[key]) || result[key]<(key==='tibetanSize'?7:5) || result[key]>200) throw new Error('DCT sizes must be whole points: Tibetan 7–200 and Latin/diacritical 5–200.');
-    for (const key of ['latinFont','diacriticFont']) if (!['serif','jomolhari','noto'].includes(result[key])) throw new Error('Unsupported DCT font.');
+    for (const key of ['latinFont','diacriticFont']) if (!Engine.fontFamily(result[key])) throw new Error('Unsupported DCT font.');
     if (typeof result.remapDiacritics !== 'boolean') throw new Error('Invalid DCT diacritic remapping choice.');
     return {tibetanSize:result.tibetanSize,latinSize:result.latinSize,latinFont:result.latinFont,diacriticSize:result.diacriticSize,diacriticFont:result.diacriticFont,remapDiacritics:result.remapDiacritics};
   }
   function read(input, Engine, table, base = null, options = {}) {
-    const typography = importSettings(options), tibetanSize = typography.tibetanSize * .75;
+    const typography = importSettings(options, Engine), tibetanSize = typography.tibetanSize * .75;
     const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
     if (!bytes.length || bytes.length > 4000000) throw new Error('DCT import requires a file smaller than 4 MB.');
     let pos = bytes[0] === 0 ? 1 : 0;
