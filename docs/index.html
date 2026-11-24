@@ -330,12 +330,15 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
+          <button class="btn" type="button" id="exportPxt">Export Windows layout (.pxt, experimental)</button>
+          <p class="hint">Windows templates contain layout only. Fonts and web styles are not preserved; automatic first-line positioning becomes fixed. Keep a full Save for your complete web document.</p>
+          <details id="exportReport" hidden><summary>Windows template export notes</summary><ul id="exportMessages"></ul></details>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
           <button class="btn" type="button" id="revertDoc">Revert to open / Save checkpoint</button>
           <button class="btn" type="button" id="closeDoc">Close document and reset for next pecha</button>
           <p class="hint">Revert restores the document opened in this session or the checkpoint captured when you press full Save. Cancelling the download does not undo that checkpoint. Separate-settings downloads do not change it. Revert does not reread an external file. Browser recovery keeps the most recent edits separately.</p>
           <input id="partFile" type="file" accept=".pecha,.json,.pxt,.pxc,.pxa,.rtf" hidden>
-          <p class="hint">These are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
+          <p class="hint">Selected-settings downloads are web .pecha files. Loading a layout keeps your current text and annotations; loading annotations keeps text and layout. Full Save includes everything.</p>
         </div>
       </details>
       <details>
@@ -343,7 +346,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, TibetDoc import/export, Windows legacy keyboard maps, and original-format file export. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, TibetDoc import/export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -3918,7 +3921,65 @@ const Pxp = (() => {
     return {doc: base, unknown: result.unknown, warnings: result.warnings};
   }
 
-  return { parse, readImages, decodeStream, eventsToText, toDoc, load };
+  // Independent layout-only writer. Native font IDs are document-local and cannot
+  // safely be manufactured from a Unicode web font name.
+  function writeTemplate(doc, Engine, measure) {
+    const warnings = [
+      'Experimental Windows template: opening and layout fidelity in PechaMaker still need verification.',
+      'Only layout settings are exported. Text, images, annotation text, numbering starts, automatic marks, web styles and print options are not included.',
+      'Font choices are not exported; Windows uses its own fonts. Keep a full web Save for an exact web document copy.'
+    ];
+    const integer = value => {
+      if (!Number.isFinite(value)) throw new Error('A template setting is not a finite number.');
+      return String(Math.round(value));
+    };
+    const decimal = value => {
+      if (!Number.isFinite(value)) throw new Error('A template setting is not a finite number.');
+      return value.toFixed(6);
+    };
+    const flag = value => value ? '1' : '0';
+    const lines = ['; PechaMaker Template file.  Pecha layout control settings.', '; WARNING, whitespace is not forgiven.', ';', '', '[File Version 0.1]'];
+    const section = (name, fields) => { lines.push('', '[' + name + ']'); for (const [key,value] of Object.entries(fields)) lines.push(key + '=' + value); };
+    section('PageSetup', {
+      PechaMode:flag(doc.pecha.mode !== false), 'PaperSize.x':integer(doc.paper.w*1000), 'PaperSize.y':integer(doc.paper.h*1000),
+      PageOrientation:doc.paper.w > doc.paper.h ? '2' : '1',
+      ...Object.fromEntries(['left','right','top','bottom'].map(side=>['PageMargin.'+side,integer(doc.margins[side]*1000)])),
+      PechaPagesPerSheet:integer(doc.pecha.perSheet), PechaPagesCentered:flag(doc.pecha.placement !== 'top')
+    });
+    section('LineControl', {TibFontAdj:decimal(doc.tibetanRaise),TabWidth:decimal(doc.tabWidth),LineHeight:decimal(doc.normal.lineHeight),BaseLnAdjTM:decimal(doc.normal.baseline)});
+    section('PechaControl', {PechaHeight:decimal(doc.pecha.height),PechaboxDLT:decimal(doc.pecha.dlt)});
+    section('PechaAnnotation', {
+      AnnoOutLeftSpace:decimal(doc.notes.outLeft),AnnoOutRightSpace:decimal(doc.notes.outRight),
+      FolioNumInset:decimal(doc.folio.inset),FolioNumPtSz:integer(doc.folio.size/TIB_SCALE),
+      PageNumInset:decimal(doc.pageNum.inset),PageNumPtSz:integer(doc.pageNum.size),
+      PageNumCenter:flag(doc.pageNum.position === 'center'),PageNumAngle:doc.pageNum.angle === 0 ? '0' : '90'
+    });
+    if (doc.pageNum.angle !== 0 && doc.pageNum.angle !== -90) warnings.push('The page-number rotation is exported using the native 90-degree setting.');
+    if (!Number.isInteger(doc.folio.size/TIB_SCALE) || !Number.isInteger(doc.pageNum.size)) warnings.push('Number sizes are rounded to whole native font points; Tibetan sizing uses the import conversion ratio.');
+    for (const [i,kind] of ['title','fancy','body'].entries()) {
+      const t = doc.types[kind]; let baseline = t.baseline;
+      if (baseline == null) {
+        if (!measure?.head) throw new Error('Font measurements are needed to export automatic first-line placement.');
+        const head = measure.head(doc,doc.textSize || t.fontSize), box = Engine.boxes(doc,t).T;
+        baseline = t.top == null ? ((box.y1-box.y0)-((t.lines-1)*t.lineHeight*72+head.height))/144+head.ascent/72 : t.top+head.ascent/72;
+        // Native templates store a fixed baseline, while web titles can center a shorter block.
+        warnings.push('Automatic first-line placement is converted to a fixed baseline for the configured line count. Short title pages may move.');
+      }
+      if (baseline < 0) {baseline = 0;warnings.push('An overflowing text block needed a zero first-line baseline; check the Windows layout.');}
+      if (!/^#[0-9a-f]{6}$/i.test(t.color)) throw new Error('A frame color is not a six-digit color.');
+      const color = '0x'+t.color.slice(1).match(/../g).reverse().join('').toUpperCase();
+      section('Type_'+i, {
+        PageType:kind[0].toUpperCase()+kind.slice(1),EndPage:integer(i===0?doc.counts.title:i===1?doc.counts.title+doc.counts.fancy:65535),
+        LinesPerPage:integer(t.lines),LineHeight:decimal(t.lineHeight),BaseLineAdj:decimal(baseline),MarginSide:decimal(t.side),
+        BoxLinestyle:integer(['none','single','double'].indexOf(t.style)),BoxColor:color,
+        SideBoxIn:decimal(t.sideIn),SideBoxOut:decimal(t.sideOut),InBoxEn:flag(t.insideOn),InBox:decimal(t.inside),
+        OutBoxEn:flag(t.squeezeOn),OutBox:decimal(t.squeeze)
+      });
+    }
+    return {text:lines.join('\r\n')+'\r\n',warnings:[...new Set(warnings)]};
+  }
+
+  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;
 
@@ -5247,6 +5308,18 @@ function init() {
     toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
   });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
+  $('exportPxt').addEventListener('click', () => {
+    try {
+      const result = Pxp.writeTemplate(doc, Engine, measure);
+      $('exportMessages').replaceChildren(...result.warnings.map(message => {
+        const li = document.createElement('li'); li.textContent = message; return li;
+      }));
+      $('exportReport').hidden = false; $('exportReport').open = true;
+      const url = URL.createObjectURL(new Blob([result.text], {type:'text/plain'}));
+      const a = document.createElement('a'); a.href = url; a.download = 'pecha-layout.pxt'; a.click(); URL.revokeObjectURL(url);
+      toast('Windows layout template downloaded. Review the export notes.');
+    } catch (e) { toast('Could not export the Windows template: ' + e.message); }
+  });
   $('loadPart').addEventListener('click', () => $('partFile').click());
   $('partFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('noteSide').addEventListener('change', e => { noteSide = e.target.value; buildNotePanel(); });

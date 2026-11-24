@@ -502,3 +502,28 @@ uses the visible Tibetan shad. Font-size changes immediately before a fixed shad
 are retained. Synthetic native fixtures test import, layout and web Save/Open.
 The control identity is supported by the original Hard Shad command and manual;
 original Windows runtime and native export round trips remain unverified.
+
+
+### Experimental Windows PXT layout export
+
+The Windows layout download uses the observed standalone INI framing with CRLF,
+ordered PageSetup/LineControl/PechaControl/PechaAnnotation/Type_0–2 sections,
+thousandths of inches for paper and margins, six-decimal layout inches, BGR frame
+colors, cumulative title/fancy endpoints and the observed 65535 body endpoint.
+It emits no text streams, images, private document content or invented native font
+IDs. PageNumFIndex is omitted because its IDs belong to a native document's font
+table; its native missing-key behavior and the exported file remain runtime-unverified.
+
+Explicit baseline distances are preserved. Automatic placement is converted using
+the current font metrics and configured line count, with a warning that shorter
+title blocks may move. Legacy top offsets are converted to baseline offsets.
+Native integer number sizes are rounded, Tibetan size uses the existing 0.75
+import ratio, and unsupported page-number rotations use native 90 degrees with
+a warning. Fonts, body sizes, semantic styles, text, images, automatic marks,
+numbering starts and print choices require a full web Save to preserve them.
+
+All five public native samples retain the exported numeric template fields through
+the independent writer/parser. Unit tests cover field units/colors, scope, invalid
+values and automatic placement; Chrome covers download, notes, reimport, Save,
+print SVG and PDF generation. These establish web behavior, not Windows acceptance
+or font/layout fidelity. Full native PXP/PXC/PXA export remains unimplemented.

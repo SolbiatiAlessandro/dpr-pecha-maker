@@ -403,6 +403,64 @@ const Pxp = (() => {
     return {doc: base, unknown: result.unknown, warnings: result.warnings};
   }
 
-  return { parse, readImages, decodeStream, eventsToText, toDoc, load };
+  // Independent layout-only writer. Native font IDs are document-local and cannot
+  // safely be manufactured from a Unicode web font name.
+  function writeTemplate(doc, Engine, measure) {
+    const warnings = [
+      'Experimental Windows template: opening and layout fidelity in PechaMaker still need verification.',
+      'Only layout settings are exported. Text, images, annotation text, numbering starts, automatic marks, web styles and print options are not included.',
+      'Font choices are not exported; Windows uses its own fonts. Keep a full web Save for an exact web document copy.'
+    ];
+    const integer = value => {
+      if (!Number.isFinite(value)) throw new Error('A template setting is not a finite number.');
+      return String(Math.round(value));
+    };
+    const decimal = value => {
+      if (!Number.isFinite(value)) throw new Error('A template setting is not a finite number.');
+      return value.toFixed(6);
+    };
+    const flag = value => value ? '1' : '0';
+    const lines = ['; PechaMaker Template file.  Pecha layout control settings.', '; WARNING, whitespace is not forgiven.', ';', '', '[File Version 0.1]'];
+    const section = (name, fields) => { lines.push('', '[' + name + ']'); for (const [key,value] of Object.entries(fields)) lines.push(key + '=' + value); };
+    section('PageSetup', {
+      PechaMode:flag(doc.pecha.mode !== false), 'PaperSize.x':integer(doc.paper.w*1000), 'PaperSize.y':integer(doc.paper.h*1000),
+      PageOrientation:doc.paper.w > doc.paper.h ? '2' : '1',
+      ...Object.fromEntries(['left','right','top','bottom'].map(side=>['PageMargin.'+side,integer(doc.margins[side]*1000)])),
+      PechaPagesPerSheet:integer(doc.pecha.perSheet), PechaPagesCentered:flag(doc.pecha.placement !== 'top')
+    });
+    section('LineControl', {TibFontAdj:decimal(doc.tibetanRaise),TabWidth:decimal(doc.tabWidth),LineHeight:decimal(doc.normal.lineHeight),BaseLnAdjTM:decimal(doc.normal.baseline)});
+    section('PechaControl', {PechaHeight:decimal(doc.pecha.height),PechaboxDLT:decimal(doc.pecha.dlt)});
+    section('PechaAnnotation', {
+      AnnoOutLeftSpace:decimal(doc.notes.outLeft),AnnoOutRightSpace:decimal(doc.notes.outRight),
+      FolioNumInset:decimal(doc.folio.inset),FolioNumPtSz:integer(doc.folio.size/TIB_SCALE),
+      PageNumInset:decimal(doc.pageNum.inset),PageNumPtSz:integer(doc.pageNum.size),
+      PageNumCenter:flag(doc.pageNum.position === 'center'),PageNumAngle:doc.pageNum.angle === 0 ? '0' : '90'
+    });
+    if (doc.pageNum.angle !== 0 && doc.pageNum.angle !== -90) warnings.push('The page-number rotation is exported using the native 90-degree setting.');
+    if (!Number.isInteger(doc.folio.size/TIB_SCALE) || !Number.isInteger(doc.pageNum.size)) warnings.push('Number sizes are rounded to whole native font points; Tibetan sizing uses the import conversion ratio.');
+    for (const [i,kind] of ['title','fancy','body'].entries()) {
+      const t = doc.types[kind]; let baseline = t.baseline;
+      if (baseline == null) {
+        if (!measure?.head) throw new Error('Font measurements are needed to export automatic first-line placement.');
+        const head = measure.head(doc,doc.textSize || t.fontSize), box = Engine.boxes(doc,t).T;
+        baseline = t.top == null ? ((box.y1-box.y0)-((t.lines-1)*t.lineHeight*72+head.height))/144+head.ascent/72 : t.top+head.ascent/72;
+        // Native templates store a fixed baseline, while web titles can center a shorter block.
+        warnings.push('Automatic first-line placement is converted to a fixed baseline for the configured line count. Short title pages may move.');
+      }
+      if (baseline < 0) {baseline = 0;warnings.push('An overflowing text block needed a zero first-line baseline; check the Windows layout.');}
+      if (!/^#[0-9a-f]{6}$/i.test(t.color)) throw new Error('A frame color is not a six-digit color.');
+      const color = '0x'+t.color.slice(1).match(/../g).reverse().join('').toUpperCase();
+      section('Type_'+i, {
+        PageType:kind[0].toUpperCase()+kind.slice(1),EndPage:integer(i===0?doc.counts.title:i===1?doc.counts.title+doc.counts.fancy:65535),
+        LinesPerPage:integer(t.lines),LineHeight:decimal(t.lineHeight),BaseLineAdj:decimal(baseline),MarginSide:decimal(t.side),
+        BoxLinestyle:integer(['none','single','double'].indexOf(t.style)),BoxColor:color,
+        SideBoxIn:decimal(t.sideIn),SideBoxOut:decimal(t.sideOut),InBoxEn:flag(t.insideOn),InBox:decimal(t.inside),
+        OutBoxEn:flag(t.squeezeOn),OutBox:decimal(t.squeeze)
+      });
+    }
+    return {text:lines.join('\r\n')+'\r\n',warnings:[...new Set(warnings)]};
+  }
+
+  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;

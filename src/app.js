@@ -915,6 +915,18 @@ function init() {
     toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
   });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
+  $('exportPxt').addEventListener('click', () => {
+    try {
+      const result = Pxp.writeTemplate(doc, Engine, measure);
+      $('exportMessages').replaceChildren(...result.warnings.map(message => {
+        const li = document.createElement('li'); li.textContent = message; return li;
+      }));
+      $('exportReport').hidden = false; $('exportReport').open = true;
+      const url = URL.createObjectURL(new Blob([result.text], {type:'text/plain'}));
+      const a = document.createElement('a'); a.href = url; a.download = 'pecha-layout.pxt'; a.click(); URL.revokeObjectURL(url);
+      toast('Windows layout template downloaded. Review the export notes.');
+    } catch (e) { toast('Could not export the Windows template: ' + e.message); }
+  });
   $('loadPart').addEventListener('click', () => $('partFile').click());
   $('partFile').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('noteSide').addEventListener('change', e => { noteSide = e.target.value; buildNotePanel(); });
