@@ -18,7 +18,7 @@ for(const charset of ['', '\\fcharset1']){const out=R.read("{\\rtf1\\ansi\\ansic
 const name=R.read("{\\rtf1\\ansi{\\fonttbl{\\f0\\fcharset204 \\'cc\\'ee\\'e9;}}\\f0 \\'c0}",E,T);assert.equal(E.fontFamily(E.parseStream(name.doc.text,false)[0].style.font).split(',')[0],'"Мой"');
 const unicode=R.read("{\\rtf1\\ansi{\\fonttbl{\\f0\\fcharset204 Arial;}}\\uc1\\u3904\\'ff\\u-10179?\\u-8704?\\'c0}",E,T);assert.equal(visible(unicode.doc),'ཀ😀А');assert.deepEqual(unicode.warnings,[]);
 const legacyName=Object.keys(T).find(n=>n==='TibetanMachine'),legacyByte=Object.keys(T[legacyName]).find(b=>+b>=32&&T[legacyName][b]);const legacy=R.read('{\\rtf1{\\fonttbl{\\f0\\fcharset2 '+legacyName+';}}\\f0 \\'+"'"+(+legacyByte).toString(16).padStart(2,'0')+'}',E,T);assert.equal(visible(legacy.doc),T[legacyName][legacyByte]);
-for(const declaration of ['\\fcharset2','\\fcharset128','\\fcharset42']){const bad=R.read("{\\rtf1{\\fonttbl{\\f0"+declaration+" Unknown;}}\\f0 \\'ff}",E,T);assert.equal(visible(bad.doc),'�');assert(bad.warnings.some(s=>s.includes('unsupported')));}
+for(const declaration of ['\\fcharset2','\\fcharset130','\\fcharset42']){const bad=R.read("{\\rtf1{\\fonttbl{\\f0"+declaration+" Unknown;}}\\f0 \\'ff}",E,T);assert.equal(visible(bad.doc),'�');assert(bad.warnings.some(s=>s.includes('unsupported')));}
 const symbol=R.read('{\\rtf1{\\fonttbl{\\f0\\fcharset2 Symbol;}}ABC}',E,T);assert.equal(visible(symbol.doc),'���');assert(symbol.warnings.length);
 const unknown=R.read("{\\rtf1\\ansicpg99999 \\'e9}",E,T);assert.equal(visible(unknown.doc),'�');assert(unknown.warnings.length);
 const undefinedByte=R.read("{\\rtf1\\ansicpg1252 \\'81}",E,T);assert.equal(visible(undefinedByte.doc),'�');assert(undefinedByte.warnings.some(s=>s.includes('undefined')));
