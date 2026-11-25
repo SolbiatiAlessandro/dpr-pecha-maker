@@ -605,8 +605,7 @@ const Pxp = (() => {
 
   // Native image-header 1.1 stores PNG payloads, indexed line placements and
   // a CRC32 over each complete PNG. Windows reloads DPI from PNG pHYs.
-  function nativeImages(doc, warnings, full) {
-    if(!full&&doc.images.some(p=>p.kind==='page'))throw new Error('Windows text export does not yet support page images. Use the full Windows file (.pxp) export instead.');
+  function nativeImages(doc, warnings, full, pageLimit = Infinity) {
     if(doc.images.some(p=>!['inline','yigo','page'].includes(p.kind)))throw new Error('An image placement has an unsupported kind.');
     const assets=[], lines=[], pages=[], used=new Set(), variants=new Map();let total=0;
     const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n>>>1)^((n&1)?0xedb88320:0);return n>>>0;});
@@ -672,9 +671,17 @@ const Pxp = (() => {
       return records.length-1;
     };
     const finish=()=>{
-      for(const p of doc.images.filter(p=>p.kind==='page'))add(p.id,'page');
-      if(pages.length)warnings.add('Page images keep their one-based document page assignments, including pages beyond the current text. Native pagination may place them differently.');
-      if(doc.images.some(p=>!used.has(p.id)))warnings.add('Unused inline and yi-go placements are omitted from the Windows file.');
+      let omitted=0;
+      for(const p of doc.images.filter(p=>p.kind==='page')){
+        if(!Number.isInteger(p.page)||p.page<1||p.page>3000)throw new Error('Invalid native page-image anchor or page number.');
+        if(!full&&p.page>pageLimit){omitted++;continue;}
+        add(p.id,'page');
+      }
+      if(pages.length)warnings.add(full
+        ? 'Page images keep their one-based document page assignments, including pages beyond the current text. Native pagination may place them differently.'
+        : 'Page images keep their one-based document page assignments within the current web page count. The receiving layout and Windows pagination may place them differently.');
+      if(omitted)warnings.add(`${omitted} page-image placement(s) beyond the current ${pageLimit} web page(s) are omitted from this content file. The editable document is unchanged; a full Windows file (.pxp) retains future-page assignments.`);
+      if(doc.images.some(p=>p.kind!=='page'&&!used.has(p.id)))warnings.add('Unused inline and yi-go placements are omitted from the Windows file.');
       if(!lines.length&&!pages.length)return null;
       warnings.add('Native image export is experimental. Drawing caches use a 96-DPI reference; Windows display rounding, image positioning and physical printing still need verification.');
       const text=['','[START IMAGES] 1.1','ImageInfoCount='+assets.length];
@@ -705,7 +712,13 @@ const Pxp = (() => {
       'Only static annotations, fixed folio text and numbering settings are exported. Body text, page layout, images, yi-go and volume section labels are not included.',
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
-    const images=content?nativeImages(doc,warnings,full):null;
+    let pageLimit=Infinity;
+    if(content&&!full&&doc.images.some(p=>p.kind==='page')){
+      if(typeof measure!=='function')throw new Error('Font measurements are needed to export content page images.');
+      pageLimit=Engine.run(doc,measure).pages.length;
+      if(!Number.isInteger(pageLimit)||pageLimit<0)throw new Error('The current page count could not be determined.');
+    }
+    const images=content?nativeImages(doc,warnings,full,pageLimit):null;
     const fonts = [{name:'Times New Roman',charset:0}], tib = new Map(); let usesTcc = false;
     const encodings = nativeEncodings();
     const cp=encodings[0].map;
@@ -840,7 +853,7 @@ const Pxp = (() => {
   }
 
   const writeAnnotations=(doc,Engine,table)=>writeNative(doc,Engine,table);
-  const writeContent=(doc,Engine,table)=>writeNative(doc,Engine,table,'pxc');
+  const writeContent=(doc,Engine,table,measure)=>writeNative(doc,Engine,table,'pxc',measure);
   const writeDocument=(doc,Engine,table,measure)=>writeNative(doc,Engine,table,'pxp',measure);
   return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate, writeAnnotations, writeContent, writeDocument };
 })();

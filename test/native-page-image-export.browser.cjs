@@ -22,14 +22,14 @@ const E=require('../src/engine'),P=require('../src/pxp'),{sample}=require('./nat
   if(process.env.QA_PDF)fs.writeFileSync(process.env.QA_PDF,pdf);
   await upload('saved.pecha',saved);assert.deepEqual(await fixed('#table','native-page-'),geometry);
   if(process.env.QA_SCREENSHOT)await p.screenshot({path:process.env.QA_SCREENSHOT,fullPage:true});
-  // The content-only exporter still rejects page images without changing the source.
-  let downloads=0;p.on('download',()=>downloads++);await p.locator('#exportPxc').click();await p.waitForFunction(()=>document.querySelector('#exportMessages').textContent.includes('page images'));assert.equal(downloads,0);assert((await p.locator('#exportMessages').textContent()).includes('.pxp'));assert.deepEqual(await fixed('#table','native-page-'),geometry);
+  // Content export includes placements on current pages without changing the source.
+  const contentEvent=p.waitForEvent('download');await p.locator('#exportPxc').click();const contentBytes=fs.readFileSync(await(await contentEvent).path());assert(Buffer.from(P.parse(contentBytes).imageBlock).toString('latin1').includes('PageImageInfoCount=6'));assert((await p.locator('#exportMessages').textContent()).includes('current web page count'));assert.deepEqual(await fixed('#table','native-page-'),geometry);
   // Exercise the minimum-offset note and native-reader clamp through actual uploads.
   const clamped=sample(E);clamped.images.find(p=>p.kind==='page').down=-.5;clamped.images.find(p=>p.kind==='page').inward=0;
   await upload('offsets.pecha',Buffer.from(JSON.stringify(clamped)));const next=p.waitForEvent('download');await p.locator('#exportPxp').click();const adjusted=fs.readFileSync(await(await next).path());assert((await p.locator('#exportMessages').textContent()).includes('below 0.01'));
   await upload('adjusted.pxp',adjusted);const im=P.readImages(P.parse(adjusted).imageBlock).images.find(p=>p.kind==='page');assert.equal(im.down,.01);assert.equal(im.inward,.01);
   const b=Buffer.from(adjusted),needle=Buffer.from('yAdj_float=0.010000\nxAdj_float=0.010000'),at=b.indexOf(needle);assert(at>0);const external=Buffer.concat([b.subarray(0,at),Buffer.from('yAdj_float=-0.500000\nxAdj_float=0.000000'),b.subarray(at+needle.length)]);
   await upload('external.pxp',external);assert((await p.locator('#importMessages').textContent()).includes('below 0.01'));assert.equal(await p.locator('#table image[data-image-id="native-page-0"]').count(),1);
-  assert.deepEqual(errors,[]);console.log('PASS: full PXP six page anchors and assignments, shared assets, native export/import, exact preview/print geometry, Tibetan/counters/yi-go, PDF and Save/Open, PXC rejection and offset-clamp notes');
+  assert.deepEqual(errors,[]);console.log('PASS: full PXP six page anchors and assignments, shared assets, native export/import, exact preview/print geometry, Tibetan/counters/yi-go, PDF and Save/Open, PXC inclusion and offset-clamp notes');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
