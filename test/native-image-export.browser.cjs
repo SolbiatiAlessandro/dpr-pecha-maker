@@ -29,10 +29,10 @@ const E=require('../src/engine'),P=require('../src/pxp'),{sample}=require('./nat
    // Isolate rejection checks from the repeated download/print roundtrips above.
    const q=await browser.newPage();q.setDefaultTimeout(15000);q.on('pageerror',e=>errors.push(e.message));
    try{
-    await q.goto(process.argv[2]);await q.locator('#pasteText').click();const bad=sample(E);if(kind==='page')bad.images[0].kind='page';else bad.text='{image:missing}';
+    await q.goto(process.argv[2]);await q.locator('#pasteText').click();const bad=sample(E);if(kind==='page'){bad.images[0].kind='page';bad.text=bad.text.replaceAll('{image:line}','');}else bad.text='{image:missing}';
     await upload('unsupported.pecha',Buffer.from(JSON.stringify(bad)),q);const before=JSON.parse(await save(q));let downloads=0;q.on('download',()=>downloads++);
     await q.getByText('Reuse text, layouts and annotations',{exact:true}).click();
-    for(const button of ['#exportPxp','#exportPxc']){await q.locator(button).click();await q.waitForFunction(message=>document.querySelector('#exportMessages').textContent.includes(message),message);assert.equal(downloads,0);}
+    for(const button of (kind==='page'?['#exportPxc']:['#exportPxp','#exportPxc'])){await q.locator(button).click();await q.waitForFunction(message=>document.querySelector('#exportMessages').textContent.includes(message),message);assert.equal(downloads,0);}
     assert.deepEqual(JSON.parse(await save(q)),before);
    }finally{await q.close();}
   }

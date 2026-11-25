@@ -339,7 +339,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="exportPxp">Export Windows file (.pxp, experimental)</button>
-          <div class="hint">Includes text, marks, inline and yi-go PNG images, and native layout settings. Page-attached images are not yet supported. Keep a full web Save and review the export notes before opening in Windows.</div>
+          <div class="hint">Includes text, marks, inline, yi-go and page-attached PNG images, and native layout settings. Page-image horizontal and vertical offsets below 0.01 inch are raised to match Windows reopening. Keep a full web Save and review the export notes before opening in Windows.</div>
           <button class="btn" type="button" id="exportPxt">Export Windows layout (.pxt, experimental)</button>
           <button class="btn" type="button" id="exportPxc">Export Windows text (.pxc, experimental)</button>
           <div class="hint">Windows content includes text, automatic marks, and inline and yi-go PNG images, using the receiving document’s layout. Page-attached images and unsupported characters must be removed from a copy first. Review the export notes.</div>
@@ -4204,10 +4204,12 @@ const Pxp = (() => {
       if(!nativeAnchors[info.slot] || !Number.isInteger(info.pageNbr) || info.pageNbr<1 || info.pageNbr>3000) {
         warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
       }
+      const down=Math.max(.01,info.yAdj_float||0),inward=Math.max(.01,info.xAdj_float||0);
+      if(down!==(info.yAdj_float||0)||inward!==(info.xAdj_float||0))warnings.push('Native page-image offsets below 0.01 inch are raised to 0.01 inch, as in Windows.');
       images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
         page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolutions.get(info.iInfoIndex),
-        ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
-        inward:info.xAdj_float||0,margin:info.xMar_float||0}));
+        ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down,
+        inward,margin:info.xMar_float||0}));
     });
     return {assets,images,warnings:[...new Set(warnings)]};
   }
@@ -4490,10 +4492,10 @@ const Pxp = (() => {
 
   // Native image-header 1.1 stores PNG payloads, indexed line placements and
   // a CRC32 over each complete PNG. Windows reloads DPI from PNG pHYs.
-  function nativeImages(doc, warnings) {
-    if(doc.images.some(p=>p.kind==='page'))throw new Error('Windows text/document export does not yet support page images. Remove them from a copy before exporting.');
-    if(doc.images.some(p=>!['inline','yigo'].includes(p.kind)))throw new Error('An image placement has an unsupported kind.');
-    const assets=[], lines=[], used=new Set(), variants=new Map();let total=0;
+  function nativeImages(doc, warnings, full) {
+    if(!full&&doc.images.some(p=>p.kind==='page'))throw new Error('Windows text export does not yet support page images. Use the full Windows file (.pxp) export instead.');
+    if(doc.images.some(p=>!['inline','yigo','page'].includes(p.kind)))throw new Error('An image placement has an unsupported kind.');
+    const assets=[], lines=[], pages=[], used=new Set(), variants=new Map();let total=0;
     const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n>>>1)^((n&1)?0xedb88320:0);return n>>>0;});
     const crc=bytes=>{let value=0xffffffff;for(const b of bytes)value=(value>>>8)^crcTable[(value^b)&255];return (value^0xffffffff)>>>0;};
     const join=chunks=>{const out=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let at=0;for(const c of chunks){out.set(c,at);at+=c.length;}return out;};
@@ -4528,10 +4530,16 @@ const Pxp = (() => {
     };
     const add=(id,kind)=>{
       const p=doc.images.find(p=>p.id===id&&p.kind===kind),asset=p&&doc.assets.find(a=>a.id===p.asset);
-      if(!p||!asset)throw new Error('Body or yi-go contains an unsupported image reference.');
-      if(lines.length>=1000)throw new Error('Native export supports at most 1000 image occurrences.');
-      const x=integer(p.dpi,10,2400,'horizontal DPI'),y=integer(p.dpiY??p.dpi,10,2400,'vertical DPI'),scale=integer(p.scale,10,200,'scale');
-      const sideSp_float=decimal(p.space,0,20),yAdj_float=decimal(p.above,-30,30);
+      if(!p||!asset)throw new Error('The document contains an unsupported image reference.');
+      if(lines.length+pages.length>=1000)throw new Error('Native export supports at most 1000 image occurrences.');
+      const x=integer(p.dpi,10,2400,'horizontal DPI'),y=integer(p.dpiY??p.dpi,10,2400,'vertical DPI'),scale=integer(p.scale,kind==='page'?20:10,200,'scale');
+      let fields;
+      if(kind==='page'){
+        const slot={'outer-left':0,'inner-left':1,'text-left':2,'text-right':4,'inner-right':5,'outer-right':6}[p.anchor];
+        if(!Number.isInteger(slot)||!Number.isInteger(p.page)||p.page<1||p.page>3000)throw new Error('Invalid native page-image anchor or page number.');
+        const offset=v=>{decimal(v,-30,30);if(v<.01)warnings.add('Page-image offsets below 0.01 inch are exported as 0.01 inch to match Windows reopening.');return Math.max(.01,v).toFixed(6);};
+        fields={yAdj_float:offset(p.down),xAdj_float:offset(p.inward),xMar_float:decimal(p.margin,0,20),pageNbr:p.page,slot};
+      }else fields={sideSp_float:decimal(p.space,0,20),yAdj_float:decimal(p.above,-30,30),addTFA:p.addTibetan?1:0};
       let byDensity=variants.get(asset.data);if(!byDensity){byDensity=new Map();variants.set(asset.data,byDensity);}
       const key=x+','+y;let index=byDensity.get(key);
       if(index===undefined){
@@ -4546,18 +4554,22 @@ const Pxp = (() => {
       // Native display-dependent cache rounding remains experimental.
       const draw=n=>Math.floor((n*scale+50)/100);
       const width=p.ignoreDpi?source.width:Math.round(source.width*96/x),height=p.ignoreDpi?source.height:Math.round(source.height*96/y);
-      lines.push({iInfoIndex:index,ignoreImgDPI:p.ignoreDpi?1:0,scale,drawWidth:draw(width),drawHeight:draw(height),sideSp_float,yAdj_float,addTFA:p.addTibetan?1:0});
-      return lines.length-1;
+      const records=kind==='page'?pages:lines;
+      records.push({iInfoIndex:index,ignoreImgDPI:p.ignoreDpi?1:0,scale,drawWidth:draw(width),drawHeight:draw(height),...fields});
+      return records.length-1;
     };
     const finish=()=>{
+      for(const p of doc.images.filter(p=>p.kind==='page'))add(p.id,'page');
+      if(pages.length)warnings.add('Page images keep their one-based document page assignments, including pages beyond the current text. Native pagination may place them differently.');
       if(doc.images.some(p=>!used.has(p.id)))warnings.add('Unused inline and yi-go placements are omitted from the Windows file.');
-      if(!lines.length)return null;
+      if(!lines.length&&!pages.length)return null;
       warnings.add('Native image export is experimental. Drawing caches use a 96-DPI reference; Windows display rounding, image positioning and physical printing still need verification.');
       const text=['','[START IMAGES] 1.1','ImageInfoCount='+assets.length];
       const record=(kind,index,fields)=>{for(const [k,v] of Object.entries(fields))text.push(k+'='+v);text.push('[END '+kind+' '+index+']');};
       assets.forEach((a,i)=>record('IINFO',i,{imageOffset:a.offset,usageCount:a.usage,compSize:a.bytes.length,crc:a.crc,dibWidth:a.width,dibHeight:a.height,dibXDPI:a.x,dibYDPI:a.y}));
       text.push('LineImageInfoCount='+lines.length);lines.forEach((p,i)=>record('LIINFO',i,p));
-      text.push('PageImageInfoCount=0','','Images_totalBytes='+total,'');
+      text.push('PageImageInfoCount='+pages.length);pages.forEach((p,i)=>record('PIINFO',i,p));
+      text.push('','Images_totalBytes='+total,'');
       return join([new TextEncoder().encode(text.join('\n')),...assets.map(a=>a.bytes)]);
     };
     return {add,finish};
@@ -4580,7 +4592,7 @@ const Pxp = (() => {
       'Only static annotations, fixed folio text and numbering settings are exported. Body text, page layout, images, yi-go and volume section labels are not included.',
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
-    const images=content?nativeImages(doc,warnings):null;
+    const images=content?nativeImages(doc,warnings,full):null;
     const fonts = ['Times New Roman'], cp = new Map(), tib = new Map(); let usesTcc = false;
     const decoded = new TextDecoder('windows-1252').decode(Uint8Array.from({length:256},(_,i)=>i));
     for (let b=32;b<256;b++) if (!/[\u007f-\u009f�]/.test(decoded[b])) cp.set(decoded[b],b);
