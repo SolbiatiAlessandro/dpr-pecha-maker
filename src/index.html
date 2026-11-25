@@ -331,6 +331,8 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <label for="saveKind">Save separately</label><select id="saveKind"><option value="template">Layout template</option><option value="content">Text and formatting marks</option><option value="annotations">Annotations and numbering</option></select>
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
+          <button class="btn" type="button" id="exportPxp">Export Windows file (.pxp, experimental)</button>
+          <div class="hint">Includes text, marks and native layout settings. Images are not yet supported. Keep a full web Save and review the export notes before opening in Windows.</div>
           <button class="btn" type="button" id="exportPxt">Export Windows layout (.pxt, experimental)</button>
           <button class="btn" type="button" id="exportPxc">Export Windows text (.pxc, experimental)</button>
           <div class="hint">Windows content includes text and automatic marks, using the receiving document’s layout. Images and unsupported characters must be removed from a copy first. Review the export notes.</div>

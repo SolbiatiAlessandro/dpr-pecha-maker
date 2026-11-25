@@ -484,7 +484,7 @@ const Pxp = (() => {
     const base = current ? JSON.parse(JSON.stringify(current)) : Engine.defaultDoc();
     const parsed = parse(u8, table);
     const result = toDoc(u8, table, JSON.parse(JSON.stringify(base)), Engine), imported = result.doc;
-    if (extension === 'pxp') { imported.sections = []; return result; }
+    if (extension === 'pxp') { imported.sections = []; imported.textSize = null; return result; }
     if (extension === 'pxt') {
       for (const key of ['paper', 'margins', 'pecha', 'normal', 'counts', 'types', 'tabWidth', 'tibetanRaise']) base[key] = imported[key];
       if (parsed.template.PechaAnnotation) {
@@ -510,10 +510,11 @@ const Pxp = (() => {
     return {doc: base, unknown: result.unknown, warnings: result.warnings};
   }
 
-  // Independent layout-only writer. Native font IDs are document-local and cannot
-  // safely be manufactured from a Unicode web font name.
-  function writeTemplate(doc, Engine, measure) {
-    const warnings = [
+  // Standalone layouts omit document-local font IDs. Embedded layouts receive
+  // a page-number font index registered in the enclosing document's full table.
+  function writeTemplate(doc, Engine, measure, pageFontIndex = null) {
+    const embedded = pageFontIndex !== null;
+    const warnings = embedded ? [] : [
       'Experimental Windows template: opening and layout fidelity in PechaMaker still need verification.',
       'Only layout settings are exported. Text, images, annotation text, numbering starts, automatic marks, web styles and print options are not included.',
       'Font choices are not exported; Windows uses its own fonts. Keep a full web Save for an exact web document copy.'
@@ -527,7 +528,7 @@ const Pxp = (() => {
       return value.toFixed(6);
     };
     const flag = value => value ? '1' : '0';
-    const lines = ['; PechaMaker Template file.  Pecha layout control settings.', '; WARNING, whitespace is not forgiven.', ';', '', '[File Version 0.1]'];
+    const lines = embedded ? [] : ['; PechaMaker Template file.  Pecha layout control settings.', '; WARNING, whitespace is not forgiven.', ';', '', '[File Version 0.1]'];
     const section = (name, fields) => { lines.push('', '[' + name + ']'); for (const [key,value] of Object.entries(fields)) lines.push(key + '=' + value); };
     section('PageSetup', {
       PechaMode:flag(doc.pecha.mode !== false), 'PaperSize.x':integer(doc.paper.w*1000), 'PaperSize.y':integer(doc.paper.h*1000),
@@ -540,6 +541,7 @@ const Pxp = (() => {
     section('PechaAnnotation', {
       AnnoOutLeftSpace:decimal(doc.notes.outLeft),AnnoOutRightSpace:decimal(doc.notes.outRight),
       FolioNumInset:decimal(doc.folio.inset),FolioNumPtSz:integer(doc.folio.size/TIB_SCALE),
+      ...(embedded ? {PageNumFIndex:integer(pageFontIndex)} : {}),
       PageNumInset:decimal(doc.pageNum.inset),PageNumPtSz:integer(doc.pageNum.size),
       PageNumCenter:flag(doc.pageNum.position === 'center'),PageNumAngle:doc.pageNum.angle === 0 ? '0' : '90'
     });
@@ -565,12 +567,19 @@ const Pxp = (() => {
         OutBoxEn:flag(t.squeezeOn),OutBox:decimal(t.squeeze)
       });
     }
-    return {text:lines.join('\r\n')+'\r\n',warnings:[...new Set(warnings)]};
+    const newline=embedded?'\n':'\r\n';
+    return {text:lines.join(newline)+newline,warnings:[...new Set(warnings)]};
   }
 
-  // Experimental independent PXA writer, following the native annotation-only envelope.
-  function writeNative(doc, Engine, table, content = false) {
-    const warnings = new Set(content ? [
+  // Independent writers share native text/font encoding while keeping each file's scope.
+  function writeNative(doc, Engine, table, mode = 'pxa', measure = null) {
+    const content=mode!=='pxa', full=mode==='pxp';
+    const warnings = new Set(full ? [
+      'Experimental Windows document: opening and appearance in PechaMaker still need verification. Keep a full web Save.',
+      'Text, automatic marks and native layout settings are exported. Web print options, style definitions, volume metadata and exact font metrics are not preserved.',
+      'Implicit page-type sizes use the body size; explicit text sizes and roles are materialized. Check title/fancy pages, Tibetan metrics and line breaks in Windows.',
+      'Tibetan folio-number font selection is not exported; Windows keeps its own choice. The Arabic page-number font is included in the full font table.'
+    ] : content ? [
       'Experimental Windows content: opening and appearance in PechaMaker still need verification. Keep a full web Save.',
       'Body text and automatic marks are exported. Page layout, numbering sizes/fonts, outside-note spacing and volume metadata are not included; the receiving document keeps its layout.',
       'Implicit page-type sizes use the body size; explicit text sizes and roles are materialized. Check title/fancy pages, Tibetan metrics and line breaks in Windows.'
@@ -579,7 +588,7 @@ const Pxp = (() => {
       'Only static annotations, fixed folio text and numbering settings are exported. Body text, page layout, images, yi-go and volume section labels are not included.',
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
-    if (content && (doc.images.length || doc.yigo.image)) throw new Error('Windows content export does not yet support images. Remove image placements from a copy before exporting.');
+    if (content && (doc.images.length || doc.yigo.image)) throw new Error('Windows text/document export does not yet support images. Remove image placements from a copy before exporting.');
     const fonts = ['Times New Roman'], cp = new Map(), tib = new Map(); let usesTcc = false;
     const decoded = new TextDecoder('windows-1252').decode(Uint8Array.from({length:256},(_,i)=>i));
     for (let b=32;b<256;b++) if (!/[\u007f-\u009f�]/.test(decoded[b])) cp.set(decoded[b],b);
@@ -673,6 +682,13 @@ const Pxp = (() => {
       }
     }
     text('[END NON-BODY]\n');
+    if(full){
+      const name=Engine.primaryFont(Engine.fontFamily(Engine.fontToken(doc.pageNum.font)) || doc.font);
+      const layout=writeTemplate(doc,Engine,measure,fontId(name));
+      text('[START TEMPLATE]\n'+layout.text+'[END TEMPLATE]\n');
+      for(const warning of layout.warnings)warnings.add(warning);
+      if(doc.folio.angle!==-90)warnings.add('Tibetan folio numbers use the native rotation convention; the web rotation is not preserved.');
+    }
     if(!content){
       text('[START TEMPLATE]\n\n[PechaAnnotation]\n');
       for(const [k,v] of Object.entries({AnnoOutLeftSpace:number(doc.notes.outLeft),AnnoOutRightSpace:number(doc.notes.outRight),FolioNumInset:number(doc.folio.inset),FolioNumPtSz:size(doc.folio.size),PageNumInset:number(doc.pageNum.inset),PageNumPtSz:number(doc.pageNum.size,true),PageNumCenter:flag(doc.pageNum.position==='center'),PageNumAngle:doc.pageNum.angle===0?0:90}))value(k,v);
@@ -686,7 +702,7 @@ const Pxp = (() => {
     // byte/weight product. The five bundled PXP headers corroborate this sequence.
     let checksum=0,weight=100;
     if(content)for(const byte of body){checksum=Math.fround(checksum+weight);checksum=Math.fround(checksum+byte);checksum=Math.fround(checksum+Math.imul(byte,++weight));weight++;}
-    const heading=content?'.pxc 0.6 0 u1 u2 u3 u4 '+body.length+' '+checksum.toFixed(0)+' '+nativeFonts.length+' ':'.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ';
+    const heading=content?'.'+mode+' 0.6 0 u1 u2 u3 u4 '+body.length+' '+checksum.toFixed(0)+' '+nativeFonts.length+' ':'.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ';
     const header=[...new TextEncoder().encode(heading)];
     nativeFonts.forEach((name,i)=>header.push(...new TextEncoder().encode(i+' 0 '),...ansi(name),0));header.push(10);
     if(content)chunks.push(body);
@@ -695,7 +711,8 @@ const Pxp = (() => {
   }
 
   const writeAnnotations=(doc,Engine,table)=>writeNative(doc,Engine,table);
-  const writeContent=(doc,Engine,table)=>writeNative(doc,Engine,table,true);
-  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate, writeAnnotations, writeContent };
+  const writeContent=(doc,Engine,table)=>writeNative(doc,Engine,table,'pxc');
+  const writeDocument=(doc,Engine,table,measure)=>writeNative(doc,Engine,table,'pxp',measure);
+  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate, writeAnnotations, writeContent, writeDocument };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;

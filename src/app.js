@@ -1125,11 +1125,12 @@ function init() {
     } catch (e) { toast('Could not export the Windows template: ' + e.message); }
   });
   for (const [id,writer,kind,filename] of [
+    ['exportPxp','writeDocument','document','pecha-document.pxp'],
     ['exportPxa','writeAnnotations','annotations','pecha-annotations.pxa'],
     ['exportPxc','writeContent','content','pecha-content.pxc']
   ]) $(id).addEventListener('click', () => {
     try {
-      const result = Pxp[writer](doc, Engine, LEGACY_TABLE);
+      const result = Pxp[writer](doc, Engine, LEGACY_TABLE, measure);
       $('exportMessages').replaceChildren(...result.warnings.map(message => {
         const li = document.createElement('li'); li.textContent = message; return li;
       }));
