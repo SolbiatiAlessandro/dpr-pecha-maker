@@ -33,5 +33,5 @@ assert.equal(visible(P.load(P.writeContent(mix,E,T).bytes,'pxc',T,E.defaultDoc()
 // Existing Windows1252 encoding stays stable and does not issue the new note.
 const western=E.defaultDoc();western.text='{font:family:Arial}Café €';assert(!P.writeContent(western,E,T).warnings.some(w=>w.includes('additional Windows font charsets')));
 // Unicode outside these encodings remains a visible export error, not replacement.
-for(const text of ['😀','中文','日本語']){const bad=E.defaultDoc();bad.text=text;assert.throws(()=>P.writeContent(bad,E,T),/cannot encode U\+/);}
+for(const text of ['😀','𐍈','\u{10ffff}']){const bad=E.defaultDoc();bad.text=text;assert.throws(()=>P.writeContent(bad,E,T),/cannot encode U\+/);}
 console.log('PASS: PXP/PXC/PXA exact Windows1250–1258/874 bytes and charsets, duplicate-family IDs, Tibetan mixtures, body/yi-go/phrase/notes, compact font references, source isolation, Save and unsupported Unicode rejection');

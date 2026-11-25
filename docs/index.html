@@ -4091,6 +4091,34 @@ const Pxp = (() => {
   const charsetPages = {0:1252,1:1252,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
   const multibyteLabels = {128:'shift_jis',129:'euc-kr',134:'gbk',136:'big5'};
   const byteDecoders = new Map();
+  let nativeEncodingCache;
+  function nativeEncodings() {
+    if (nativeEncodingCache) return nativeEncodingCache;
+    const encodings = [[0,1252],[238,1250],[204,1251],[161,1253],[162,1254],[177,1255],[178,1256],[186,1257],[163,1258],[222,874]].map(([charset,page])=>{
+      const decoded=new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i)),map=new Map();
+      for(let b=32;b<256;b++)if(!/[\u007f-\u009f�]/.test(decoded[b]))map.set(decoded[b],b);
+      return {charset,map};
+    });
+    for (const charset of [128,129,134,136]) {
+      let map;
+      encodings.push({charset,get map() {
+        if(map)return map;
+        map=new Map();const decoder=new TextDecoder(multibyteLabels[charset]);
+        const add=bytes=>{
+          const text=decoder.decode(Uint8Array.from(bytes));
+          // Keep exact BMP mappings only: no best-fit, replacement, private-use
+          // or multi-character aliases. Lowest byte sequence wins duplicates.
+          if(text.length===1&&!/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff�]/.test(text)&&!map.has(text))map.set(text,bytes);
+        };
+        for(let b=32;b<256;b++)add([b]);
+        // The Big5 extension area below A1 and above F9 is not Windows CP950.
+        for(let a=charset===136?0xa1:0x81;a<=(charset===136?0xf9:0xfe);a++)
+          for(let b=0x40;b<=0xfe;b++)add([a,b]);
+        return map;
+      }});
+    }
+    return nativeEncodingCache=encodings;
+  }
   function decodeStream(bytes, fonts, table, startFont = 0, fontCharsets = {}) {
     const ev = [];
     let font = startFont, buf = '', bufFont = startFont;
@@ -4692,11 +4720,7 @@ const Pxp = (() => {
     ]);
     const images=content?nativeImages(doc,warnings,full):null;
     const fonts = [{name:'Times New Roman',charset:0}], tib = new Map(); let usesTcc = false;
-    const encodings = [[0,1252],[238,1250],[204,1251],[161,1253],[162,1254],[177,1255],[178,1256],[186,1257],[163,1258],[222,874]].map(([charset,page])=>{
-      const decoded=new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i)),map=new Map();
-      for(let b=32;b<256;b++)if(!/[\u007f-\u009f�]/.test(decoded[b]))map.set(decoded[b],b);
-      return {charset,map};
-    });
+    const encodings = nativeEncodings();
     const cp=encodings[0].map;
     for (let id=0;id<5;id++) for (const [byte,text] of Object.entries(table[id ? 'TibetanMachineSkt'+id : 'TibetanMachine'] || {})) {
       if (+byte < 32 || !text || !/[\u0f00-\u0fff]/.test(text)) continue;
@@ -4749,6 +4773,7 @@ const Pxp = (() => {
             if(id===undefined){id=fontId(name,encoding.charset);fontIds.set(encoding.charset,id);}
             at+=c.length;
             if(encoding.charset)warnings.add('Text outside Windows-1252 uses additional Windows font charsets. Verify font availability, shaping and mixed-script appearance in Windows.');
+            if(multibyteLabels[encoding.charset])warnings.add('East Asian text uses multibyte Windows font charsets. Native opening, font substitution and line breaking still need verification.');
             if(c===' ' && state.has(0x20))id=+state.get(0x20).split(',')[0];
           }
           if(id<5){usesTcc=true;warnings.add('Tibetan text is converted to legacy TCC glyphs. Windows must have compatible TCC fonts; verify stacks and appearance against the original.');}
@@ -4759,7 +4784,7 @@ const Pxp = (() => {
             if(nativeSize!==f.size/(id<5?TIB_SCALE:1))warnings.add('Body text sizes are rounded to whole native points; Tibetan sizes use the import conversion ratio.');
             command(0x21,127,nativeSize,0);
           }
-          bytes.push(byte);
+          if(Array.isArray(byte))bytes.push(...byte);else bytes.push(byte);
         }
       }
       if(body && bytes.length>8000000)throw new Error('Encoded body text exceeds the 8 MB export limit.');
