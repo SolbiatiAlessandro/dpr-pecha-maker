@@ -569,12 +569,17 @@ const Pxp = (() => {
   }
 
   // Experimental independent PXA writer, following the native annotation-only envelope.
-  function writeAnnotations(doc, Engine, table) {
-    const warnings = new Set([
+  function writeNative(doc, Engine, table, content = false) {
+    const warnings = new Set(content ? [
+      'Experimental Windows content: opening and appearance in PechaMaker still need verification. Keep a full web Save.',
+      'Body text and automatic marks are exported. Page layout, numbering sizes/fonts, outside-note spacing and volume metadata are not included; the receiving document keeps its layout.',
+      'Implicit page-type sizes use the body size; explicit text sizes and roles are materialized. Check title/fancy pages, Tibetan metrics and line breaks in Windows.'
+    ] : [
       'Experimental Windows annotations: opening and appearance in PechaMaker still need verification. Keep a full web Save.',
       'Only static annotations, fixed folio text and numbering settings are exported. Body text, page layout, images, yi-go and volume section labels are not included.',
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
+    if (content && (doc.images.length || doc.yigo.image)) throw new Error('Windows content export does not yet support images. Remove image placements from a copy before exporting.');
     const fonts = ['Times New Roman'], cp = new Map(), tib = new Map(); let usesTcc = false;
     const decoded = new TextDecoder('windows-1252').decode(Uint8Array.from({length:256},(_,i)=>i));
     for (let b=32;b<256;b++) if (!/[\u007f-\u009f�]/.test(decoded[b])) cp.set(decoded[b],b);
@@ -590,46 +595,66 @@ const Pxp = (() => {
     };
     const fontId = name => {
       if (['Jomolhari','Noto Serif Tibetan'].includes(name) || Object.hasOwn(table,name)) {
-        name = 'Times New Roman'; warnings.add('Tibetan text uses inherited native TCC font slots; select a compatible TCC family in Windows. Latin text in a Tibetan web font uses Times New Roman. Exact glyph shapes are unverified.');
+        name = 'Times New Roman'; warnings.add('Tibetan text uses native TCC font slots; select a compatible TCC family in Windows. Latin text in a Tibetan web font uses Times New Roman. Exact glyph shapes are unverified.');
       }
       const nameBytes=ansi(name);
       if (!Engine.fontToken(name) || nameBytes.length > 31) throw new Error('A font name exceeds the native 31-byte font-name limit.');
       if (nameBytes.some((b,i)=>b!==name.charCodeAt(i))) throw new Error('A font name uses characters not yet supported by native export. Choose another font.');
       if (!fonts.includes(name)) fonts.push(name);
-      if (fonts.length > 250) throw new Error('Too many fonts for a native annotation file.');
+      if (fonts.length > 250) throw new Error('Too many fonts for a native file.');
       return fonts.indexOf(name)+5;
     };
-    const stream = (slot,label,context=doc) => {
+    const stream = (slot,label,context=doc,body=false) => {
       const bytes = [], state = new Map();
       const command = (op,a,b=127,c=127) => {const key=[a,b,c].join(',');if(state.get(op)!==key){bytes.push(17,op,a,b,c,17);state.set(op,key);}};
-      const runs = slot.rich ? Engine.parseStream(slot.text,false).filter(r=>r.k==='text') : [{s:slot.text,style:{}}];
+      const runs = slot.rich ? Engine.parseStream(slot.text,false) : [{k:'text',s:slot.text,style:{}}];
       for (const run of runs) {
-        const text = run.s.replace(/[\r\n\u2028\t]/g,' '), f = Engine.fontFor(context,run,slot.size), name = Engine.primaryFont(f.family);
+        if (run.k === 'image') {if(body)throw new Error('Body text contains an unsupported image reference.');continue;}
+        if (run.k === 'page') {if(body)bytes.push(12);continue;}
+        const text = body ? run.s.replace(/\r\n?|\u2028/g,'\n') : run.s.replace(/[\r\n\u2028\t]/g,' '), f = Engine.fontFor(context,run,slot.size), name = Engine.primaryFont(f.family);
         if (!text) continue;
         const latin = fontId(name), color = (run.style.color || '#14100e').slice(1);
         const rgb = (color.length===3 ? [...color].map(c=>c+c).join('') : color).match(/../g)?.map(c=>parseInt(c,16));
         if (rgb?.length!==3 || rgb.some(n=>!Number.isFinite(n))) throw new Error(label+': invalid text color.');
+        if(body)command({l:0x32,r:0x33,c:0x34,j:0x35}[run.style.align] || 0x35,127);
         command(0x22,...rgb);command(0x23,f.weight>400?1:0);command(0x24,f.italic?1:0);command(0x25,f.underline?1:0);command(0x26,f.strike?1:0);
         for(let at=0;at<text.length;){
           const c=String.fromCodePoint(text.codePointAt(at));let id=latin,byte;
           const match=(tib.get(text[at]) || []).find(m=>text.startsWith(m.text,at));
+          if(body && (c==='\n' || c==='\t')){bytes.push(c==='\n'?10:9);at++;continue;}
           if(c==='\uE00D'){id=0;byte=11;at++;}
           else if(match){id=match.id;byte=match.byte;at+=match.text.length;}
           else if(cp.has(c)){byte=cp.get(c);at+=c.length;if(c===' ' && state.has(0x20))id=+state.get(0x20).split(',')[0];}
           else throw new Error(label+': cannot encode U+'+c.codePointAt(0).toString(16).toUpperCase()+' in the supported native fonts.');
           if(id<5){usesTcc=true;warnings.add('Tibetan text is converted to legacy TCC glyphs. Windows must have compatible TCC fonts; verify stacks and appearance against the original.');}
-          command(0x20,id);bytes.push(byte);
+          command(0x20,id);
+          if(body){
+            const nativeSize=Math.round(f.size/(id<5?TIB_SCALE:1));
+            if(nativeSize<1 || nativeSize>255)throw new Error(label+': a text size is outside the native 1–255 point range.');
+            if(nativeSize!==f.size/(id<5?TIB_SCALE:1))warnings.add('Body text sizes are rounded to whole native points; Tibetan sizes use the import conversion ratio.');
+            command(0x21,127,nativeSize,0);
+          }
+          bytes.push(byte);
         }
       }
-      if(bytes.length>256)throw new Error(label+': encoded text exceeds the native 256-byte limit, including formatting. Shorten it or reduce font/style changes.');
+      if(body && bytes.length>8000000)throw new Error('Encoded body text exceeds the 8 MB export limit.');
+      if(!body && bytes.length>256)throw new Error(label+': encoded text exceeds the native 256-byte limit, including formatting. Shorten it or reduce font/style changes.');
       return Uint8Array.from(bytes);
     };
-    const chunks=[],text=s=>chunks.push(new TextEncoder().encode(s)),flag=v=>v?1:0;
+    const body=content?stream({text:doc.sections.length?doc.sections.map(s=>s.text).join('{page}'):doc.text,rich:true,size:doc.types.body.fontSize},'Body',doc,true):null;
+    if(content && !body.length)throw new Error('Add body text before exporting Windows content.');
+    if(content && doc.flow)warnings.add('Web flow-mode paragraph rewrapping is not stored; exported line breaks become native hard returns.');
+    if(content && doc.sections.length)warnings.add('Volume sections become a single text stream with page breaks. Section labels, starts and front-page metadata are not preserved.');
+    const chunks=[],text=s=>chunks.push(new TextEncoder().encode(s)),flag=v=>v?1:0,prefix=content?'iNiT ':'';
     const number=(v,integer=false)=>{if(!Number.isFinite(v))throw new Error('An annotation setting is not a finite number.');return integer?Math.round(v):v.toFixed(6);};
     const size=v=>{if(!Number.isInteger(v/TIB_SCALE))warnings.add('Annotation and Tibetan number sizes are rounded to whole native points using the import conversion ratio.');return number(v/TIB_SCALE,true);};
-    const value=(k,v)=>text(k+'='+v+'\n');
-    const raw=(key,bytes,lengthKey=key+'.slen',streamKey=key+'.s')=>{value(lengthKey,bytes.length);text(streamKey+'=\n');chunks.push(bytes);text('\n');};
+    const value=(k,v)=>text(prefix+k+'='+v+'\n');
+    const raw=(key,bytes,lengthKey=key+'.slen',streamKey=key+'.s')=>{value(lengthKey,bytes.length);text(prefix+streamKey+'=\n');chunks.push(bytes);text('\n');};
     text('[START NON-BODY]\n');
+    if(content){
+      for(const [k,v] of Object.entries({AutoShadEn:flag(doc.shad.enabled),YangShadEn:flag(doc.shad.yang),IgnoreYigoShadEn:flag(doc.shad.ignoreYigo),TitleShadEn:flag(doc.shad.titlePages),DzogThikEn:flag(doc.dzog.enabled),DzogThik_HexactF:number(doc.dzog.rise),DzogThik_HpercentEn:flag(doc.dzog.percentEnabled),DzogThik_Hpercent:number(doc.dzog.percent,true),DzogThik_VLAdjF:number(doc.dzog.leftUp),DzogThik_VRAdjF:number(doc.dzog.rightUp),'Yigo.en':flag(doc.yigo.enabled),YigoStartFancy:flag(doc.yigo.fancyStart),YigoStart2ndTitle:flag(doc.yigo.title2),YigoImageEn:0,YigoLineImageIndex:-1}))value(k,v);
+      raw('Yigo',stream({text:doc.yigo.text,rich:doc.yigo.rich,size:18},'Yi-go'));
+    }
     const folioDoc=doc.folio.font?{...doc,font:JSON.stringify(doc.folio.font)}:doc;
     raw('FolioRhino',stream({text:doc.folio.rhino,rich:doc.folio.rhinoRich,size:doc.folio.size},'Fixed folio phrase',folioDoc),'FolioRhinoLen','FolioRhinoStream');
     for(const [k,v] of Object.entries({FolioRhinoEn:flag(doc.folio.rhinoEnabled),FolioStartNum:number(doc.folio.start,true),FolioNumTitleEn:flag(doc.folio.onTitle),FolioNumJyonEn:flag(doc.folio.jyon),PageStartNum:doc.pageNum.on?number(doc.pageNum.start,true):0,PageNumTitleEn:flag(doc.pageNum.onTitle),PageNumTitle1stEn:flag(doc.pageNum.firstTitle)}))value(k,v);
@@ -647,18 +672,30 @@ const Pxp = (() => {
         const slot=set[position],key=native+'['+i+']',location={inL:'inside left',inR:'inside right',outL:'outside left',outR:'outside right'}[position];value(key+'.ptSz',size(slot.size));value(key+'.insetF',number(slot.inset));value(key+'.en',flag(slot.on));raw(key,stream(slot,label(side)+' '+location+' note'));
       }
     }
-    text('[END NON-BODY]\n[START TEMPLATE]\n\n[PechaAnnotation]\n');
-    for(const [k,v] of Object.entries({AnnoOutLeftSpace:number(doc.notes.outLeft),AnnoOutRightSpace:number(doc.notes.outRight),FolioNumInset:number(doc.folio.inset),FolioNumPtSz:size(doc.folio.size),PageNumInset:number(doc.pageNum.inset),PageNumPtSz:number(doc.pageNum.size,true),PageNumCenter:flag(doc.pageNum.position==='center'),PageNumAngle:doc.pageNum.angle===0?0:90}))value(k,v);
-    text('[END TEMPLATE]\n');
-    if(doc.folio.angle!==-90 || ![0,-90].includes(doc.pageNum.angle))warnings.add('Number rotations use the native conventions; additional web rotation choices are not preserved.');
-    if(!Number.isInteger(doc.pageNum.size))warnings.add('Arabic number size is rounded to whole native points.');
+    text('[END NON-BODY]\n');
+    if(!content){
+      text('[START TEMPLATE]\n\n[PechaAnnotation]\n');
+      for(const [k,v] of Object.entries({AnnoOutLeftSpace:number(doc.notes.outLeft),AnnoOutRightSpace:number(doc.notes.outRight),FolioNumInset:number(doc.folio.inset),FolioNumPtSz:size(doc.folio.size),PageNumInset:number(doc.pageNum.inset),PageNumPtSz:number(doc.pageNum.size,true),PageNumCenter:flag(doc.pageNum.position==='center'),PageNumAngle:doc.pageNum.angle===0?0:90}))value(k,v);
+      text('[END TEMPLATE]\n');
+      if(doc.folio.angle!==-90 || ![0,-90].includes(doc.pageNum.angle))warnings.add('Number rotations use the native conventions; additional web rotation choices are not preserved.');
+      if(!Number.isInteger(doc.pageNum.size))warnings.add('Arabic number size is rounded to whole native points.');
+    }
     if(!doc.pageNum.on && doc.pageNum.start)warnings.add('Disabled Arabic numbering is stored as a zero start; its saved nonzero start is not preserved.');
-    const header=[...new TextEncoder().encode('.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ')];
-    fonts.forEach((name,i)=>header.push(...new TextEncoder().encode(i+' 0 '),...ansi(name),0));header.push(10);
+    const nativeFonts=content?['TibetanMachine','TibetanMachineSkt1','TibetanMachineSkt2','TibetanMachineSkt3','TibetanMachineSkt4',...fonts]:fonts;
+    // Native checksum stores float32 after each addition and uses a signed int32
+    // byte/weight product. The five bundled PXP headers corroborate this sequence.
+    let checksum=0,weight=100;
+    if(content)for(const byte of body){checksum=Math.fround(checksum+weight);checksum=Math.fround(checksum+byte);checksum=Math.fround(checksum+Math.imul(byte,++weight));weight++;}
+    const heading=content?'.pxc 0.6 0 u1 u2 u3 u4 '+body.length+' '+checksum.toFixed(0)+' '+nativeFonts.length+' ':'.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ';
+    const header=[...new TextEncoder().encode(heading)];
+    nativeFonts.forEach((name,i)=>header.push(...new TextEncoder().encode(i+' 0 '),...ansi(name),0));header.push(10);
+    if(content)chunks.push(body);
     chunks.unshift(Uint8Array.from(header));const bytes=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
     return {bytes,warnings:[...warnings]};
   }
 
-  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate, writeAnnotations };
+  const writeAnnotations=(doc,Engine,table)=>writeNative(doc,Engine,table);
+  const writeContent=(doc,Engine,table)=>writeNative(doc,Engine,table,true);
+  return { parse, readImages, decodeStream, eventsToText, toDoc, load, writeTemplate, writeAnnotations, writeContent };
 })();
 if (typeof module !== 'undefined') module.exports = Pxp;

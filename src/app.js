@@ -1124,18 +1124,21 @@ function init() {
       toast('Windows layout template downloaded. Review the export notes.');
     } catch (e) { toast('Could not export the Windows template: ' + e.message); }
   });
-  $('exportPxa').addEventListener('click', () => {
+  for (const [id,writer,kind,filename] of [
+    ['exportPxa','writeAnnotations','annotations','pecha-annotations.pxa'],
+    ['exportPxc','writeContent','content','pecha-content.pxc']
+  ]) $(id).addEventListener('click', () => {
     try {
-      const result = Pxp.writeAnnotations(doc, Engine, LEGACY_TABLE);
+      const result = Pxp[writer](doc, Engine, LEGACY_TABLE);
       $('exportMessages').replaceChildren(...result.warnings.map(message => {
         const li = document.createElement('li'); li.textContent = message; return li;
       }));
       $('exportReport').hidden = false; $('exportReport').open = true;
       const url = URL.createObjectURL(new Blob([result.bytes], {type:'application/octet-stream'}));
-      const a = document.createElement('a'); a.href = url; a.download = 'pecha-annotations.pxa'; a.click(); URL.revokeObjectURL(url);
-      toast('Windows annotations downloaded. Review the export notes.');
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+      toast('Windows '+kind+' downloaded. Review the export notes.');
     } catch (e) {
-      const message='Could not export Windows annotations: '+e.message, li=document.createElement('li');li.textContent=message;
+      const message='Could not export Windows '+kind+': '+e.message, li=document.createElement('li');li.textContent=message;
       $('exportMessages').replaceChildren(li);$('exportReport').hidden=false;$('exportReport').open=true;toast(message);
     }
   });
