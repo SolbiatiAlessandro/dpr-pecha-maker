@@ -18,6 +18,11 @@ assert.equal(visible(R.read(nested,E,T).doc),'本éソX±');
 const skipped='{\\rtf1\\ansicpg932\\uc1\\u65\\ansicpg1252\n'+raw('967b')+'}';assert.equal(visible(R.read(skipped,E,T).doc),'A本');
 const fallback='{\\rtf1\\ansicpg932\\uc2\\u26412'+raw('967b')+raw('835c')+'}';assert.equal(visible(R.read(fallback,E,T).doc),'本ソ');
 const fontFallback='{\\rtf1{\\fonttbl{\\f0\\fcharset128\\uc1\\u65\\cpg1252 '+raw('967b')+';}}'+raw('835c')+'}';assert.equal(visible(R.read(fontFallback,E,T).doc),'ソ');
+// Legacy Tibetan glyph maps take precedence over a declared DBCS code page.
+for(const name of ['TibetanMachine','\\uc1\\u84?ibetanMachine','Tibetan{\\*\\falt ignored}Machine']){
+ const legacy=R.read('{\\rtf1{\\fonttbl{\\f0\\cpg932 '+name+';}}'+raw('81')+'{\\b '+raw('81')+'}}',E,T);
+ assert.equal(visible(legacy.doc),T.TibetanMachine[129].repeat(2));assert.deepEqual(legacy.warnings,[]);
+}
 // Raw high bytes in a single-byte font must leave real group/control syntax intact.
 const single=R.read('{\\rtf1\\ansicpg1252 é{\\b X}\\i Y}',E,T);assert.equal(visible(single.doc),'éXY');
 // Escaped lead bytes continue to allow escaped syntax and raw ASCII trails.

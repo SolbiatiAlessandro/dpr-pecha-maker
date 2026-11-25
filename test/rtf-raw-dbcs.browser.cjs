@@ -21,6 +21,8 @@ const visible=text=>E.parseStream(text,false).filter(r=>r.k==='text').map(r=>r.s
   await paste('#text');assert.equal(visible(await p.locator('#text').inputValue()),expected);await p.locator('#text').focus();await p.keyboard.press('Meta+z');assert.equal(await p.locator('#text').inputValue(),'OLD');await p.keyboard.press('Meta+Shift+z');assert.equal(visible(await p.locator('#text').inputValue()),expected);
   await p.locator('[data-tab="marks"]').click();for(const selector of ['#f_yigo_text','#f_folio_rhino','#f_notes_sets_body_front_inL_text']){await paste(selector);assert.equal(visible(await p.locator(selector).inputValue()),expected.replace(/\u2028/g,' '));}
   const marks=JSON.parse(await save());assert(!marks.yigo.enabled&&!marks.folio.rhinoEnabled);assert.equal(visible(marks.yigo.text),expected.replace(/\u2028/g,' '));assert.equal(visible(marks.folio.rhino),expected.replace(/\u2028/g,' '));assert.equal(visible(marks.notes.sets['body.front'].inL.text),expected.replace(/\u2028/g,' '));
+  const legacy='{\\rtf1{\\fonttbl{\\f0\\cpg932 TibetanMachine;}}'+String.fromCharCode(129)+'}';
+  await upload('legacy.rtf',Buffer.from(legacy,'latin1'));await p.waitForFunction(glyph=>document.querySelector('#text').value.includes(glyph),T.TibetanMachine[129]);assert.equal(visible(await p.locator('#text').inputValue()),T.TibetanMachine[129]);
   assert.deepEqual(errors,[]);console.log('PASS: raw RTF-J file import, syntax-valued DBCS trails, fonts/styles/Tibetan, preview/print/PDF, Save/Open, Unicode RTF roundtrip, body paste undo/redo and mark destinations');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

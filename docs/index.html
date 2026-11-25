@@ -3442,10 +3442,16 @@ const Rtf = (() => {
       let fallback = 0;
       const encoding = () => {
         const f = lexicalFonts[state.font];
+        if (f?.legacy && !state.fontTable) return null;
         return f?.page ?? (f?.charset === undefined || f.charset === 1 ? state.codepage : charsetPages[f.charset]);
       };
       const track = t => {
-        if (fallback) {fallback=Math.max(0,fallback-(t.text?.length||1));return;}
+        let text=t.text ?? t.literal ?? (t.byte===undefined ? null : String.fromCharCode(t.byte));
+        if (fallback) {
+          if (text===null) {fallback--;return;}
+          const skipped=Math.min(fallback,text.length);fallback-=skipped;text=text.slice(skipped);
+          if (!text) return;
+        }
         if (t.name && !state.destination) state.destination=t.name;
         if (t.name==='fonttbl') state.fontTable=true;
         if (t.name==='ansicpg') state.codepage=t.value;
@@ -3456,9 +3462,17 @@ const Rtf = (() => {
         if (t.name==='plain') state.font=lexicalDefault;
         if (t.name==='uc') state.uc=fallbackLength(t.value);
         if (t.name==='u') fallback=state.uc;
-        if (state.fontTable && ['fonttbl','f'].includes(state.destination) && ['fcharset','cpg'].includes(t.name)) {
+        if (state.fontTable && ['fonttbl','f'].includes(state.destination)) {
           const f = lexicalFonts[state.font] ||= {};
-          f[t.name==='cpg'?'page':'charset']=t.value;
+          if (['fcharset','cpg'].includes(t.name)) f[t.name==='cpg'?'page':'charset']=t.value;
+          if (t.name==='f') f.name='';
+          if (t.name==='u') f.name=(f.name||'')+String.fromCharCode((t.value+65536)%65536);
+          // Known Tibetan tables use single-byte glyph IDs, regardless of cpg.
+          // Only primary font-entry text participates; nested metadata is excluded.
+          for (const c of text||'') {
+            if (c===';') {f.legacy=Object.hasOwn(table,(f.name||'').trim());f.name='';}
+            else f.name=(f.name||'')+c;
+          }
         }
       };
       if (depth > 200) throw new Error('RTF groups are nested too deeply.');
