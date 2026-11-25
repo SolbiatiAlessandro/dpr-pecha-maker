@@ -3446,7 +3446,24 @@ const Rtf = (() => {
       return out;
     }
     const root = group(), flatten = list => list.flatMap(t => t.group ? flatten(t.group) : [t]);
-    const all = flatten(root), fonts = {}, colors = [], warnings = new Set();
+    const all = flatten(root), fonts = {}, fontCharsets = {}, colors = [], warnings = new Set();
+    const charsetPages = {0:1252,77:10000,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
+    const headerPage = all.find(t=>t.name==='ansicpg')?.value || (all.some(t=>t.name==='mac') ? 10000 : 1252);
+    const decoders = new Map(), supportedPages = new Set(Object.values(charsetPages));
+    const pageFor = (font, fallbackPage) => fontCharsets[font] === undefined || fontCharsets[font] === 1 ? fallbackPage : charsetPages[fontCharsets[font]];
+    function encodedByte(b, page, charset) {
+      if (!supportedPages.has(page)) {
+        warnings.add('An unsupported RTF font charset or code page could not be decoded. Unconverted characters appear as �.');
+        return b === 32 || (charset !== 2 && b > 32 && b < 127) ? String.fromCharCode(b) : '�';
+      }
+      if (!decoders.has(page)) decoders.set(page,new TextDecoder(page === 10000 ? 'macintosh' : 'windows-'+page));
+      const text = decoders.get(page).decode(Uint8Array.of(b));
+      if (text === '�' || /[\u0000-\u001f\u007f-\u009f]/.test(text)) {
+        warnings.add('Some RTF text bytes are undefined in their character encoding and appear as �.');
+        return '�';
+      }
+      return text;
+    }
     function destination(list) { return list.find(t => t.name)?.name; }
     function visit(list, fn) { for (const t of list) if (t.group) { fn(t.group); visit(t.group, fn); } }
     visit(root, list => {
@@ -3455,13 +3472,15 @@ const Rtf = (() => {
         let id = null, name = '', skip = 0, uc = 1;
         for (const t of tokens) {
           if (t.name === 'f') { id = t.value; name = ''; skip = 0; }
+          if (t.name === 'fcharset' && id !== null) fontCharsets[id] = t.value;
           if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
           if (t.name === 'u') { name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
-          const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : new TextDecoder('windows-1252').decode(Uint8Array.of(t.byte)));
+          if (t.byte !== undefined && skip) { skip--; continue; }
+          const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : encodedByte(t.byte,pageFor(id,headerPage),fontCharsets[id]));
           for (const c of text) {
             if (skip) { skip--; continue; }
             if (c === ';') { if (id !== null) fonts[id] = name.trim(); name = ''; }
-            else name += c;
+            else name += t.text !== undefined && c.charCodeAt(0) >= 128 && c.charCodeAt(0) <= 255 ? encodedByte(c.charCodeAt(0),pageFor(id,headerPage),fontCharsets[id]) : c;
           }
         }
       }
@@ -3497,11 +3516,7 @@ const Rtf = (() => {
       if (fallback) { fallback--; return; }
       const map = Object.hasOwn(table,fonts[state.font]) ? table[fonts[state.font]] : null;
       if (map) { if (map[b] !== undefined) emit(map[b], state); else if (b === 32) emit(' ',state); else {emit('�',state); warnings.add('Some legacy font characters could not be mapped.');} }
-      else {
-        let decoder; try { decoder = new TextDecoder(state.codepage === 10000 ? 'macintosh' : 'windows-' + state.codepage); }
-        catch {decoder = new TextDecoder('windows-1252'); warnings.add('An unsupported code page was read as Windows-1252.');}
-        emit(decoder.decode(new Uint8Array([b])),state);
-      }
+      else emit(encodedByte(b,pageFor(state.font,state.codepage),fontCharsets[state.font]),state);
     }
     function picture(list, state) {
       if (!list.some(t => t.name === 'pngblip')) { warnings.add('A non-PNG RTF picture was skipped.'); return; }
@@ -3541,7 +3556,7 @@ const Rtf = (() => {
           fallback = 0; walk(t.group,state); fallback = 0; continue;
         }
         if (t.text !== undefined) {
-          if (!fallback && !Object.hasOwn(table,fonts[state.font]) && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
+          if (!fallback && fontCharsets[state.font] !== 2 && !Object.hasOwn(table,fonts[state.font]) && /^[\x20-\x7e]*$/.test(t.text)) emit(t.text,state);
           else for (let i=0;i<t.text.length;i++) { const n=t.text.charCodeAt(i); if(n<=255) byte(n,state); else if(!fallback) emit(t.text[i],state); else fallback--; }
           continue;
         }
