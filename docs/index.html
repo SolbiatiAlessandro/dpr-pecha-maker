@@ -293,7 +293,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="btn" type="button" id="copyImage">Copy inline image at text cursor</button>
         <button class="btn" type="button" id="moveImage">Move inline image to text cursor</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
-        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; Windows uses reference-display units, so exact sizing can differ. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Check every position and size; unsupported records are reported.</p>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; Windows uses reference-display units, so exact sizing can differ. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Native files use the embedded PNG’s resolution in whole DPI, with Windows’ 72 DPI default when absolute resolution is absent. Check every position and size; unsupported records are reported.</p>
       </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>
@@ -2469,21 +2469,26 @@ const PechaImages = (() => {
     return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
       y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
   }
-  function pngResolution(bytes) {
+  // Keep raw density separate: native files distinguish an absent/relative
+  // density from an explicitly zero axis, unlike direct web image insertion.
+  function pngDensity(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     for (let i = 8; i + 12 <= bytes.length;) {
       const len = view.getUint32(i); if (i + 12 + len > bytes.length) break;
-      if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9 && bytes[i + 16] === 1) {
-        const x = view.getUint32(i + 8) * .0254, y = view.getUint32(i + 12) * .0254;
-        return x > 0 && y > 0 ? {x, y} : null;
+      if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9) {
+        return {x:view.getUint32(i + 8),y:view.getUint32(i + 12),unit:bytes[i + 16]};
       }
       i += len + 12;
     }
     return null;
   }
+  function pngResolution(bytes) {
+    const density=pngDensity(bytes);
+    return density?.unit===1 && density.x>0 && density.y>0 ? {x:density.x*.0254,y:density.y*.0254} : null;
+  }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngResolution, transferInline};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -4162,7 +4167,7 @@ const Pxp = (() => {
       if(field && phase)record[field[1]]=+field[2];
     }
     if(!payload){warnings.push('The native image payload is incomplete.');return {assets,images,warnings};}
-    const assetIds=new Map();
+    const assetIds=new Map(), resolutions=new Map();
     groups.IINFO.slice(0,200).forEach((info,index)=>{
       if(!info)return;
       const offset=info.imageOffset,size=info.compSize;
@@ -4176,20 +4181,21 @@ const Pxp = (() => {
       let asset=assets.find(a=>a.data===data);
       if(!asset){asset={id:'native-asset-'+index,data,width,height};assets.push(asset);}
       assetIds.set(index,asset.id);
+      // Windows decodes each PNG after reading the image table and replaces
+      // the saved DPI fields. Its bitmap starts at 2835 pixels/metre (72 DPI);
+      // only absolute pHYs replaces that default. Conversion truncates to u16.
+      const density=PechaImages.pngDensity(bytes);
+      const x=density?.unit===1 ? Math.trunc(density.x*.0254)&65535 : 72;
+      const y=density?.unit===1 ? Math.trunc(density.y*.0254)&65535 : 72;
+      if(density?.unit!==1)warnings.push('An embedded native PNG has no absolute resolution; the Windows bitmap default of 72 DPI is used.');
+      if((info.dibXDPI!==undefined && info.dibXDPI!==x) || (info.dibYDPI!==undefined && info.dibYDPI!==y))warnings.push('Embedded PNG resolution overrides the saved native image-table DPI, as in Windows.');
+      if(!x || !y)warnings.push('Zero native PNG resolution; both axes use the web fallback of 96 DPI. Windows uses its reference display.');
+      resolutions.set(index,x && y ? {dpi:x,dpiY:x===y?null:y} : {dpi:96,dpiY:null});
     });
-    const resolution = source => {
-      // The original uses its display fallback on BOTH axes if either source DPI is missing.
-      if (!(source.dibXDPI > 0 && source.dibYDPI > 0)) {
-        warnings.push('Missing native image resolution; both axes use the web fallback of 96 DPI.');
-        return {dpi:96,dpiY:null};
-      }
-      return {dpi:source.dibXDPI,dpiY:source.dibYDPI === source.dibXDPI ? null : source.dibYDPI};
-    };
     groups.LIINFO.forEach((info,index)=>{
       if(!info||!assetIds.has(info.iInfoIndex))return;
-      const source=groups.IINFO[info.iInfoIndex];
       images.push(PechaImages.placement({id:'native-inline-'+index,asset:assetIds.get(info.iInfoIndex),
-        ...resolution(source),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
+        ...resolutions.get(info.iInfoIndex),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
         above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
     });
     const nativeAnchors={0:'outer-left',1:'inner-left',2:'text-left',4:'text-right',5:'inner-right',6:'outer-right'};
@@ -4198,9 +4204,8 @@ const Pxp = (() => {
       if(!nativeAnchors[info.slot] || !Number.isInteger(info.pageNbr) || info.pageNbr<1 || info.pageNbr>3000) {
         warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
       }
-      const source=groups.IINFO[info.iInfoIndex];
       images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
-        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolution(source),
+        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolutions.get(info.iInfoIndex),
         ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
         inward:info.xAdj_float||0,margin:info.xMar_float||0}));
     });

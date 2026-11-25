@@ -1,6 +1,6 @@
 // Generated red/blue PNG and synthetic native records; no original application assets.
 const {deflateSync} = require('node:zlib');
-function png(x = 96, y = 48) {
+function png(x = 96, y = 48, {unit=1,omitDensity=false} = {}) {
   const chunk = (name, data) => {
     const body = Buffer.concat([Buffer.from(name), data]), result = Buffer.alloc(body.length + 8);
     result.writeUInt32BE(data.length); body.copy(result, 4);
@@ -12,13 +12,13 @@ function png(x = 96, y = 48) {
     result.writeUInt32BE((crc ^ 0xffffffff) >>> 0, result.length - 4); return result;
   };
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(96); ihdr.writeUInt32BE(48, 4); ihdr[8] = 8; ihdr[9] = 2;
-  const phys = Buffer.alloc(9); phys.writeUInt32BE(Math.round(x / .0254)); phys.writeUInt32BE(Math.round(y / .0254), 4); phys[8] = 1;
+  const phys = Buffer.alloc(9); phys.writeUInt32BE(Math.round(x / .0254)); phys.writeUInt32BE(Math.round(y / .0254), 4); phys[8] = unit;
   const pixels = Buffer.alloc(48 * 289);
   for (let row = 0; row < 48; row++) for (let col = 0; col < 96; col++) pixels[row * 289 + 1 + col * 3 + (col < 48 ? 0 : 2)] = 255;
-  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),chunk('pHYs',phys),chunk('IDAT',deflateSync(pixels)),chunk('IEND',Buffer.alloc(0))]);
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),...(omitDensity?[]:[chunk('pHYs',phys)]),chunk('IDAT',deflateSync(pixels)),chunk('IEND',Buffer.alloc(0))]);
 }
-function native(x = 96, y = 48, old = false) {
-  const image = png(), head = Buffer.from('.pxp\n[START NON-BODY]\niNiT YigoImageEn=1\niNiT YigoLineImageIndex=0\n[END NON-BODY]\n[START TEMPLATE]\n[END TEMPLATE]\nBefore ');
+function native(x = 96, y = 48, old = false, image = png(x,y)) {
+  const head = Buffer.from('.pxp\n[START NON-BODY]\niNiT YigoImageEn=1\niNiT YigoLineImageIndex=0\n[END NON-BODY]\n[START TEMPLATE]\n[END TEMPLATE]\nBefore ');
   let metadata;
   if (old) {
     const asset = Buffer.alloc(28), line = Buffer.alloc(40);

@@ -250,7 +250,7 @@ const Pxp = (() => {
       if(field && phase)record[field[1]]=+field[2];
     }
     if(!payload){warnings.push('The native image payload is incomplete.');return {assets,images,warnings};}
-    const assetIds=new Map();
+    const assetIds=new Map(), resolutions=new Map();
     groups.IINFO.slice(0,200).forEach((info,index)=>{
       if(!info)return;
       const offset=info.imageOffset,size=info.compSize;
@@ -264,20 +264,21 @@ const Pxp = (() => {
       let asset=assets.find(a=>a.data===data);
       if(!asset){asset={id:'native-asset-'+index,data,width,height};assets.push(asset);}
       assetIds.set(index,asset.id);
+      // Windows decodes each PNG after reading the image table and replaces
+      // the saved DPI fields. Its bitmap starts at 2835 pixels/metre (72 DPI);
+      // only absolute pHYs replaces that default. Conversion truncates to u16.
+      const density=PechaImages.pngDensity(bytes);
+      const x=density?.unit===1 ? Math.trunc(density.x*.0254)&65535 : 72;
+      const y=density?.unit===1 ? Math.trunc(density.y*.0254)&65535 : 72;
+      if(density?.unit!==1)warnings.push('An embedded native PNG has no absolute resolution; the Windows bitmap default of 72 DPI is used.');
+      if((info.dibXDPI!==undefined && info.dibXDPI!==x) || (info.dibYDPI!==undefined && info.dibYDPI!==y))warnings.push('Embedded PNG resolution overrides the saved native image-table DPI, as in Windows.');
+      if(!x || !y)warnings.push('Zero native PNG resolution; both axes use the web fallback of 96 DPI. Windows uses its reference display.');
+      resolutions.set(index,x && y ? {dpi:x,dpiY:x===y?null:y} : {dpi:96,dpiY:null});
     });
-    const resolution = source => {
-      // The original uses its display fallback on BOTH axes if either source DPI is missing.
-      if (!(source.dibXDPI > 0 && source.dibYDPI > 0)) {
-        warnings.push('Missing native image resolution; both axes use the web fallback of 96 DPI.');
-        return {dpi:96,dpiY:null};
-      }
-      return {dpi:source.dibXDPI,dpiY:source.dibYDPI === source.dibXDPI ? null : source.dibYDPI};
-    };
     groups.LIINFO.forEach((info,index)=>{
       if(!info||!assetIds.has(info.iInfoIndex))return;
-      const source=groups.IINFO[info.iInfoIndex];
       images.push(PechaImages.placement({id:'native-inline-'+index,asset:assetIds.get(info.iInfoIndex),
-        ...resolution(source),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
+        ...resolutions.get(info.iInfoIndex),ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,
         above:info.yAdj_float||0,space:info.sideSp_float||0,addTibetan:!!info.addTFA}));
     });
     const nativeAnchors={0:'outer-left',1:'inner-left',2:'text-left',4:'text-right',5:'inner-right',6:'outer-right'};
@@ -286,9 +287,8 @@ const Pxp = (() => {
       if(!nativeAnchors[info.slot] || !Number.isInteger(info.pageNbr) || info.pageNbr<1 || info.pageNbr>3000) {
         warnings.push('A native page-image anchor or page number is unsupported and was skipped.');return;
       }
-      const source=groups.IINFO[info.iInfoIndex];
       images.push(PechaImages.placement({id:'native-page-'+index,asset:assetIds.get(info.iInfoIndex),kind:'page',
-        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolution(source),
+        page:info.pageNbr,anchor:nativeAnchors[info.slot],...resolutions.get(info.iInfoIndex),
         ignoreDpi:!!info.ignoreImgDPI,scale:info.scale||100,down:info.yAdj_float||0,
         inward:info.xAdj_float||0,margin:info.xMar_float||0}));
     });

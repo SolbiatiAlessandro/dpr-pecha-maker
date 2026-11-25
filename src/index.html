@@ -286,7 +286,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <button class="btn" type="button" id="copyImage">Copy inline image at text cursor</button>
         <button class="btn" type="button" id="moveImage">Move inline image to text cursor</button>
         <button class="btn" type="button" id="deleteImage">Remove image</button>
-        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; Windows uses reference-display units, so exact sizing can differ. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Check every position and size; unsupported records are reported.</p>
+        <p class="hint">PNG resolution metadata is read when available. Other images default to 96 DPI; adjust DPI to set physical size. Ignore DPI uses 96 DPI here; Windows uses reference-display units, so exact sizing can differ. Page images stay on the chosen volume page number when text changes. Native image import is experimental, including 1.0 inline records and 1.1 inline/yi-go/page images. Native files use the embedded PNG’s resolution in whole DPI, with Windows’ 72 DPI default when absolute resolution is absent. Check every position and size; unsupported records are reported.</p>
       </details>
       <h3>Text size</h3><div class="grid" id="textFields"></div>
       <p class="hint">All main text changes size together, keeping fonts, bold and colours. Numbering and margin notes have their own sizes.</p>

@@ -71,20 +71,25 @@ const PechaImages = (() => {
     return {...size, x: right ? edge - placement.inward * 72 - size.w : edge + placement.inward * 72,
       y: (anchor.startsWith('text') ? T.y0 : I.y0 + d) + placement.down * 72, placement};
   }
-  function pngResolution(bytes) {
+  // Keep raw density separate: native files distinguish an absent/relative
+  // density from an explicitly zero axis, unlike direct web image insertion.
+  function pngDensity(bytes) {
     if (bytes.length < 8 || bytes[0] !== 137 || bytes[1] !== 80) return null;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     for (let i = 8; i + 12 <= bytes.length;) {
       const len = view.getUint32(i); if (i + 12 + len > bytes.length) break;
-      if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9 && bytes[i + 16] === 1) {
-        const x = view.getUint32(i + 8) * .0254, y = view.getUint32(i + 12) * .0254;
-        return x > 0 && y > 0 ? {x, y} : null;
+      if (String.fromCharCode(...bytes.slice(i + 4, i + 8)) === 'pHYs' && len === 9) {
+        return {x:view.getUint32(i + 8),y:view.getUint32(i + 12),unit:bytes[i + 16]};
       }
       i += len + 12;
     }
     return null;
   }
+  function pngResolution(bytes) {
+    const density=pngDensity(bytes);
+    return density?.unit===1 && density.x>0 && density.y>0 ? {x:density.x*.0254,y:density.y*.0254} : null;
+  }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngResolution, transferInline};
+  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
