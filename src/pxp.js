@@ -678,9 +678,13 @@ const Pxp = (() => {
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
     const images=content?nativeImages(doc,warnings,full):null;
-    const fonts = ['Times New Roman'], cp = new Map(), tib = new Map(); let usesTcc = false;
-    const decoded = new TextDecoder('windows-1252').decode(Uint8Array.from({length:256},(_,i)=>i));
-    for (let b=32;b<256;b++) if (!/[\u007f-\u009f�]/.test(decoded[b])) cp.set(decoded[b],b);
+    const fonts = [{name:'Times New Roman',charset:0}], tib = new Map(); let usesTcc = false;
+    const encodings = [[0,1252],[238,1250],[204,1251],[161,1253],[162,1254],[177,1255],[178,1256],[186,1257],[163,1258],[222,874]].map(([charset,page])=>{
+      const decoded=new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i)),map=new Map();
+      for(let b=32;b<256;b++)if(!/[\u007f-\u009f�]/.test(decoded[b]))map.set(decoded[b],b);
+      return {charset,map};
+    });
+    const cp=encodings[0].map;
     for (let id=0;id<5;id++) for (const [byte,text] of Object.entries(table[id ? 'TibetanMachineSkt'+id : 'TibetanMachine'] || {})) {
       if (+byte < 32 || !text || !/[\u0f00-\u0fff]/.test(text)) continue;
       const list = tib.get(text[0]) || []; list.push({text,id,byte:+byte}); tib.set(text[0],list);
@@ -691,16 +695,17 @@ const Pxp = (() => {
       for (const c of text) { if (!cp.has(c)) throw new Error('A font name cannot be represented in Windows-1252.'); bytes.push(cp.get(c)); }
       return bytes;
     };
-    const fontId = name => {
+    const fontId = (name,charset=0) => {
       if (['Jomolhari','Noto Serif Tibetan'].includes(name) || Object.hasOwn(table,name)) {
         name = 'Times New Roman'; warnings.add('Tibetan text uses native TCC font slots; select a compatible TCC family in Windows. Latin text in a Tibetan web font uses Times New Roman. Exact glyph shapes are unverified.');
       }
       const nameBytes=ansi(name);
       if (!Engine.fontToken(name) || nameBytes.length > 31) throw new Error('A font name exceeds the native 31-byte font-name limit.');
       if (nameBytes.some((b,i)=>b!==name.charCodeAt(i))) throw new Error('A font name uses characters not yet supported by native export. Choose another font.');
-      if (!fonts.includes(name)) fonts.push(name);
+      let index=fonts.findIndex(f=>f.name===name&&f.charset===charset);
+      if(index<0){index=fonts.length;fonts.push({name,charset});}
       if (fonts.length > 250) throw new Error('Too many fonts for a native file.');
-      return fonts.indexOf(name)+5;
+      return index+5;
     };
     const stream = (slot,label,context=doc,body=false) => {
       const bytes = [], state = new Map();
@@ -711,7 +716,9 @@ const Pxp = (() => {
         if (run.k === 'page') {if(body)bytes.push(12);continue;}
         const text = body ? run.s.replace(/\r\n?|\u2028/g,'\n') : run.s.replace(/[\r\n\u2028\t]/g,' '), f = Engine.fontFor(context,run,slot.size), name = Engine.primaryFont(f.family);
         if (!text) continue;
-        const latin = fontId(name), color = (run.style.color || '#14100e').slice(1);
+        const latin = fontId(name), fontIds=new Map([[0,latin]]), characters=[...new Set(text)];
+        let encoding=encodings.find(e=>characters.every(c=>e.map.has(c)||/[\u0f00-\u0fff\uE00D\n\t]/.test(c)))||encodings[0];
+        const color = (run.style.color || '#14100e').slice(1);
         const rgb = (color.length===3 ? [...color].map(c=>c+c).join('') : color).match(/../g)?.map(c=>parseInt(c,16));
         if (rgb?.length!==3 || rgb.some(n=>!Number.isFinite(n))) throw new Error(label+': invalid text color.');
         if(body)command({l:0x32,r:0x33,c:0x34,j:0x35}[run.style.align] || 0x35,127);
@@ -722,8 +729,15 @@ const Pxp = (() => {
           if(body && (c==='\n' || c==='\t')){bytes.push(c==='\n'?10:9);at++;continue;}
           if(c==='\uE00D'){id=0;byte=11;at++;}
           else if(match){id=match.id;byte=match.byte;at+=match.text.length;}
-          else if(cp.has(c)){byte=cp.get(c);at+=c.length;if(c===' ' && state.has(0x20))id=+state.get(0x20).split(',')[0];}
-          else throw new Error(label+': cannot encode U+'+c.codePointAt(0).toString(16).toUpperCase()+' in the supported native fonts.');
+          else {
+            const selected=encoding.map.has(c)?encoding:encodings.find(e=>e.map.has(c));
+            if(!selected)throw new Error(label+': cannot encode U+'+c.codePointAt(0).toString(16).toUpperCase()+' in the supported native fonts.');
+            encoding=selected;byte=encoding.map.get(c);id=fontIds.get(encoding.charset);
+            if(id===undefined){id=fontId(name,encoding.charset);fontIds.set(encoding.charset,id);}
+            at+=c.length;
+            if(encoding.charset)warnings.add('Text outside Windows-1252 uses additional Windows font charsets. Verify font availability, shaping and mixed-script appearance in Windows.');
+            if(c===' ' && state.has(0x20))id=+state.get(0x20).split(',')[0];
+          }
           if(id<5){usesTcc=true;warnings.add('Tibetan text is converted to legacy TCC glyphs. Windows must have compatible TCC fonts; verify stacks and appearance against the original.');}
           command(0x20,id);
           if(body){
@@ -787,14 +801,14 @@ const Pxp = (() => {
       if(!Number.isInteger(doc.pageNum.size))warnings.add('Arabic number size is rounded to whole native points.');
     }
     if(!doc.pageNum.on && doc.pageNum.start)warnings.add('Disabled Arabic numbering is stored as a zero start; its saved nonzero start is not preserved.');
-    const nativeFonts=content?['TibetanMachine','TibetanMachineSkt1','TibetanMachineSkt2','TibetanMachineSkt3','TibetanMachineSkt4',...fonts]:fonts;
+    const nativeFonts=content?[...['TibetanMachine','TibetanMachineSkt1','TibetanMachineSkt2','TibetanMachineSkt3','TibetanMachineSkt4'].map(name=>({name,charset:0})),...fonts]:fonts;
     // Native checksum stores float32 after each addition and uses a signed int32
     // byte/weight product. The five bundled PXP headers corroborate this sequence.
     let checksum=0,weight=100;
     if(content)for(const byte of body){checksum=Math.fround(checksum+weight);checksum=Math.fround(checksum+byte);checksum=Math.fround(checksum+Math.imul(byte,++weight));weight++;}
     const heading=content?'.'+mode+' 0.6 0 u1 u2 u3 u4 '+body.length+' '+checksum.toFixed(0)+' '+nativeFonts.length+' ':'.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ';
     const header=[...new TextEncoder().encode(heading)];
-    nativeFonts.forEach((name,i)=>header.push(...new TextEncoder().encode(i+' 0 '),...ansi(name),0));header.push(10);
+    nativeFonts.forEach((font,i)=>header.push(...new TextEncoder().encode(i+' '+font.charset+' '),...ansi(font.name),0));header.push(10);
     if(content){chunks.push(body);const block=images.finish();if(block)chunks.push(block);}
     chunks.unshift(Uint8Array.from(header));const bytes=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
     return {bytes,warnings:[...warnings]};
