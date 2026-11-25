@@ -3923,19 +3923,23 @@ const Pxp = (() => {
       while (nl < end && b[nl] !== 10) nl++;
       const line = LAT(b, i, nl);
       i = nl + 1;
+      if (line.replace(/\r$/, '') === '[END NON-BODY]') return {values:out,raw,end:i};
       const m = /^(?:iNiT )?([^=]+)=(.*)$/.exec(line.replace(/\r$/, ''));
       if (!m) continue;
       const [, k, v] = m;
       if (/(\.s|Stream)$/.test(k)) {
         if (!Number.isInteger(lastLen) || lastLen < 0 || lastLen > end - i) throw new Error('Invalid native text-stream length');
         raw[k] = b.subarray(i, i + lastLen);
-        i += lastLen + 1;
+        i += lastLen;
+        if (b[i] === 13) i++;
+        if (b[i] !== 10) throw new Error('Invalid native text-stream separator');
+        i++;
       } else {
         out[k] = v;
         if (/(slen|Len)$/.test(k)) lastLen = +v;
       }
     }
-    return { values: out, raw };
+    throw new Error('Missing native NON-BODY terminator');
   }
 
   function parseIni(text) {
@@ -4025,21 +4029,43 @@ const Pxp = (() => {
   function parse(u8, table) {
     const b = u8 instanceof Uint8Array ? u8 : new Uint8Array(u8);
     const sNB = indexOf(b, '[START NON-BODY]');
-    const eNB = indexOf(b, '[END NON-BODY]');
-    const sT = indexOf(b, '[START TEMPLATE]');
-    const eT = indexOf(b, '[END TEMPLATE]');
+    let sT = -1, eT = -1, templateEnd = -1;
     // Standalone template files use the INI layout without the document's font/body wrapper.
     // The original executable exposes this template heading and File Version section.
-    if (sNB < 0 && sT < 0 && indexOf(b, '[PageSetup]') >= 0 && indexOf(b, '[PechaControl]') >= 0) {
+    if (sNB < 0 && indexOf(b, '[PageSetup]') >= 0 && indexOf(b, '[PechaControl]') >= 0) {
       return {version: '', fonts: {}, fontCharsets: {}, nonBody: {values: {}, raw: {}}, template: parseIni(LAT(b, 0, b.length)), body: b.subarray(b.length)};
     }
     if (!/^\.px[pcta]$/.test(LAT(b, 0, 4)) && sNB < 0) throw new Error('Not a PechaMaker file');
     const {fonts, fontCharsets} = parseFonts(LAT(b, 0, sNB < 0 ? 200 : sNB));
-    const nb = sNB >= 0 ? parseNonBody(b, sNB + 17, eNB) : { values: {}, raw: {} };
-    const tpl = sT >= 0 ? parseIni(LAT(b, sT + 16, eT)) : {};
-    let bodyStart = eT >= 0 ? eT + 15 : (eNB >= 0 ? eNB + 15 : 0);
-    const imageStart = indexOf(b, '\n[START IMAGES] ', bodyStart);
-    const hasImageBlock = imageStart >= 0 && /^\n\[START IMAGES\] [^\r\n]+\r?\n(?:ImageInfoCount|ImageInfo_SizeOf)=\d+/.test(LAT(b,imageStart,Math.min(b.length,imageStart+160)));
+    // Raw annotation streams can contain section-marker text. Follow their byte lengths
+    // before looking for a template, and recognize template markers only as whole lines.
+    const nb = sNB >= 0 ? parseNonBody(b, sNB + '[START NON-BODY]'.length, b.length) : {values:{},raw:{},end:0};
+    const header = /^\.px[pc] [\d.]+ \d+ u1 u2 u3 u4 (\d+) /.exec(LAT(b,0,sNB < 0 ? 200 : sNB));
+    const bodyLength = header ? +header[1] : null;
+    const imageHeaderAt = at => /^\n\[START IMAGES\] [^\r\n]+\r?\n(?:ImageInfoCount|ImageInfo_SizeOf)=\d+/.test(LAT(b,at,Math.min(b.length,at+160)));
+    const bodyEndsAt = at => at === b.length || (at < b.length && imageHeaderAt(at));
+    // Real PXC files omit the template. A leading marker in their declared body is text.
+    const directContent = LAT(b,0,4) === '.pxc' && bodyLength > 0 && bodyEndsAt(nb.end+bodyLength);
+    let next = nb.end;
+    while (b[next] === 10 || b[next] === 13) next++;
+    if (!directContent && LAT(b,next,next+'[START TEMPLATE]'.length) === '[START TEMPLATE]') {
+      let cursor = next+'[START TEMPLATE]'.length;
+      if (b[cursor] === 13) cursor++;
+      if (b[cursor] === 10) {
+        sT = ++cursor;
+        while (cursor < b.length) {
+          let nl = cursor; while (nl < b.length && b[nl] !== 10) nl++;
+          if (LAT(b,cursor,nl).replace(/\r$/, '') === '[END TEMPLATE]') {eT=cursor;templateEnd=Math.min(nl+1,b.length);break;}
+          cursor = nl+1;
+        }
+        if (eT < 0) throw new Error('Missing native TEMPLATE terminator');
+      }
+    }
+    const tpl = sT >= 0 ? parseIni(LAT(b,sT,eT)) : {};
+    const bodyStart = templateEnd >= 0 ? templateEnd : nb.end;
+    const declaredEnd = bodyLength !== null ? bodyStart+bodyLength : -1;
+    const imageStart = declaredEnd >= bodyStart && bodyEndsAt(declaredEnd) ? (declaredEnd < b.length ? declaredEnd : -1) : indexOf(b, '\n[START IMAGES] ', bodyStart);
+    const hasImageBlock = imageStart >= 0 && imageHeaderAt(imageStart);
     return { version: LAT(b, 0, 12), fonts, fontCharsets, nonBody: nb, template: tpl,
       imageBlock: hasImageBlock ? b.subarray(imageStart) : null,
       body: b.subarray(bodyStart, hasImageBlock ? imageStart : b.length) };
@@ -4336,6 +4362,7 @@ const Pxp = (() => {
       if (parsed.template.PechaAnnotation) {
         for (const key of ['size', 'inset']) base.folio[key] = imported.folio[key];
         for (const key of ['size', 'inset', 'position', 'angle']) base.pageNum[key] = imported.pageNum[key];
+        base.notes.outLeft = imported.notes.outLeft; base.notes.outRight = imported.notes.outRight;
         if (extension === 'pxc') base.pageNum.font = imported.pageNum.font;
       }
       if (extension === 'pxc') {
