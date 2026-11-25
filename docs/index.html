@@ -3429,14 +3429,44 @@ const Rtf = (() => {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
     if (!/^\s*\{\\rtf1\b/.test(source) || source.length > 24000000) throw new Error('Not a supported RTF file (maximum 24 MB).');
     const fallbackLength = n => Math.max(0,Math.min(source.length,n ?? 1));
+    const charsetPages = {0:1252,77:10000,128:932,129:949,134:936,136:950,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
+    // RTF-J raw lead bytes consume the following byte before RTF syntax is parsed.
+    // Track only the encoding-related controls here; the semantic reader below
+    // still handles text/styles, Unicode fallback and ignored destinations.
+    const lexicalFonts = {}; let lexicalDefault = 0;
+    const rawLead = (page,b) => page === 932 ? (b>=0x81&&b<=0x9f)||(b>=0xe0&&b<=0xfc)
+      : [936,949,950].includes(page) && b>=0x81&&b<=0xfe;
     let pos = 0, count = 0;
-    function group(depth = 0) {
+    function group(depth = 0, inherited = {font:0,codepage:1252,uc:1}) {
+      const state = {...inherited, destination:null, fontTable:inherited.destination==='fonttbl'};
+      let fallback = 0;
+      const encoding = () => {
+        const f = lexicalFonts[state.font];
+        return f?.page ?? (f?.charset === undefined || f.charset === 1 ? state.codepage : charsetPages[f.charset]);
+      };
+      const track = t => {
+        if (fallback) {fallback=Math.max(0,fallback-(t.text?.length||1));return;}
+        if (t.name && !state.destination) state.destination=t.name;
+        if (t.name==='fonttbl') state.fontTable=true;
+        if (t.name==='ansicpg') state.codepage=t.value;
+        if (t.name==='mac') state.codepage=10000;
+        if (t.name==='ansi') state.codepage=1252;
+        if (t.name==='deff') state.font=lexicalDefault=t.value;
+        if (t.name==='f') state.font=t.value;
+        if (t.name==='plain') state.font=lexicalDefault;
+        if (t.name==='uc') state.uc=fallbackLength(t.value);
+        if (t.name==='u') fallback=state.uc;
+        if (state.fontTable && ['fonttbl','f'].includes(state.destination) && ['fcharset','cpg'].includes(t.name)) {
+          const f = lexicalFonts[state.font] ||= {};
+          f[t.name==='cpg'?'page':'charset']=t.value;
+        }
+      };
       if (depth > 200) throw new Error('RTF groups are nested too deeply.');
       const out = [];
       while (pos < source.length) {
         if (++count > 3000000) throw new Error('RTF is too complex.');
-        const c = source[pos++];
-        if (c === '{') out.push({group: group(depth + 1)});
+        const before = out.length, c = source[pos++];
+        if (c === '{') {fallback=0;out.push({group: group(depth + 1,state)});}
         else if (c === '}') return out;
         else if (c === '\\') {
           const next = source[pos++];
@@ -3450,16 +3480,22 @@ const Rtf = (() => {
           } else if (next === '\\' || next === '{' || next === '}') out.push({literal: next});
           else out.push({symbol: next});
         } else if (c !== '\r' && c !== '\n') {
-          let text = c; while (pos < source.length && !/[{}\\\r\n]/.test(source[pos])) text += source[pos++];
+          let text = '', b = c;
+          do {
+            text += b;
+            if (rawLead(encoding(),b.charCodeAt(0)) && pos<source.length && source.charCodeAt(pos)<=255) text += source[pos++];
+            if (pos>=source.length || /[{}\\\r\n]/.test(source[pos])) break;
+            b=source[pos++];
+          } while (true);
           out.push({text});
         }
+        if (out.length>before && !out[out.length-1].group) track(out[out.length-1]);
       }
       if (depth) throw new Error('Incomplete RTF group.');
       return out;
     }
     const root = group(), flatten = list => list.flatMap(t => t.group ? flatten(t.group) : [t]);
     const all = flatten(root), fonts = {}, fontCharsets = {}, fontPages = {}, colors = [], warnings = new Set();
-    const charsetPages = {0:1252,77:10000,128:932,129:949,134:936,136:950,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
     const headerPage = all.find(t=>t.name==='ansicpg')?.value || (all.some(t=>t.name==='mac') ? 10000 : 1252);
     const pageLabels = {874:'windows-874',932:'shift_jis',936:'gbk',949:'euc-kr',950:'big5',10000:'macintosh',65001:'utf-8',...Object.fromEntries(Array.from({length:9},(_,i)=>[1250+i,'windows-'+(1250+i)]))};
     // RTF 1.9.1: an explicit font code page supersedes the page implied by fcharset.
