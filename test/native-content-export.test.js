@@ -13,13 +13,23 @@ function verify(bytes){
 const d=sample(E),before=JSON.stringify(d),out=P.writeContent(d,E,T),p=verify(out.bytes);
 assert.equal(JSON.stringify(d),before);assert.equal(p.fonts[0],'TibetanMachine');assert.equal(p.fonts[4],'TibetanMachineSkt4');assert.equal(p.fonts[5],'Times New Roman');assert.equal(p.fonts[6],'Arial');
 assert(p.body.includes(10));assert(p.body.includes(9));assert(p.body.includes(12));assert(p.body.includes(11));
-const target=E.defaultDoc();target.text='OLD';target.paper.w=14;target.pageNum.size=9;target.pageNum.font='Georgia';target.folio.size=12;target.notes.outLeft=.7;
-const targetBefore=JSON.stringify(target),got=P.load(out.bytes,'pxc',T,target,E).doc;
-assert.equal(JSON.stringify(target),targetBefore);assert.equal(visible(got.text),visible(d.text));assert.equal(got.paper.w,14);assert.equal(got.pageNum.size,9);assert.equal(got.pageNum.font,'Georgia');assert.equal(got.folio.size,12);assert.equal(got.notes.outLeft,.7);
+const target=E.defaultDoc();target.text='OLD';target.textSize=50;target.paper.w=14;target.pageNum.size=9;target.pageNum.font='Georgia';target.folio.size=12;target.notes.outLeft=.7;
+const targetBefore=JSON.stringify(target),loaded=P.load(out.bytes,'pxc',T,target,E),got=loaded.doc;
+assert(loaded.warnings.some(w=>w.includes('text-size override was cleared')));
+assert(!P.load(out.bytes,'pxc',T,E.defaultDoc(),E).warnings.some(w=>w.includes('text-size override was cleared')));
+assert.equal(JSON.stringify(target),targetBefore);assert.equal(got.textSize,null);assert.deepEqual(got.types,target.types);assert.equal(visible(got.text),visible(d.text));assert.equal(got.paper.w,14);assert.equal(got.pageNum.size,9);assert.equal(got.pageNum.font,'Georgia');assert.equal(got.folio.size,12);assert.equal(got.notes.outLeft,.7);
 assert.deepEqual(got.shad,d.shad);assert.deepEqual(got.dzog,d.dzog);assert.equal(got.yigo.enabled,true);assert.equal(got.yigo.title2,true);assert.equal(got.yigo.fancyStart,false);assert.equal(visible(got.yigo.text),visible(d.yigo.text));
 assert.equal(got.folio.start,d.folio.start);assert.equal(got.pageNum.start,d.pageNum.start);assert.equal(visible(got.folio.rhino),visible(d.folio.rhino));
 for(const [side,set] of Object.entries(d.notes.sets))for(const pos of ['inL','inR','outL','outR',...(side.endsWith('.front')?['inB']:[])])assert.equal(visible(got.notes.sets[side][pos].text),visible(set[pos].text));
-const runs=E.parseStream(got.text,false).filter(r=>r.k==='text');assert(runs.some(r=>r.s.includes('Café')&&r.style.bold&&r.style.size===18&&r.style.color==='#c02030'));assert(runs.some(r=>r.s.includes('Second')&&r.style.italic&&r.style.underline&&r.style.strike&&r.style.size===15&&r.style.align==='c'));
+const runs=E.parseStream(got.text,false).filter(r=>r.k==='text');
+assert.equal(E.fontFor(got,runs.find(r=>r.s.includes('Café')),got.types.body.fontSize).size,18);
+assert.equal(E.fontFor(got,runs.find(r=>r.s.includes('Second')),got.types.body.fontSize).size,15);
+// Annotation and layout imports do not replace the body or its web size override.
+const layout=E.defaultDoc();for(const t of Object.values(layout.types))t.baseline=.3;
+for(const [kind,bytes] of [['pxa',P.writeAnnotations(d,E,T).bytes],['pxt',Buffer.from(P.writeTemplate(layout,E).text)]]){
+ const partial=P.load(bytes,kind,T,target,E).doc;assert.equal(partial.textSize,50);assert.equal(partial.text,'OLD');
+}
+assert(runs.some(r=>r.s.includes('Café')&&r.style.bold&&r.style.size===18&&r.style.color==='#c02030'));assert(runs.some(r=>r.s.includes('Second')&&r.style.italic&&r.style.underline&&r.style.strike&&r.style.size===15&&r.style.align==='c'));
 assert.equal(visible(D.normalize(D.artifact(got,'document'),E).text),visible(got.text));assert(out.warnings.some(w=>w.includes('Experimental')));assert(out.warnings.some(w=>w.includes('receiving document')));
 // Exact independent single-letter body contract, including native size argument positions.
 const one=E.defaultDoc();one.font='"Arial"';one.text='{18 l}A';one.yigo.text='';one.folio.rhino='';

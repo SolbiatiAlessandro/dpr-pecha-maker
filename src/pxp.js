@@ -505,7 +505,9 @@ const Pxp = (() => {
         if (extension === 'pxc') base.pageNum.font = imported.pageNum.font;
       }
       if (extension === 'pxc') {
-        base.text = imported.text; base.sections = []; base.flow = false; base.assets = imported.assets; base.images = imported.images;
+        // A content file supplies its own run sizes; the prior web override would mask them.
+        if (base.textSize != null) result.warnings.push('The previous web text-size override was cleared so the Windows content file can use its stored font sizes.');
+        base.text = imported.text; base.textSize = null; base.sections = []; base.flow = false; base.assets = imported.assets; base.images = imported.images;
         for (const key of ['yigo', 'shad', 'dzog']) base[key] = imported[key];
       }
     } else throw new Error('Unknown PechaMaker file type');
