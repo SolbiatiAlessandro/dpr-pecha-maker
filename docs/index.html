@@ -3981,9 +3981,10 @@ const Pxp = (() => {
   // Turns a coded byte stream into a list of events.
   //   0x11 op a b c 0x11   format code (font, size, style, colour, alignment)
   //   0x14 x font ch y 0x14  stack character taken from another font of the set
-  // Windows font charset values map to standard single-byte code pages.
-  // Symbol/custom and multibyte encodings require separate glyph/stream handling.
+  // Windows font charset values map to standard code pages. DBCS bytes are
+  // decoded together, ending at native records rather than crossing their boundaries.
   const charsetPages = {0:1252,1:1252,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
+  const multibyteLabels = {128:'shift_jis',129:'euc-kr',134:'gbk',136:'big5'};
   const byteDecoders = new Map();
   function decodeStream(bytes, fonts, table, startFont = 0, fontCharsets = {}) {
     const ev = [];
@@ -4006,6 +4007,9 @@ const Pxp = (() => {
         if (!byteDecoders.has(page)) byteDecoders.set(page, Array.from(new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i))));
         text = byteDecoders.get(page)[c];
         if (charset === 1 && c >= 128) warnings.add('A system-default font charset was decoded as Windows-1252. The source Windows locale is not recorded; check extended characters.');
+      } else if (multibyteLabels[charset]) {
+        // A framed glyph contains exactly one byte; it cannot borrow a trail byte.
+        text = new TextDecoder(multibyteLabels[charset]).decode(Uint8Array.of(c));
       } else {
         warnings.add(`Native font charset ${charset} (${name || 'unnamed font'}) is unsupported. Unconverted glyphs appear as �; check against the original.`);
         // ASCII survives in unsupported text encodings, but symbol glyphs do not.
@@ -4019,34 +4023,51 @@ const Pxp = (() => {
       }
       return text;
     };
+    let pending = [], decoder = null;
+    const flushBytes = (final = true) => {
+      if (!pending.length && !decoder) return;
+      decoder ||= new TextDecoder(multibyteLabels[fontCharsets[font]]);
+      const text = decoder.decode(Uint8Array.from(pending),{stream:!final}); pending = [];
+      const invalid = text.match(/[�\u0000-\u001f\u007f-\u009f]/g);
+      if (invalid) {
+        const key = `${fonts[font] || 'font '+font}:charset${fontCharsets[font]}:sequence`;
+        unknown[key] = (unknown[key] || 0) + invalid.length;
+        warnings.add('Some native text bytes could not be decoded and appear as �.');
+      }
+      append(text.replace(/[\u0000-\u001f\u007f-\u009f]/g,'�'),font);
+      if (final) decoder = null;
+    };
     for (let i = 0; i < bytes.length; i++) {
       const c = bytes[i];
       if (c === 0x11 && bytes[i + 5] === 0x11) {
         const op = bytes[i + 1], a = bytes[i + 2], b = bytes[i + 3], d = bytes[i + 4];
-        flush();
+        flushBytes(); flush();
         if (op === 0x20) font = a;                 // font name
         ev.push({ t: 'code', op, a, b, d, font });
         i += 5;
       } else if (c === 0x14 && bytes[i + 5] === 0x14) {
+        flushBytes();
         append(map(bytes[i + 2], bytes[i + 3]), bytes[i + 2]);
         i += 5;
       } else if (c === 0x13 && i + 5 < bytes.length) {
-        flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
+        flushBytes(); flush(); ev.push({t:'image',index:bytes[i+3]+256*bytes[i+4]}); i+=5;
       } else if (c === 11) {
         // Native Hard Shad is a one-byte control, independent of the active font.
-        flush(); ev.push({ t: 'hardShad', font });
+        flushBytes(); flush(); ev.push({ t: 'hardShad', font });
       } else if (c === 13 || c === 10) {
-        flush(); ev.push({ t: 'hr' });
+        flushBytes(); flush(); ev.push({ t: 'hr' });
         if (c === 13 && bytes[i + 1] === 10) i++;
       } else if (c === 12) {
-        flush(); ev.push({ t: 'page' });
+        flushBytes(); flush(); ev.push({ t: 'page' });
       } else if (c === 9) {
-        append('\t', font);
+        flushBytes(); append('\t', font);
       } else {
-        append(map(font, c), font);
+        if (multibyteLabels[fontCharsets[font]] && !Object.hasOwn(table,fonts[font])) {
+          pending.push(c); if (pending.length >= 16384) flushBytes(false);
+        } else append(map(font, c), font);
       }
     }
-    flush();
+    flushBytes(); flush();
     return { ev, unknown, warnings: [...warnings] };
   }
 

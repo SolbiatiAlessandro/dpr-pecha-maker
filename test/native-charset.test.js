@@ -23,7 +23,7 @@ for(const extension of ['pxp','pxc','pxa']) {
  else {assert.equal(plain(result.doc),'“€”—…');assert.equal(plain({text:result.doc.yigo.text}),'“€”—…');assert(result.doc.yigo.rich);}
  assert.equal(Documents.normalize(Documents.artifact(result.doc,'document'),Engine).text,result.doc.text);
 }
-for(const [charset,bytes,expected] of [[2,[65,32,66],'� �'],[128,[65,130,160],'A��'],[255,[65,255],'A�'],[77,[65,128],'A�'],[999,[65,255],'A�'],[0,[129],'�']]) {
+for(const [charset,bytes,expected] of [[2,[65,32,66],'� �'],[255,[65,255],'A�'],[77,[65,128],'A�'],[999,[65,255],'A�'],[0,[129],'�']]) {
  const result=Pxp.load(native({fonts:[{name:'Unmapped',charset}],body:bytes,note:bytes}),'pxp',TABLE,Engine.defaultDoc(),Engine);
  assert.equal(plain(result.doc),expected);assert(result.unknown>0);assert(result.warnings.some(w=>w.includes('�')));
  assert(result.warnings.some(w=>w.includes('annotation')));assert.equal(new Set(result.warnings).size,result.warnings.length);
