@@ -250,6 +250,21 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <p class="hint">Copy and Cut include readable text and RTF with fonts, sizes, colours and inline images, where the browser supports it. Formatted Cut keeps the following text’s style. Turn this off to copy or cut raw formatting codes.</p>
       <label class="check"><input id="typeover" type="checkbox"><span>Typeover (Insert key)</span></label>
       <p class="hint">Typeover replaces the next character, including its Tibetan stack or vowel marks. It stops at formatting marks and line breaks. Paste and input-method composition keep normal insertion; newly typed vowel marks extend the preceding character.</p>
+      <label class="check"><input id="lockedKeyboard" type="checkbox"><span>Locked keyboard font (Ctrl/Command+K)</span></label>
+      <p class="hint" id="lockedKeyboardStatus" role="status"></p>
+      <details id="lockedKeyboardSettings">
+        <summary>Font for locked keyboard</summary>
+        <div class="grid">
+          <label for="lockedFont">Font name</label><input id="lockedFont" type="text" maxlength="128" list="lockedFontChoices"><datalist id="lockedFontChoices"></datalist>
+          <label for="lockedSize">Size (pt)</label><input id="lockedSize" type="number" min="4" max="200" step="0.5">
+          <label for="lockedColor">Colour</label><input id="lockedColor" type="color">
+          <label class="check"><input id="lockedBold" type="checkbox"><span>Bold</span></label>
+          <label class="check"><input id="lockedItalic" type="checkbox"><span>Italic</span></label>
+          <label class="check"><input id="lockedUnderline" type="checkbox"><span>Underline</span></label>
+          <label class="check"><input id="lockedStrike" type="checkbox"><span>Strikethrough</span></label>
+        </div>
+        <p class="hint">These choices are remembered in this browser. Locked mode applies them to typed Unicode text and completed input-method composition. Paste keeps its supplied formatting. Legacy TCC/Sambhota keymaps are not yet implemented.</p>
+      </details>
       <div class="chips" id="codes"></div>
       <p class="hint">Formatting buttons insert a mark at the cursor. It applies until another mark changes it. In the editor, Ctrl/Command+Enter inserts a page break; Ctrl/Command+\ inserts a fixed shad.</p>
       <div class="chips">

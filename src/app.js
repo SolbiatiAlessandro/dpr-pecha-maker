@@ -1,6 +1,9 @@
 // Interface: holds one document, writes form changes into it, and redraws the pages.
 const STORE_KEY = 'dpr-pecha-maker-doc-v1';
 const RECOVERY_PREF_KEY = 'dpr-pecha-maker-recovery-minutes';
+const LOCKED_PREF_KEY = 'dpr-pecha-maker-locked-font';
+let lockedPreferences = TextFormat.lockedSettings({}, Engine), applyingLocked = false, lockedComposition = null;
+try {const saved=JSON.parse(localStorage.getItem(LOCKED_PREF_KEY));if(saved)lockedPreferences=TextFormat.lockedSettings(saved,Engine);} catch (_) {}
 const DCT_PREF_KEY = 'dpr-pecha-maker-dct-import';
 let dctPreferences = Dct.importSettings({}, Engine);
 try { const saved = JSON.parse(localStorage.getItem(DCT_PREF_KEY)); if (saved) dctPreferences = Dct.importSettings(saved, Engine); } catch (_) {}
@@ -116,6 +119,7 @@ function field(host, def) {
       if (def.step === 1) v = Math.round(v);
     }
     setPath(def.path, v);
+    if(def.path==='textSize')refreshLockedKeyboard();
     if (def.onChange) def.onChange(v);
     schedule();
   });
@@ -735,7 +739,8 @@ function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
-  if (!keepTypingMode) $('typeover').checked = false;
+  if (!keepTypingMode) {$('typeover').checked = false;$('lockedKeyboard').checked=false;}
+  lockedComposition=null;fillLockedKeyboard();
   recovery.newDocument();
   savedCheckpoint = {doc: Documents.artifact(d, 'document'), isSample: sample, source: src};
   reportImport([]);
@@ -909,6 +914,29 @@ function saveFile(kind = 'document') {
 
 // ---------- text helpers ----------
 
+function refreshLockedKeyboard() {
+  const on=$('lockedKeyboard').checked;
+  for(const el of $('selectionFormatting').querySelectorAll('input,select,button'))el.disabled=on;
+  for(const el of $('codes').querySelectorAll('[data-font-attribute]'))el.disabled=on;
+  $('lockedKeyboardStatus').textContent=on
+    ? `Locked: ${lockedPreferences.font}, ${lockedPreferences.size} pt. Normal font controls are disabled.`+(doc?.textSize?` Whole-text size (${doc.textSize} pt) overrides this size until cleared.`:'')
+    : 'Normal: typing follows the formatting at the cursor.';
+}
+function fillLockedKeyboard() {
+  $('lockedFont').value=lockedPreferences.font;$('lockedSize').value=lockedPreferences.size;$('lockedColor').value=lockedPreferences.color;
+  for(const key of ['bold','italic','underline','strike'])$('locked'+key[0].toUpperCase()+key.slice(1)).checked=lockedPreferences[key];
+  $('lockedFontChoices').replaceChildren(...TextFormat.fontChoices(doc||Engine.defaultDoc(),Engine).map(([,name])=>{const o=document.createElement('option');o.value=name;return o;}));
+  refreshLockedKeyboard();
+}
+function applyLockedEdit(result) {
+  const t=$('text');applyingLocked=true;
+  try{
+    t.focus();t.setSelectionRange(result.start,result.end);
+    if(!document.execCommand('insertText',false,result.replacement))t.setRangeText(result.replacement,result.start,result.end,'end');
+    t.setSelectionRange(result.cursor,result.cursor);setEditingText(t.value);isSample=false;noteSample();schedule();
+  }finally{applyingLocked=false;}
+}
+
 function insertAtCursor(s) {
   const t = $('text'), a = t.selectionStart, b = t.selectionEnd;
   t.setRangeText(s, a, b, 'end');
@@ -933,6 +961,7 @@ function init() {
   for (const [label, code] of codes) {
     const b = document.createElement('button');
     b.className = 'chip'; b.type = 'button'; b.textContent = label; b.title = `Inserts ${code}`;
+    if (/^\{(?:\d+|size|\/?[biu]|#[0-9a-f]+|color)\}$/.test(code)) b.dataset.fontAttribute = '';
     b.addEventListener('click', () => {
       const t = $('text');
       // Formatting controls must never erase a highlighted passage.
@@ -980,8 +1009,10 @@ function init() {
       reportImport(result.warnings);
       if (result.empty) { toast('The pasted RTF contains no supported text or images.'); return; }
       t.focus(); t.setSelectionRange(result.start,result.end);
-      // Use the browser edit transaction where available so text undo/redo remains usable.
-      if (!document.execCommand('insertText',false,result.replacement)) t.setRangeText(result.replacement,result.start,result.end,'end');
+      // Supplied RTF keeps its own styles even when the typing font is locked.
+      applyingLocked=true;
+      try {if (!document.execCommand('insertText',false,result.replacement)) t.setRangeText(result.replacement,result.start,result.end,'end');}
+      finally {applyingLocked=false;}
       doc.assets = result.assets; doc.images = result.images;
       t.setSelectionRange(result.cursor,result.cursor); setEditingText(t.value);
       isSample = false; noteSample(); refreshSelectionFonts(); buildImagePanel(); schedule();
@@ -994,10 +1025,42 @@ function init() {
       if (!event.repeat) $('typeover').checked = !$('typeover').checked;
     }
   });
+  $('lockedKeyboard').addEventListener('change',refreshLockedKeyboard);
+  for(const id of ['lockedFont','lockedSize','lockedColor','lockedBold','lockedItalic','lockedUnderline','lockedStrike'])$(id).addEventListener('change',()=>{
+    const value={font:$('lockedFont').value,size:+$('lockedSize').value,color:$('lockedColor').value};
+    if(!Engine.fontToken(value.font)||!$('lockedSize').value||!Number.isFinite(value.size)){fillLockedKeyboard();toast('Enter a font name and a size from 4 to 200 points.');return;}
+    for(const key of ['bold','italic','underline','strike'])value[key]=$('locked'+key[0].toUpperCase()+key.slice(1)).checked;
+    lockedPreferences=TextFormat.lockedSettings(value,Engine);fillLockedKeyboard();
+    try{localStorage.setItem(LOCKED_PREF_KEY,JSON.stringify(lockedPreferences));}catch(_){toast('Locked font changed, but this browser could not remember it.');}
+  });
+  fillLockedKeyboard();
   $('text').addEventListener('beforeinput', event => {
-    if (!$('typeover').checked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
-    const t = event.target, range = TextFormat.typeoverRange(t.value, t.selectionStart, t.selectionEnd, event.data);
-    if (range) t.setSelectionRange(range.start, range.end);
+    if (applyingLocked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
+    const t=event.target,range=$('typeover').checked?TextFormat.typeoverRange(t.value,t.selectionStart,t.selectionEnd,event.data):null;
+    if($('lockedKeyboard').checked&&event.data){
+      event.preventDefault();applyLockedEdit(TextFormat.insertLocked(t.value,range?.start??t.selectionStart,range?.end??t.selectionEnd,event.data,lockedPreferences,Engine));
+    }else if(range)t.setSelectionRange(range.start,range.end);
+  });
+  $('text').addEventListener('compositionstart',()=>{
+    const t=$('text');lockedComposition=$('lockedKeyboard').checked?{text:t.value,start:t.selectionStart,end:t.selectionEnd,doc,sectionIndex,pref:{...lockedPreferences}}:null;
+  });
+  $('text').addEventListener('compositionend',event=>{
+    const saved=lockedComposition;lockedComposition=null;
+    if(!saved||!event.data)return;
+    setTimeout(()=>{
+      const t=$('text');
+      if(doc!==saved.doc||sectionIndex!==saved.sectionIndex||!$('lockedKeyboard').checked)return;
+      const expected=saved.text.slice(0,saved.start)+event.data+saved.text.slice(saved.end);
+      if(t.value!==expected){toast('Composed text kept; the locked font could not be applied to this composition.');return;}
+      const result=TextFormat.insertLocked(saved.text,saved.start,saved.end,event.data,saved.pref,Engine);
+      // The browser has committed the text already. Apply the remaining difference,
+      // including any whole-token or combining-cluster boundary adjustment.
+      if(t.value===result.text)return;
+      let start=0,end=t.value.length,right=result.text.length;
+      while(start<end&&start<right&&t.value[start]===result.text[start])start++;
+      while(end>start&&right>start&&t.value[end-1]===result.text[right-1]){end--;right--;}
+      applyLockedEdit({...result,start,end,replacement:result.text.slice(start,right)});
+    },0);
   });
   $('startSections').addEventListener('click', () => {
     doc.sections = [{ name: 'Text 1', text: doc.text, folioStart: doc.folio.start, restartLayout: true }];
@@ -1181,7 +1244,7 @@ function init() {
     if (!confirm('Close this document and reset the next new pecha to default settings and empty annotations? Download a copy with Save first if needed.')) return;
     persist(true); clearTimeout(timer);
     doc = null; source = null; savedCheckpoint = null; latest = null;
-    $('typeover').checked = false;
+    $('typeover').checked = false;$('lockedKeyboard').checked=false;lockedComposition=null;refreshLockedKeyboard();
     recovery.newDocument(); $('printRoot').replaceChildren();
     showStart('Document closed. A new pecha will start with default settings. Browser recovery, when available, can reopen the previous document.');
   });
@@ -1218,7 +1281,8 @@ function init() {
     } else if (key === 's' && !event.shiftKey) {
       event.preventDefault(); if (!event.repeat) saveFile();
     } else if (event.target === $('text') && !event.isComposing) {
-      if (key === 'enter' || key === '\\') {
+      if(key==='k'&&!event.shiftKey){event.preventDefault();if(!event.repeat){$('lockedKeyboard').checked=!$('lockedKeyboard').checked;refreshLockedKeyboard();}}
+      else if (key === 'enter' || key === '\\') {
         event.preventDefault(); insertAtCursor(key === 'enter' ? '{page}' : '{hs}');
       } else if (key === '<' || key === '>' || (event.shiftKey && (event.code === 'Comma' || event.code === 'Period'))) {
         event.preventDefault(); $(key === '<' || event.code === 'Comma' ? 'previousCode' : 'nextCode').click();

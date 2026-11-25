@@ -108,6 +108,37 @@ const TextFormat = (() => {
     const replacement = rich+restore;
     return {text:text.slice(0,start)+replacement+text.slice(end),start,end,replacement,cursor:start+rich.length};
   }
+  function lockedSettings(value, Engine) {
+    const v=value&&typeof value==='object'?value:{};
+    const name=typeof v.font==='string'&&Engine.fontToken(v.font)?v.font.trim():'Jomolhari';
+    return {font:name,size:Number.isFinite(v.size)?Math.max(4,Math.min(200,v.size)):23,
+      color:/^#[0-9a-f]{6}$/i.test(v.color||'')?v.color.toLowerCase():'#14100e',
+      ...Object.fromEntries(['bold','italic','underline','strike'].map(k=>[k,v[k]===true]))};
+  }
+  function insertLocked(text, start, end, inserted, settings, Engine) {
+    const collapsed=start===end;
+    for(const m of text.matchAll(/\{[^{}\n]*\}/g)){
+      const right=m.index+m[0].length;
+      if(collapsed&&start>m.index&&start<right){start=end=right;break;}
+      if(start>m.index&&start<right)start=m.index;
+      if(end>m.index&&end<right)end=right;
+    }
+    // Keep a newly typed combining mark in the same Unicode cluster as its base.
+    if(start===end && /^[\p{M}\u200d\ufe0f]/u.test(inserted) && typeof Intl.Segmenter==='function'){
+      for(const part of new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text.slice(0,start))){
+        if(part.index+part.segment.length===start&&!/[{}\r\n\u2028]/.test(part.segment)){
+          inserted=part.segment+inserted;start=part.index;break;
+        }
+      }
+    }
+    const pref=lockedSettings(settings,Engine),attrs={...pref,font:Engine.fontToken(pref.font)};
+    const stateAt=at=>Engine.parseStream(text.slice(0,at)+'\uFFFC',false).filter(r=>r.k==='text').at(-1).style;
+    const before=stateAt(start),after=stateAt(end),same=Object.entries(attrs).every(([k,v])=>before[k]===v);
+    const opening=same?'':'{'+Object.entries(attrs).map(([k,v])=>token(k,v)).join(' ')+'}';
+    const literal=inserted.replace(/[{}]/g,c=>c==='{'?'{lc}':'{rc}');
+    const restore=same&&start===end?'':styleMark(after),replacement=opening+literal+restore;
+    return {text:text.slice(0,start)+replacement+text.slice(end),start,end,replacement,cursor:start+opening.length+literal.length};
+  }
   function findCode(text, start, end, direction) {
     const marks = [...text.matchAll(/\{[^{}\n]*\}/g)];
     const mark = direction < 0 ? marks.reverse().find(m => m.index < start)
@@ -140,6 +171,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {fontChoices,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
+  return {lockedSettings,insertLocked,fontChoices,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
