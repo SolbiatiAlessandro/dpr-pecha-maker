@@ -339,10 +339,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="exportPxp">Export Windows file (.pxp, experimental)</button>
-          <div class="hint">Includes text, marks and native layout settings. Images are not yet supported. Keep a full web Save and review the export notes before opening in Windows.</div>
+          <div class="hint">Includes text, marks, inline and yi-go PNG images, and native layout settings. Page-attached images are not yet supported. Keep a full web Save and review the export notes before opening in Windows.</div>
           <button class="btn" type="button" id="exportPxt">Export Windows layout (.pxt, experimental)</button>
           <button class="btn" type="button" id="exportPxc">Export Windows text (.pxc, experimental)</button>
-          <div class="hint">Windows content includes text and automatic marks, using the receiving document’s layout. Images and unsupported characters must be removed from a copy first. Review the export notes.</div>
+          <div class="hint">Windows content includes text, automatic marks, and inline and yi-go PNG images, using the receiving document’s layout. Page-attached images and unsupported characters must be removed from a copy first. Review the export notes.</div>
           <button class="btn" type="button" id="exportPxa">Export Windows notes (.pxa, experimental)</button>
           <p class="hint">Windows templates contain layout only. Fonts and web styles are not preserved; automatic first-line positioning becomes fixed. Keep a full Save for your complete web document.</p>
           <p class="hint">Windows annotation files contain static notes and numbering. Tibetan text needs compatible TCC fonts. Unsupported characters or notes exceeding native limits prevent export. Review the export notes before using the file.</p>
@@ -4488,6 +4488,81 @@ const Pxp = (() => {
     return {text:lines.join(newline)+newline,warnings:[...new Set(warnings)]};
   }
 
+  // Native image-header 1.1 stores PNG payloads, indexed line placements and
+  // a CRC32 over each complete PNG. Windows reloads DPI from PNG pHYs.
+  function nativeImages(doc, warnings) {
+    if(doc.images.some(p=>p.kind==='page'))throw new Error('Windows text/document export does not yet support page images. Remove them from a copy before exporting.');
+    if(doc.images.some(p=>!['inline','yigo'].includes(p.kind)))throw new Error('An image placement has an unsupported kind.');
+    const assets=[], lines=[], used=new Set(), variants=new Map();let total=0;
+    const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n>>>1)^((n&1)?0xedb88320:0);return n>>>0;});
+    const crc=bytes=>{let value=0xffffffff;for(const b of bytes)value=(value>>>8)^crcTable[(value^b)&255];return (value^0xffffffff)>>>0;};
+    const join=chunks=>{const out=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let at=0;for(const c of chunks){out.set(c,at);at+=c.length;}return out;};
+    const integer=(v,min,max,name)=>{if(!Number.isFinite(v)||v<min||v>max)throw new Error('Invalid image '+name+'.');const n=Math.round(v);if(n!==v)warnings.add('Image DPI and scale are rounded to whole native values. Check image sizes in Windows.');return n;};
+    const decimal=(v,min,max)=>{if(!Number.isFinite(v)||v<min||v>max)throw new Error('Invalid image spacing or baseline adjustment.');return v.toFixed(6);};
+    const prepare=(asset,x,y)=>{
+      if(typeof asset.data!=='string'||asset.data.length>12000000||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(asset.data))throw new Error('An image asset is not a supported embedded PNG.');
+      let bytes;try{bytes=Uint8Array.from(atob(asset.data.slice(22)),c=>c.charCodeAt(0));}catch{throw new Error('An image PNG has invalid base64 data.');}
+      if(bytes.length>8000000||bytes.length<45||LAT(bytes,0,8)!=='\x89PNG\r\n\x1a\n')throw new Error('An image PNG is invalid or exceeds the 8 MB limit.');
+      const view=new DataView(bytes.buffer), chunks=[];let at=8,ended=false,data=false,width=0,height=0;
+      while(at+12<=bytes.length){
+        const length=view.getUint32(at),end=at+12+length;if(end>bytes.length)throw new Error('An image PNG has an incomplete chunk.');
+        const name=LAT(bytes,at+4,at+8);
+        if(crc(bytes.subarray(at+4,end-4))!==view.getUint32(end-4))throw new Error('An image PNG has an invalid chunk checksum.');
+        if(at===8){if(name!=='IHDR'||length!==13)throw new Error('An image PNG has no valid header.');width=view.getUint32(at+8);height=view.getUint32(at+12);}
+        else if(name==='IHDR')throw new Error('An image PNG has duplicate headers.');
+        if(name==='IDAT')data=true;
+        if(name!=='pHYs')chunks.push(bytes.subarray(at,end));
+        at=end;if(name==='IEND'){if(length!==0)throw new Error('An image PNG has an invalid end chunk.');ended=true;break;}
+      }
+      if(!ended||!data||at!==bytes.length||!width||!height||width*height>16000000||width!==asset.width||height!==asset.height)throw new Error('An image PNG is incomplete, oversized or has inconsistent dimensions.');
+      const density=PechaImages.pngDensity(bytes);
+      if(density?.unit!==1 || Math.trunc(density.x*.0254)!==x || Math.trunc(density.y*.0254)!==y){
+        // Ceiling makes the native truncation recover the requested whole DPI.
+        const phys=new Uint8Array(21),v=new DataView(phys.buffer);v.setUint32(0,9);phys.set([112,72,89,115],4);
+        v.setUint32(8,Math.ceil(x/.0254));v.setUint32(12,Math.ceil(y/.0254));phys[16]=1;v.setUint32(17,crc(phys.subarray(4,17)));
+        bytes=join([bytes.subarray(0,8),chunks[0],phys,...chunks.slice(1)]);
+        if(bytes.length>8000000)throw new Error('An image PNG exceeds the 8 MB export limit after adding resolution metadata.');
+        warnings.add('Exported PNG resolution metadata is adjusted to match the image settings; pixels and the editable web document are unchanged.');
+      }
+      return {bytes,width,height,crc:crc(bytes)|0};
+    };
+    const add=(id,kind)=>{
+      const p=doc.images.find(p=>p.id===id&&p.kind===kind),asset=p&&doc.assets.find(a=>a.id===p.asset);
+      if(!p||!asset)throw new Error('Body or yi-go contains an unsupported image reference.');
+      if(lines.length>=1000)throw new Error('Native export supports at most 1000 image occurrences.');
+      const x=integer(p.dpi,10,2400,'horizontal DPI'),y=integer(p.dpiY??p.dpi,10,2400,'vertical DPI'),scale=integer(p.scale,10,200,'scale');
+      const sideSp_float=decimal(p.space,0,20),yAdj_float=decimal(p.above,-30,30);
+      let byDensity=variants.get(asset.data);if(!byDensity){byDensity=new Map();variants.set(asset.data,byDensity);}
+      const key=x+','+y;let index=byDensity.get(key);
+      if(index===undefined){
+        if(assets.length>=200)throw new Error('Native export supports at most 200 image assets and resolution variants.');
+        const encoded=prepare(asset,x,y);if(total+encoded.bytes.length>20000000)throw new Error('Native image payload exceeds the 20 MB export limit.');
+        index=assets.length;assets.push({...encoded,x,y,offset:total,usage:0});total+=encoded.bytes.length;byDensity.set(key,index);
+      }
+      const source=assets[index];
+      if(source.width!==asset.width||source.height!==asset.height)throw new Error('An image PNG has inconsistent dimensions.');
+      source.usage++;used.add(id);
+      // Serialized drawing caches use the web reference of 96 display units/inch.
+      // Native display-dependent cache rounding remains experimental.
+      const draw=n=>Math.floor((n*scale+50)/100);
+      const width=p.ignoreDpi?source.width:Math.round(source.width*96/x),height=p.ignoreDpi?source.height:Math.round(source.height*96/y);
+      lines.push({iInfoIndex:index,ignoreImgDPI:p.ignoreDpi?1:0,scale,drawWidth:draw(width),drawHeight:draw(height),sideSp_float,yAdj_float,addTFA:p.addTibetan?1:0});
+      return lines.length-1;
+    };
+    const finish=()=>{
+      if(doc.images.some(p=>!used.has(p.id)))warnings.add('Unused inline and yi-go placements are omitted from the Windows file.');
+      if(!lines.length)return null;
+      warnings.add('Native image export is experimental. Drawing caches use a 96-DPI reference; Windows display rounding, image positioning and physical printing still need verification.');
+      const text=['','[START IMAGES] 1.1','ImageInfoCount='+assets.length];
+      const record=(kind,index,fields)=>{for(const [k,v] of Object.entries(fields))text.push(k+'='+v);text.push('[END '+kind+' '+index+']');};
+      assets.forEach((a,i)=>record('IINFO',i,{imageOffset:a.offset,usageCount:a.usage,compSize:a.bytes.length,crc:a.crc,dibWidth:a.width,dibHeight:a.height,dibXDPI:a.x,dibYDPI:a.y}));
+      text.push('LineImageInfoCount='+lines.length);lines.forEach((p,i)=>record('LIINFO',i,p));
+      text.push('PageImageInfoCount=0','','Images_totalBytes='+total,'');
+      return join([new TextEncoder().encode(text.join('\n')),...assets.map(a=>a.bytes)]);
+    };
+    return {add,finish};
+  }
+
   // Independent writers share native text/font encoding while keeping each file's scope.
   function writeNative(doc, Engine, table, mode = 'pxa', measure = null) {
     const content=mode!=='pxa', full=mode==='pxp';
@@ -4505,7 +4580,7 @@ const Pxp = (() => {
       'Only static annotations, fixed folio text and numbering settings are exported. Body text, page layout, images, yi-go and volume section labels are not included.',
       'Numbering font choices are not portable and are omitted; Windows keeps its own choices. Check them after opening.'
     ]);
-    if (content && (doc.images.length || doc.yigo.image)) throw new Error('Windows text/document export does not yet support images. Remove image placements from a copy before exporting.');
+    const images=content?nativeImages(doc,warnings):null;
     const fonts = ['Times New Roman'], cp = new Map(), tib = new Map(); let usesTcc = false;
     const decoded = new TextDecoder('windows-1252').decode(Uint8Array.from({length:256},(_,i)=>i));
     for (let b=32;b<256;b++) if (!/[\u007f-\u009f�]/.test(decoded[b])) cp.set(decoded[b],b);
@@ -4535,7 +4610,7 @@ const Pxp = (() => {
       const command = (op,a,b=127,c=127) => {const key=[a,b,c].join(',');if(state.get(op)!==key){bytes.push(17,op,a,b,c,17);state.set(op,key);}};
       const runs = slot.rich ? Engine.parseStream(slot.text,false) : [{k:'text',s:slot.text,style:{}}];
       for (const run of runs) {
-        if (run.k === 'image') {if(body)throw new Error('Body text contains an unsupported image reference.');continue;}
+        if (run.k === 'image') {if(body){const index=images.add(run.id,'inline');bytes.push(19,127,127,index&255,index>>>8,19);}continue;}
         if (run.k === 'page') {if(body)bytes.push(12);continue;}
         const text = body ? run.s.replace(/\r\n?|\u2028/g,'\n') : run.s.replace(/[\r\n\u2028\t]/g,' '), f = Engine.fontFor(context,run,slot.size), name = Engine.primaryFont(f.family);
         if (!text) continue;
@@ -4567,6 +4642,7 @@ const Pxp = (() => {
       if(!body && bytes.length>256)throw new Error(label+': encoded text exceeds the native 256-byte limit, including formatting. Shorten it or reduce font/style changes.');
       return Uint8Array.from(bytes);
     };
+    const yigoImage=content&&doc.yigo.image?images.add(doc.yigo.image,'yigo'):-1;
     const body=content?stream({text:doc.sections.length?doc.sections.map(s=>s.text).join('{page}'):doc.text,rich:true,size:doc.types.body.fontSize},'Body',doc,true):null;
     if(content && !body.length)throw new Error('Add body text before exporting Windows content.');
     if(content && doc.flow)warnings.add('Web flow-mode paragraph rewrapping is not stored; exported line breaks become native hard returns.');
@@ -4578,7 +4654,7 @@ const Pxp = (() => {
     const raw=(key,bytes,lengthKey=key+'.slen',streamKey=key+'.s')=>{value(lengthKey,bytes.length);text(prefix+streamKey+'=\n');chunks.push(bytes);text('\n');};
     text('[START NON-BODY]\n');
     if(content){
-      for(const [k,v] of Object.entries({AutoShadEn:flag(doc.shad.enabled),YangShadEn:flag(doc.shad.yang),IgnoreYigoShadEn:flag(doc.shad.ignoreYigo),TitleShadEn:flag(doc.shad.titlePages),DzogThikEn:flag(doc.dzog.enabled),DzogThik_HexactF:number(doc.dzog.rise),DzogThik_HpercentEn:flag(doc.dzog.percentEnabled),DzogThik_Hpercent:number(doc.dzog.percent,true),DzogThik_VLAdjF:number(doc.dzog.leftUp),DzogThik_VRAdjF:number(doc.dzog.rightUp),'Yigo.en':flag(doc.yigo.enabled),YigoStartFancy:flag(doc.yigo.fancyStart),YigoStart2ndTitle:flag(doc.yigo.title2),YigoImageEn:0,YigoLineImageIndex:-1}))value(k,v);
+      for(const [k,v] of Object.entries({AutoShadEn:flag(doc.shad.enabled),YangShadEn:flag(doc.shad.yang),IgnoreYigoShadEn:flag(doc.shad.ignoreYigo),TitleShadEn:flag(doc.shad.titlePages),DzogThikEn:flag(doc.dzog.enabled),DzogThik_HexactF:number(doc.dzog.rise),DzogThik_HpercentEn:flag(doc.dzog.percentEnabled),DzogThik_Hpercent:number(doc.dzog.percent,true),DzogThik_VLAdjF:number(doc.dzog.leftUp),DzogThik_VRAdjF:number(doc.dzog.rightUp),'Yigo.en':flag(doc.yigo.enabled),YigoStartFancy:flag(doc.yigo.fancyStart),YigoStart2ndTitle:flag(doc.yigo.title2),YigoImageEn:yigoImage>=0?1:0,YigoLineImageIndex:yigoImage}))value(k,v);
       raw('Yigo',stream({text:doc.yigo.text,rich:doc.yigo.rich,size:18},'Yi-go'));
     }
     const folioDoc=doc.folio.font?{...doc,font:JSON.stringify(doc.folio.font)}:doc;
@@ -4622,7 +4698,7 @@ const Pxp = (() => {
     const heading=content?'.'+mode+' 0.6 0 u1 u2 u3 u4 '+body.length+' '+checksum.toFixed(0)+' '+nativeFonts.length+' ':'.pxa 0.1 u1 u2 u3 u4 '+flag(usesTcc)+' '+fonts.length+' ';
     const header=[...new TextEncoder().encode(heading)];
     nativeFonts.forEach((name,i)=>header.push(...new TextEncoder().encode(i+' 0 '),...ansi(name),0));header.push(10);
-    if(content)chunks.push(body);
+    if(content){chunks.push(body);const block=images.finish();if(block)chunks.push(block);}
     chunks.unshift(Uint8Array.from(header));const bytes=new Uint8Array(chunks.reduce((n,c)=>n+c.length,0));let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
     return {bytes,warnings:[...warnings]};
   }
