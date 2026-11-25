@@ -105,11 +105,12 @@ const Rtf = (() => {
       return out;
     }
     const root = group(), flatten = list => list.flatMap(t => t.group ? flatten(t.group) : [t]);
-    const all = flatten(root), fonts = {}, fontCharsets = {}, colors = [], warnings = new Set();
+    const all = flatten(root), fonts = {}, fontCharsets = {}, fontPages = {}, colors = [], warnings = new Set();
     const charsetPages = {0:1252,77:10000,128:932,129:949,134:936,136:950,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
     const headerPage = all.find(t=>t.name==='ansicpg')?.value || (all.some(t=>t.name==='mac') ? 10000 : 1252);
     const pageLabels = {874:'windows-874',932:'shift_jis',936:'gbk',949:'euc-kr',950:'big5',10000:'macintosh',65001:'utf-8',...Object.fromEntries(Array.from({length:9},(_,i)=>[1250+i,'windows-'+(1250+i)]))};
-    const pageFor = (font, fallbackPage) => fontCharsets[font] === undefined || fontCharsets[font] === 1 ? fallbackPage : charsetPages[fontCharsets[font]];
+    // RTF 1.9.1: an explicit font code page supersedes the page implied by fcharset.
+    const pageFor = (font, fallbackPage) => fontPages[font] ?? (fontCharsets[font] === undefined || fontCharsets[font] === 1 ? fallbackPage : charsetPages[fontCharsets[font]]);
     function byteDecoder(page, charset) {
       if (!Object.hasOwn(pageLabels,page)) return bytes => {
         if (bytes.length) warnings.add('An unsupported RTF font charset or code page could not be decoded. Unconverted characters appear as �.');
@@ -157,6 +158,7 @@ const Rtf = (() => {
         if (skip && t.text === undefined && t.literal === undefined) {skip--;continue;}
         if (t.name === 'f') { names.flush(); id = t.value; name = ''; skip = 0; }
         if (t.name === 'fcharset' && id !== null) {names.flush(); fontCharsets[id] = t.value;}
+        if (t.name === 'cpg' && id !== null) {names.flush(); fontPages[id] = t.value;}
         if (t.name === 'uc') uc = fallbackLength(t.value);
         if (t.name === 'u') { names.flush(); name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
         const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : String.fromCharCode(t.byte));
