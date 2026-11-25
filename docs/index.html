@@ -377,13 +377,13 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
 
     <div class="pane" data-pane="marks" hidden>
       <h3>Yi-go</h3><div class="grid" id="yigoFields"></div>
-      <p class="hint">Paste formatted text when your browser supplies RTF, or choose a suggested yi-go. Pasting keeps fonts and colours; the yi-go size follows the first character on the page. Formatted Copy uses 18-point text from this field and follows the setting on the Text tab.</p>
+      <p class="hint">Paste formatted text when your browser supplies RTF, or choose a suggested yi-go. Pasting keeps fonts and colours; the yi-go size follows the first character on the page. Formatted Copy and Cut use 18-point text from this field and follow the setting on the Text tab.</p>
       <h3>Rinchen pung shad</h3><div class="grid" id="shadFields"></div>
       <h3>End line</h3><div class="grid" id="dzogFields"></div>
       <h3>Folio numbers</h3><div class="grid" id="folioFields"></div>
-      <p class="hint">Formatted paste into the fixed phrase keeps fonts, colours and emphasis. The phrase uses the folio size above. Copy includes the selected phrase text at that size when formatted copy is enabled on the Text tab.</p>
+      <p class="hint">Formatted paste into the fixed phrase keeps fonts, colours and emphasis. The printed phrase uses the folio size above. Formatted Copy and Cut use 18-point text from this field and follow the setting on the Text tab. Formatted Cut keeps the following text’s style.</p>
       <h3>Page numbers</h3><div class="grid" id="pageNumFields"></div>
-      <h3>Margin notes</h3><p class="hint">Paste formatted text when your browser supplies RTF, or enable formatting marks and use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {#b03020}colour and {font:noto} or {font:serif}. Each note uses its own size for all fonts, including when copied. Copy follows the formatted-copy setting on the Text tab. Pasted line breaks become spaces; pictures are skipped with an import note. Main-text size changes do not resize notes.</p>
+      <h3>Margin notes</h3><p class="hint">Paste formatted text when your browser supplies RTF, or enable formatting marks and use {b}bold{/b}, {i}italic{/i}, {u}underline{/u}, {#b03020}colour and {font:noto} or {font:serif}. Each printed note uses its own size for all fonts. Formatted Copy and Cut use 18-point text from these fields and follow the setting on the Text tab. Formatted Cut keeps the following text’s style. Pasted line breaks become spaces; pictures are skipped with an import note. Main-text size changes do not resize notes.</p>
       <div class="field wide"><label for="noteSide">Notes for</label><select id="noteSide"></select></div>
       <div class="grid" id="noteFields"></div>
     </div>
@@ -3406,12 +3406,13 @@ const Rtf = (() => {
       source = literal(source);
     }
     const selected = TextFormat.selectedRich(source,start,end,Engine);
-    // These fields render text only: layout/image codes are ignored and every run shares the slot size.
+    // Native mark-entry controls normalize to 18 pt, independently of printed position sizes.
+    // These fields render text only, so layout/image codes are ignored.
     const text = selected.text.replace(/\{([^{}\n]*)\}/g,(_,body)=>{
       const kept = body.trim().split(/\s+/).filter(t=>t!=='page' && !t.startsWith('image:'));
       return kept.length ? '{'+kept.join(' ')+'}' : '';
     }).replace(/\r\n?|\n|\u2028|\t/g,' ');
-    return copySelection({...doc,font:slot.font||doc.font,textSize:slot.size,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
+    return copySelection({...doc,font:slot.font||doc.font,textSize:18,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
   }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
@@ -4922,18 +4923,35 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
   });
-  el.addEventListener('copy', event => {
-    if (!$('copyFormatted').checked || !event.clipboardData) return;
+  for (const operation of ['copy','cut']) el.addEventListener(operation, event => {
+    if (!$('copyFormatted').checked) return;
+    if (!event.clipboardData) {
+      if (operation === 'cut') { event.preventDefault(); toast('Clipboard unavailable; text was not cut.'); }
+      return;
+    }
     try {
-      // The native yi-go entry control uses 18 pt, independently of its page size.
-      const size = kind === 'yigo' ? 18 : kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
       const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
-      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
+      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
       if (result.empty) return;
+      // Plain fields contain literal braces; only rich fields expand format-code boundaries.
+      const removal = operation !== 'cut' ? null : getPath(richPath)
+        ? TextFormat.removeRich(el.value,el.selectionStart,el.selectionEnd,Engine)
+        : {start:el.selectionStart,end:el.selectionEnd,replacement:'',cursor:el.selectionStart};
       event.clipboardData.setData('text/rtf',result.rtf);
       event.clipboardData.setData('text/plain',result.plain);
       event.preventDefault();
-    } catch (error) { toast('Could not copy formatted text: '+error.message); }
+      if (removal) {
+        remember(); el.focus(); el.setSelectionRange(removal.start,removal.end);
+        const edited = removal.replacement ? document.execCommand('insertText',false,removal.replacement) : document.execCommand('delete',false);
+        if (!edited) el.setRangeText(removal.replacement,removal.start,removal.end,'end');
+        setPath(textPath,el.value);
+        if (kind === 'note') setPath(textPath.replace(/\.text$/,'.on'),!!el.value);
+        remember(); el.setSelectionRange(removal.cursor,removal.cursor); schedule();
+      }
+    } catch (error) {
+      if (operation === 'cut') event.preventDefault();
+      toast('Could not '+operation+' formatted text: '+error.message);
+    }
   });
   el.addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');

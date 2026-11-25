@@ -139,18 +139,35 @@ function bindMarkPaste(el, textPath, {richPath,kind = 'note'}) {
     if (['historyUndo','historyRedo'].includes(event.inputType) && states.has(el.value)) setRich(states.get(el.value));
     remember();
   });
-  el.addEventListener('copy', event => {
-    if (!$('copyFormatted').checked || !event.clipboardData) return;
+  for (const operation of ['copy','cut']) el.addEventListener(operation, event => {
+    if (!$('copyFormatted').checked) return;
+    if (!event.clipboardData) {
+      if (operation === 'cut') { event.preventDefault(); toast('Clipboard unavailable; text was not cut.'); }
+      return;
+    }
     try {
-      // The native yi-go entry control uses 18 pt, independently of its page size.
-      const size = kind === 'yigo' ? 18 : kind === 'phrase' ? doc.folio.size : getPath(textPath.replace(/\.text$/,'.size'));
       const font = kind === 'phrase' && doc.folio.font ? Engine.fontFamily(Engine.fontToken(doc.folio.font)) : doc.font;
-      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),size,font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
+      const result = Rtf.copyMark(doc,{text:el.value,rich:getPath(richPath),font},el.selectionStart,el.selectionEnd,Engine,TextFormat);
       if (result.empty) return;
+      // Plain fields contain literal braces; only rich fields expand format-code boundaries.
+      const removal = operation !== 'cut' ? null : getPath(richPath)
+        ? TextFormat.removeRich(el.value,el.selectionStart,el.selectionEnd,Engine)
+        : {start:el.selectionStart,end:el.selectionEnd,replacement:'',cursor:el.selectionStart};
       event.clipboardData.setData('text/rtf',result.rtf);
       event.clipboardData.setData('text/plain',result.plain);
       event.preventDefault();
-    } catch (error) { toast('Could not copy formatted text: '+error.message); }
+      if (removal) {
+        remember(); el.focus(); el.setSelectionRange(removal.start,removal.end);
+        const edited = removal.replacement ? document.execCommand('insertText',false,removal.replacement) : document.execCommand('delete',false);
+        if (!edited) el.setRangeText(removal.replacement,removal.start,removal.end,'end');
+        setPath(textPath,el.value);
+        if (kind === 'note') setPath(textPath.replace(/\.text$/,'.on'),!!el.value);
+        remember(); el.setSelectionRange(removal.cursor,removal.cursor); schedule();
+      }
+    } catch (error) {
+      if (operation === 'cut') event.preventDefault();
+      toast('Could not '+operation+' formatted text: '+error.message);
+    }
   });
   el.addEventListener('paste', event => {
     const rtf = event.clipboardData?.getData('text/rtf') || event.clipboardData?.getData('application/rtf');

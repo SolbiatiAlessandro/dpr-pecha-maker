@@ -64,12 +64,13 @@ const Rtf = (() => {
       source = literal(source);
     }
     const selected = TextFormat.selectedRich(source,start,end,Engine);
-    // These fields render text only: layout/image codes are ignored and every run shares the slot size.
+    // Native mark-entry controls normalize to 18 pt, independently of printed position sizes.
+    // These fields render text only, so layout/image codes are ignored.
     const text = selected.text.replace(/\{([^{}\n]*)\}/g,(_,body)=>{
       const kept = body.trim().split(/\s+/).filter(t=>t!=='page' && !t.startsWith('image:'));
       return kept.length ? '{'+kept.join(' ')+'}' : '';
     }).replace(/\r\n?|\n|\u2028|\t/g,' ');
-    return copySelection({...doc,font:slot.font||doc.font,textSize:slot.size,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
+    return copySelection({...doc,font:slot.font||doc.font,textSize:18,assets:[],images:[]},text,0,text.length,Engine,TextFormat);
   }
   function read(input, Engine, table = {}, current = null) {
     const source = typeof input === 'string' ? input : Array.from(input, b => String.fromCharCode(b)).join('');
