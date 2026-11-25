@@ -332,8 +332,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
           <button class="btn" type="button" id="savePart">Download selected settings</button>
           <button class="btn" type="button" id="exportRtf">Export body as RTF</button>
           <button class="btn" type="button" id="exportPxt">Export Windows layout (.pxt, experimental)</button>
+          <button class="btn" type="button" id="exportPxa">Export Windows notes (.pxa, experimental)</button>
           <p class="hint">Windows templates contain layout only. Fonts and web styles are not preserved; automatic first-line positioning becomes fixed. Keep a full Save for your complete web document.</p>
-          <details id="exportReport" hidden><summary>Windows template export notes</summary><ul id="exportMessages"></ul></details>
+          <p class="hint">Windows annotation files contain static notes and numbering. Tibetan text needs compatible TCC fonts. Unsupported characters or notes exceeding native limits prevent export. Review the export notes before using the file.</p>
+          <details id="exportReport" hidden><summary>Windows export notes</summary><ul id="exportMessages"></ul></details>
           <button class="btn" type="button" id="loadPart">Load into this pecha</button>
           <button class="btn" type="button" id="revertDoc">Revert to open / Save checkpoint</button>
           <button class="btn" type="button" id="closeDoc">Close document and reset for next pecha</button>
