@@ -239,7 +239,7 @@ const Rtf = (() => {
     doc.assets = doc.assets.filter(a => doc.images.some(p => p.asset === a.id));
     if (!doc.images.length) doc.yigo.image = '';
     const uniqueId = (prefix, items) => { let i=items.length; while(items.some(x=>x.id===prefix+i)) i++; return prefix+i; };
-    const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0,align:'l',uc:1,codepage:1252};
+    const initial = {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,hidden:false,color:0,align:'l',uc:1,codepage:1252};
     let output = '', lastStyle = '';
     const fontToken = id => Object.hasOwn(table,fonts[id]) ? 'jomolhari' : Engine.fontToken(fonts[id]) || 'serif';
     function emitStyle(state) {
@@ -248,11 +248,16 @@ const Rtf = (() => {
       if (style !== lastStyle) { output += style; lastStyle = style; }
     }
     function emit(text, state) {
-      if (!text) return;
+      if (!text || omitHidden(state)) return;
       emitStyle(state);
       output += text.replace(/[{}]/g, c => c === '{' ? '{lc}' : '{rc}');
     }
+    function omitHidden(state) {
+      if(!state.hidden)return false;
+      warnings.add('Hidden RTF content was omitted. The web document keeps visible content only.');return true;
+    }
     function picture(list, state) {
+      if(omitHidden(state))return;
       if (!list.some(t => t.name === 'pngblip')) { warnings.add('A non-PNG RTF picture was skipped.'); return; }
       const value = name => list.find(t => t.name === name)?.value;
       const hex = list.map(t => t.text || (t.binary ? Array.from(t.binary,c => c.charCodeAt(0).toString(16).padStart(2,'0')).join('') : '')).join('').replace(/\s/g,'');
@@ -321,15 +326,16 @@ const Rtf = (() => {
         else if (name === 'ul') state.underline = n !== 0;
         else if (name === 'ulnone') state.underline = false;
         else if (name === 'strike') state.strike = n !== 0;
+        else if (name === 'v') state.hidden = n !== 0;
         else if (name === 'cf') state.color = n || 0;
         else if (['ql','qr','qc','qj'].includes(name)) state.align = name[1];
-        else if (name === 'plain') Object.assign(state, {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,color:0});
+        else if (name === 'plain') Object.assign(state, {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,hidden:false,color:0});
         else if (name === 'pard') state.align = 'l';
         else if (name === 'ansicpg') state.codepage = n;
         else if (name === 'mac') state.codepage = 10000;
         else if (name === 'par' || name === 'line') emit('\n',state);
         else if (name === 'tab') emit('\t',state);
-        else if (name === 'page') output += '{page}';
+        else if (name === 'page') {if(!omitHidden(state))output += '{page}';}
         else if (name === 'emdash') emit('—',state);
         else if (name === 'endash') emit('–',state);
         else if (name === 'bullet') emit('•',state);
