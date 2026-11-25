@@ -133,29 +133,42 @@ const Rtf = (() => {
       return {flush,append(b) { bytes.push(b); if (bytes.length >= 16384) flush(false); }};
     }
     function destination(list) { return list.find(t => t.name)?.name; }
-    function visit(list, fn) { for (const t of list) if (t.group) { fn(t.group); visit(t.group, fn); } }
-    visit(root, list => {
-      const dest = destination(list), tokens = flatten(list);
-      if (dest === 'fonttbl') {
-        let id = null, name = '', skip = 0, uc = 1;
-        // Font names are ordinary text even when the font's glyph charset is Symbol.
-        const names = byteBuffer(()=>byteDecoder(pageFor(id,headerPage) ?? headerPage),text=>{name+=text;});
-        for (const t of tokens) {
-          if (t.name === 'f') { names.flush(); id = t.value; name = ''; skip = 0; }
-          if (t.name === 'fcharset' && id !== null) {names.flush(); fontCharsets[id] = t.value;}
-          if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
-          if (t.name === 'u') { names.flush(); name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
-          if (t.byte !== undefined && skip) { skip--; continue; }
-          const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : String.fromCharCode(t.byte));
-          for (const c of text) {
-            if (skip) { skip--; continue; }
-            if (c === ';') { names.flush(); if (id !== null) fonts[id] = name.trim(); name = ''; }
-            else if (c.charCodeAt(0) <= 255) names.append(c.charCodeAt(0));
-            else { names.flush(); name += c; }
-          }
-        }
-        names.flush();
+    function visit(list, fn, uc = 1) {
+      for (const t of list) {
+        if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
+        if (t.group) { fn(t.group,uc); visit(t.group,fn,uc); }
       }
+    }
+    function readFontNames(list, inheritedUc = 1) {
+      let id = null, name = '', skip = 0, uc = inheritedUc;
+      // Font names are ordinary text even when the font's glyph charset is Symbol.
+      const names = byteBuffer(()=>byteDecoder(pageFor(id,headerPage) ?? headerPage),text=>{name+=text;});
+      for (const t of list) {
+        if (t.group) {
+          names.flush(); skip = 0;
+          // Font entries may be grouped or flat. Nested destinations (panose, fname,
+          // falt, fontemb, etc.) describe the font; they are not part of its name.
+          if (destination(t.group) === 'f') readFontNames(t.group,uc);
+          continue;
+        }
+        if (t.name === 'f') { names.flush(); id = t.value; name = ''; skip = 0; }
+        if (t.name === 'fcharset' && id !== null) {names.flush(); fontCharsets[id] = t.value;}
+        if (t.name === 'uc') uc = Math.max(0,Math.min(16,t.value ?? 1));
+        if (t.name === 'u') { names.flush(); name += String.fromCharCode((t.value + 65536) % 65536); skip = uc; }
+        if (t.byte !== undefined && skip) { skip--; continue; }
+        const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : String.fromCharCode(t.byte));
+        for (const c of text) {
+          if (skip) { skip--; continue; }
+          if (c === ';') { names.flush(); if (id !== null) fonts[id] = name.trim(); name = ''; id = null; }
+          else if (c.charCodeAt(0) <= 255) names.append(c.charCodeAt(0));
+          else { names.flush(); name += c; }
+        }
+      }
+      names.flush();
+    }
+    visit(root, (list, uc) => {
+      const dest = destination(list), tokens = flatten(list);
+      if (dest === 'fonttbl') readFontNames(list,uc);
       if (dest === 'colortbl') {
         let rgb = [0,0,0], set = false;
         for (const t of tokens) {
