@@ -750,9 +750,12 @@ const Pxp = (() => {
     };
     const stream = (slot,label,context=doc,body=false) => {
       const bytes = [], state = new Map();
-      const command = (op,a,b=127,c=127) => {const key=[a,b,c].join(',');if(state.get(op)!==key){bytes.push(17,op,a,b,c,17);state.set(op,key);}};
-      const runs = slot.rich ? Engine.parseStream(slot.text,false) : [{k:'text',s:slot.text,style:{}}];
+      // Four distinct native opcodes update one alignment state: r -> c -> r
+      // must emit the final r even though that opcode appeared earlier.
+      const command = (op,a,b=127,c=127) => {const slot=op>=0x32&&op<=0x35?'align':op,key=[op,a,b,c].join(',');if(state.get(slot)!==key){bytes.push(17,op,a,b,c,17);state.set(slot,key);}};
+      const runs = slot.rich ? Engine.parseStream(slot.text,false,body) : [{k:'text',s:slot.text,style:{}}];
       for (const run of runs) {
+        if (run.k === 'align') {if(body)command({l:0x32,r:0x33,c:0x34,j:0x35}[run.align],127);continue;}
         if (run.k === 'image') {if(body){const index=images.add(run.id,'inline');bytes.push(19,127,127,index&255,index>>>8,19);}continue;}
         if (run.k === 'page') {if(body)bytes.push(12);continue;}
         const text = body ? run.s.replace(/\r\n?|\u2028/g,'\n') : run.s.replace(/[\r\n\u2028\t]/g,' '), f = Engine.fontFor(context,run,slot.size), name = Engine.primaryFont(f.family);

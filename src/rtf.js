@@ -20,7 +20,8 @@ const Rtf = (() => {
     const colors = [], fonts = ['Jomolhari','Noto Serif Tibetan','Georgia'], body = [], sources = doc.sections.length ? doc.sections.map(s => s.text) : [doc.text];
     sources.forEach((source, index) => {
       if (index) body.push('\\page\n');
-      for (const run of Engine.parseStream(source, false)) {
+      for (const run of Engine.parseStream(source, false, true)) {
+        if (run.k === 'align') { body.push('\\' + {l:'ql',r:'qr',c:'qc',j:'qj'}[run.align] + ' '); continue; }
         if (run.k === 'page') { body.push('\\page\n'); continue; }
         if (run.k === 'image') {
           const p = doc.images.find(p => p.id === run.id && p.kind === 'inline'), r = p && PechaImages.dimensions(doc, p);
@@ -364,9 +365,9 @@ const Rtf = (() => {
         else if (name === 'strike') state.strike = n !== 0;
         else if (name === 'v') state.hidden = n !== 0;
         else if (name === 'cf') state.color = n || 0;
-        else if (['ql','qr','qc','qj'].includes(name)) state.align = name[1];
+        else if (['ql','qr','qc','qj'].includes(name)) {state.align = name[1];if(!state.hidden)output += '{'+state.align+'}';}
         else if (name === 'plain') Object.assign(state, {font:defaultFont,size:12,bold:false,italic:false,underline:false,strike:false,hidden:false,color:0});
-        else if (name === 'pard') state.align = 'l';
+        else if (name === 'pard') {state.align = 'l';if(!state.hidden)output += '{l}';}
         else if (name === 'ansicpg') state.codepage = n;
         else if (name === 'mac') state.codepage = 10000;
         else if (name === 'par' || name === 'line') emit('\n',state);

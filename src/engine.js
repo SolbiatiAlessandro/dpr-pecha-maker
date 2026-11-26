@@ -69,7 +69,8 @@ const Engine = (() => {
   // ---------- stream ----------
 
   // Format codes sit in the text, as in PechaMaker: {c} {j} {l} {r} {30} {#b03020} {b} {/b} {i} {/i} {page}
-  function parseStream(text, flow) {
+  // Layout and body exporters also need alignment codes that have no following text.
+  function parseStream(text, flow, alignmentCodes = false) {
     const style = { align: 'j', size: null, color: null, bold: null, italic: false, underline: false, strike: false, role: null, font: null };
     const items = [];
     const src = prepareBreaks(text || '', flow);
@@ -84,7 +85,7 @@ const Engine = (() => {
         else if (tok === 'j' || tok === 'justify') style.align = 'j';
         else if (tok === 'l' || tok === 'left') style.align = 'l';
         else if (tok === 'r' || tok === 'right') style.align = 'r';
-        else if (tok === 'page') items.push({ k: 'page' });
+        else if (tok === 'page') items.push({ k: 'page', ...(alignmentCodes?{style:{...style}}:{}) });
         else if (/^image:[\w-]+$/.test(tok)) items.push({k: 'image', id: tok.slice(6), style: {...style}});
         else if (tok === 'hs') pushText(HARD_SHAD);
         else if (tok === 'lc') pushText('{');
@@ -106,6 +107,8 @@ const Engine = (() => {
         else if (/^#[0-9a-f]{3,6}$/i.test(tok)) style.color = tok;
         else if (tok === 'size') style.size = null;
         else if (tok === 'color') style.color = null;
+        if (alignmentCodes && ['c','center','j','justify','l','left','r','right'].includes(tok))
+          items.push({k:'align',align:style.align});
       }
     }
     pushText(src.slice(last));
@@ -165,8 +168,8 @@ const Engine = (() => {
 
   function atomize(items, doc, measure) {
     const atoms = [];
-    let text = '', runs = [];
-    const flush = () => {
+    let text = '', runs = [], alignments = [];
+    const flush = (terminal = true) => {
       // Determine word/syllable boundaries from the text, before splitting each
       // atom into styled pieces. A font or colour change is not a line break.
       const leading = /^ +/.exec(text), previous = atoms.at(-1);
@@ -174,24 +177,39 @@ const Engine = (() => {
         previous.gap = 'space'; previous.spaces += leading[0].length;
       }
       let run = 0;
+      const positions = [];
       for (const a of splitAtoms(text, true)) {
         while (runs[run].end <= a.start) run++;
-        if (a.hr || a.tab) { atoms.push({[a.hr ? 'hr' : 'tab']:true, style:runs[run].style}); continue; }
+        if (a.hr || a.tab) {
+          atoms.push({[a.hr ? 'hr' : 'tab']:true, style:runs[run].style});
+          positions.push({end:a.end,control:true,atom:atoms.at(-1)}); continue;
+        }
         let pos = a.start;
         while (pos < a.end) {
           while (runs[run].end <= pos) run++;
           const end = Math.min(a.end, runs[run].end), joined = end < a.end;
           atoms.push({s:text.slice(pos,end), gap:joined?'none':a.gap, spaces:joined?0:a.spaces,
             style:runs[run].style, ...(joined?{joinNext:true}:{})});
+          positions.push({end,atom:atoms.at(-1)});
           pos = end;
         }
       }
-      text = ''; runs = [];
+      let at = 0;
+      // Before a breaking space the code belongs to the preceding atom; after
+      // that space it follows the next atom. Trailing codes stay on the last line.
+      for (const event of alignments) {
+        while (at < positions.length && (positions[at].end < event.pos || (positions[at].control && positions[at].end === event.pos))) at++;
+        if (!positions[at] && !terminal) continue;
+        const target = positions[at]?.atom || atoms.at(-1);
+        if (target && ((!target.hr && !target.page) || positions[at])) target.lineAlign = event.align;
+      }
+      text = ''; runs = []; alignments = [];
     };
     for (const it of items) {
-      if (it.k === 'page') { flush(); atoms.push({ page: true }); continue; }
+      if (it.k === 'align') { alignments.push({pos:text.length,align:it.align}); continue; }
+      if (it.k === 'page') { flush(); atoms.push({ page: true, style:it.style }); continue; }
       if (it.k === 'image') {
-        flush();
+        flush(false);
         const placement = doc.images.find(p => p.id === it.id && p.kind === 'inline');
         if (placement && PechaImages.dimensions(doc, placement)) atoms.push({s: '', gap: 'none', spaces: 0, style: it.style, image: placement});
         continue;
@@ -287,6 +305,7 @@ const Engine = (() => {
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
     const items = [];
     let i = start, x = 0, prevGap = 0, hard = false, pageBreak = false, hasTab = false, yigoCount = 0;
+    let align = atoms[start]?.style?.align || 'j';
     const place = a => {
       const f = fontFor(doc, a, sizeDefault);
       const imageSize = a.image && PechaImages.dimensions(doc, a.image);
@@ -316,9 +335,10 @@ const Engine = (() => {
     }
     for (; i < atoms.length; i++) {
       const a = atoms[i];
-      if (a.hr) { hard = true; i++; break; }
-      if (a.page) { pageBreak = true; hard = true; i++; break; }
+      if (a.hr) { align = a.lineAlign || a.style?.align || align; hard = true; i++; break; }
+      if (a.page) { align = a.style?.align || align; pageBreak = true; hard = true; i++; break; }
       if (a.tab) {
+        align = a.lineAlign || a.style?.align || align;
         const tab = doc.tabWidth * PT;
         x = (Math.floor((x + prevGap + 0.01) / tab) + 1) * tab;
         prevGap = 0; hasTab = true;
@@ -333,10 +353,9 @@ const Engine = (() => {
       if (items.length > yigoCount && x + prevGap + width > W + 0.01) break;
       // An unbreakable span wider than the line still consumes all of its text,
       // including when an automatic yi-go already occupies the line's beginning.
-      for (const p of group) {p.x=x+prevGap;x=p.x+p.w;prevGap=p.gapW;items.push(p);}
+      for (const p of group) {p.x=x+prevGap;x=p.x+p.w;prevGap=p.gapW;items.push(p);align=p.lineAlign || p.style.align || align;}
       i = end;
     }
-    const align = (items.length ? items[items.length - 1].style.align : (atoms[start] && atoms[start].style ? atoms[start].style.align : 'j')) || 'j';
     return { items, next: i, hard, pageBreak, hasTab, align, yigoCount, natural: x };
   }
 
@@ -728,7 +747,7 @@ const Engine = (() => {
           pages.push({ n: pages.length + 1, kind: 'body', front: false, blank: true, lines: [], type, boxes: boxes(doc, type) });
         }
         const sub = { ...doc, pageOffset: pages.length, text: section.text, counts: section.restartLayout ? doc.counts : { title: 0, fancy: 0 } };
-        const atoms = atomize(parseStream(sub.text, sub.flow), sub, measure);
+        const atoms = atomize(parseStream(sub.text, sub.flow, true), sub, measure);
         const local = paginate(sub, atoms, measure), offset = pages.length;
         const count = Math.ceil(local.length / 2);
         for (const p of local) {
@@ -741,7 +760,7 @@ const Engine = (() => {
       });
       return { pages, folioCount: Math.ceil(pages.length / 2) };
     }
-    const atoms = atomize(parseStream(doc.text, doc.flow), doc, measure);
+    const atoms = atomize(parseStream(doc.text, doc.flow, true), doc, measure);
     const pages = paginate(doc, atoms, measure);
     if (pages.length) pages[pages.length - 1].isLast = true;
     const folioCount = Math.ceil(pages.length / 2);
