@@ -119,11 +119,11 @@ const Engine = (() => {
     if (!flow) return t.replace(/\n/g, ' ');
     return t
       .split(/\n[ \t]*\n+/)
-      .map(par => par.split('\n').map(l => l.trim()).filter(Boolean).reduce((acc, line) => {
+      .map(par => par.split('\n').map(l => l.replace(/^[^\S\u00a0]+|[^\S\u00a0]+$/g, '')).filter(Boolean).reduce((acc, line) => {
         if (!acc) return line;
         const end = acc[acc.length - 1];
         const twoShads = end === SHAD && line[0] === SHAD;     // a shad pair split across two lines keeps its gap
-        return acc + (isTib(end) && !twoShads ? '' : ' ') + line;
+        return acc + ((isTib(end) && !twoShads) || end === '\u00a0' || line[0] === '\u00a0' ? '' : ' ') + line;
       }, ''))
       .join(' ');
   }
@@ -139,7 +139,7 @@ const Engine = (() => {
       const ch = s[i], nx = s[i + 1] || '';
       if (ch === ' ') { push('none'); out.push({ hr: true }); continue; }
       if (ch === '\t') { push('none'); out.push({ tab: true }); continue; }
-      if (ch === ' ' || ch === ' ') {
+      if (ch === ' ') {
         if (cur) push('space');
         if (out.length) { const a = out[out.length - 1]; if (a.s !== undefined) { a.gap = 'space'; a.spaces++; } }
         continue;
@@ -158,6 +158,9 @@ const Engine = (() => {
     return out;
   }
 
+  const nonbreakingJoin = (a, b) => a && b && !a.hr && !a.page && !a.tab && !b.hr && !b.page && !b.tab
+    && a.gap !== 'space' && (a.s?.endsWith('\u00a0') || b.s?.startsWith('\u00a0'));
+
   function atomize(items, doc, measure) {
     const atoms = [];
     for (const it of items) {
@@ -168,12 +171,15 @@ const Engine = (() => {
         continue;
       }
       // A style boundary must not swallow leading spaces in the next run.
-      const leading = /^[ \u00a0]+/.exec(it.s), previous = atoms.at(-1);
+      const leading = /^ +/.exec(it.s), previous = atoms.at(-1);
       if (leading && previous && previous.s !== undefined) {
         previous.gap = 'space'; previous.spaces += leading[0].length;
       }
       for (const a of splitAtoms(it.s)) atoms.push({ ...a, style: it.style });
     }
+    // A nonbreaking space may straddle formatting runs or Tibetan atom boundaries.
+    // Do not justify the internal boundary as a separate tsheg gap.
+    for (let i=1;i<atoms.length;i++) if (nonbreakingJoin(atoms[i-1],atoms[i])) atoms[i-1].gap='none';
     return atoms;
   }
 
@@ -296,12 +302,17 @@ const Engine = (() => {
         prevGap = 0; hasTab = true;
         continue;
       }
-      const p = place(a);
-      if (items.length > yigoCount && x + prevGap + p.w > W + 0.01) break;
-      if (items.length === yigoCount && yigoCount && x + prevGap + p.w > W) break;
-      p.x = x + prevGap;
-      x = p.x + p.w; prevGap = p.gapW;
-      items.push(p);
+      const group = [place(a)];
+      let end = i, width = group[0].w;
+      while (end+1 < atoms.length && nonbreakingJoin(atoms[end],atoms[end+1])) {
+        const next = place(atoms[++end]);
+        width += group.at(-1).gapW + next.w; group.push(next);
+      }
+      if (items.length > yigoCount && x + prevGap + width > W + 0.01) break;
+      // An unbreakable span wider than the line still consumes all of its text,
+      // including when an automatic yi-go already occupies the line's beginning.
+      for (const p of group) {p.x=x+prevGap;x=p.x+p.w;prevGap=p.gapW;items.push(p);}
+      i = end;
     }
     const align = (items.length ? items[items.length - 1].style.align : (atoms[start] && atoms[start].style ? atoms[start].style.align : 'j')) || 'j';
     return { items, next: i, hard, pageBreak, hasTab, align, yigoCount, natural: x };
