@@ -343,7 +343,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         </div>
         <div id="characterGrid" aria-label="Tibetan character choices"></div>
         <p class="hint" id="characterHint"></p>
-        <p class="hint">Ctrl/Command+I opens this picker from the text editor. Escape closes it. Choose a character to insert at the cursor or replace selected text. Marks are shown on ཀ; only the mark is inserted.</p>
+        <p class="hint">Ctrl/Command+I opens this picker from the text editor. Escape closes it. Choose a character to insert at the cursor or replace selected text. Marks are shown on ཀ; only the mark is inserted. Typeface choices include fonts used in this editing session. Unavailable local fonts use browser fallbacks.</p>
       </details>
       <p class="source" id="credits"></p>
       <details>
@@ -3268,18 +3268,38 @@ if (typeof module !== 'undefined') module.exports = Engine;
 const TextFormat = (() => {
   const names = {bold: 'b', italic: 'i', underline: 'u', strike: 's'};
   const role = t => ['root', 'commentary', 'heading', '/role'].includes(t);
-  function fontChoices(doc, Engine) {
+  // Names configured or used in this web document, including rich marks and all sections.
+  // Source legacy font names may already have been converted to Unicode on import.
+  function documentFontChoices(doc, Engine) {
     const choices = new Map();
     const add = token => {
       const family = Engine.fontFamily(token);
-      if (family) choices.set(token, Engine.primaryFont(family));
+      if (family) choices.set(Engine.fontToken(Engine.primaryFont(family)), Engine.primaryFont(family));
     };
-    for (const name of ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New',doc.fontName]) add(Engine.fontToken(name));
+    for (const name of [Engine.primaryFont(doc.font), doc.fontName, doc.folio?.font, doc.pageNum?.font]) add(Engine.fontToken(name));
     for (const value of Object.values(doc.roles || {})) add(Engine.fontToken(value.font));
-    for (const text of [doc.text, ...(doc.sections || []).map(s => s.text)]) {
-      for (const run of Engine.parseStream(text || '',false)) if (run.style?.font) add(run.style.font);
+    const texts = [doc.text, ...(doc.sections || []).map(s => s.text)];
+    if (doc.yigo?.rich) texts.push(doc.yigo.text);
+    if (doc.folio?.rhinoRich) texts.push(doc.folio.rhino);
+    for (const set of Object.values(doc.notes?.sets || {})) for (const slot of Object.values(set)) if (slot?.rich) texts.push(slot.text);
+    for (const text of texts) if (typeof text === 'string') {
+      // Include a trailing font choice even when no character follows it yet.
+      for (const run of Engine.parseStream(text+'\uFFFC',false)) if (run.style?.font) add(run.style.font);
     }
     return [...choices];
+  }
+  function fontChoices(doc, Engine) {
+    const defaults = ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New'].map(name=>[Engine.fontToken(name),name]);
+    return [...new Map([...defaults,...documentFontChoices(doc,Engine)])];
+  }
+  function characterFamily(text, start, end, font, doc, Engine) {
+    if (Engine.fontFamily(font)) return Engine.fontFamily(font);
+    // Match the insertion boundary when a selection touches a formatting code.
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) if (start>m.index && start<m.index+m[0].length) {
+      start = start===end ? m.index+m[0].length : m.index; break;
+    }
+    const run=Engine.parseStream(text.slice(0,start)+'\uFFFC',false).filter(r=>r.k==='text').at(-1);
+    return Engine.fontFor(doc,run,23).family;
   }
   function token(key, value) {
     if (names[key]) return value === null ? 'bold' : (value ? '' : '/') + names[key];
@@ -3437,7 +3457,7 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {lockedSettings,insertLocked,fontChoices,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
+  return {lockedSettings,insertLocked,fontChoices,documentFontChoices,characterFamily,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
 
@@ -5421,6 +5441,7 @@ const PRINT_MODES = [['duplex', 'Two-sided printer'], ['manual', 'One side at a 
 const PREVIEW_PAGES = 24;
 
 let previewStart = 0, savedCheckpoint = null;
+const characterFontHistory = new Map();
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
 let sectionIndex = 0, imageId = '', storageWarningShown = false;
@@ -5831,13 +5852,30 @@ function buildPrintPanel() {
   updatePrintSteps();
 }
 
+function refreshCharacterFonts() {
+  if (!doc) return;
+  for (const [token,name] of TextFormat.documentFontChoices(doc,Engine)) characterFontHistory.set(token,name);
+  const select=$('characterFont'), current=select.value;
+  const choices=[['','Keep text font'],['jomolhari','Jomolhari'],['noto','Noto Serif Tibetan'],...Array.from(characterFontHistory).filter(([token])=>!['jomolhari','noto'].includes(token))];
+  if (JSON.stringify(Array.from(select.options,o=>[o.value,o.textContent]))!==JSON.stringify(choices)) {
+    select.replaceChildren(...choices.map(([value,label])=>{const o=document.createElement('option');o.value=value;o.textContent=label;return o;}));
+    select.value=choices.some(([token])=>token===current)?current:'';
+  }
+  refreshCharacterPreview();
+}
+function refreshCharacterPreview() {
+  if (!doc) return;
+  const input=$('text');
+  $('characterGrid').style.fontFamily=TextFormat.characterFamily(input.value,input.selectionStart,input.selectionEnd,$('characterFont').value,doc,Engine);
+}
+
 function buildCharacterPicker() {
   const font=$('characterFont').value, group=$('characterGroup').value, source=$('characterSource').value;
   const choices=source ? LegacyCharacters.chart(source,LEGACY_TABLE) : TibetanCharacters.filter(c=>c.group===group);
   $('characterGroupField').hidden=!!source;
   $('characterGrid').classList.toggle('legacy',!!source);
   $('characterHint').textContent=source ? 'Experimental legacy chart: inserts Unicode equivalents in the chosen web typeface. Slots show decimal and hexadecimal codes; unavailable or ambiguous mappings are disabled. Original glyph shapes and complete font coverage remain unverified.' : 'Assigned Unicode Tibetan characters, grouped by kind.';
-  $('characterGrid').style.fontFamily=font==='noto' ? 'Noto Serif Tibetan' : 'Jomolhari';
+  refreshCharacterPreview();
   $('characterGrid').replaceChildren(...choices.map(c=>{
     const button=document.createElement('button'); button.type='button'; button.className='btn';
     button.textContent=c.text===null?'—':c.text===' '?'␣':(c.combining?'ཀ':'')+c.text;
@@ -5960,6 +5998,7 @@ function flipFigure(res) {
 
 let timer = null;
 function schedule() {
+  refreshCharacterFonts();
   clearTimeout(timer);
   timer = setTimeout(render, 120);
 }
@@ -6148,6 +6187,7 @@ function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  if (!keepTypingMode) {characterFontHistory.clear();$('characterFont').value='';}
   if (!keepTypingMode) {$('typeover').checked = false;$('lockedKeyboard').checked=false;}
   lockedComposition=null;fillLockedKeyboard();
   recovery.newDocument();
@@ -6157,6 +6197,8 @@ function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   previewStart = 0;
   showWork();
   buildPanels();
+  refreshCharacterFonts();
+  buildCharacterPicker();
   noteSample();
   render();
   buildImagePanel();
@@ -6718,6 +6760,10 @@ function init() {
   $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);
+  $('characterPicker').addEventListener('toggle',()=>{if($('characterPicker').open)refreshCharacterFonts();});
+  $('text').addEventListener('select',refreshCharacterPreview);
+  $('text').addEventListener('keyup',refreshCharacterPreview);
+  $('text').addEventListener('click',refreshCharacterPreview);
   buildCharacterPicker();
   const params = new URLSearchParams(location.search);
   setView('pages', true);

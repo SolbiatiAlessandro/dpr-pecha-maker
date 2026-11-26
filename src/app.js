@@ -22,6 +22,7 @@ const PRINT_MODES = [['duplex', 'Two-sided printer'], ['manual', 'One side at a 
 const PREVIEW_PAGES = 24;
 
 let previewStart = 0, savedCheckpoint = null;
+const characterFontHistory = new Map();
 let doc, view = 'pages', currentType = 'body', noteSide = 'body.front', isSample = false, latest = null;
 let source = null;   // the PDF behind this document: { name, result }
 let sectionIndex = 0, imageId = '', storageWarningShown = false;
@@ -432,13 +433,30 @@ function buildPrintPanel() {
   updatePrintSteps();
 }
 
+function refreshCharacterFonts() {
+  if (!doc) return;
+  for (const [token,name] of TextFormat.documentFontChoices(doc,Engine)) characterFontHistory.set(token,name);
+  const select=$('characterFont'), current=select.value;
+  const choices=[['','Keep text font'],['jomolhari','Jomolhari'],['noto','Noto Serif Tibetan'],...Array.from(characterFontHistory).filter(([token])=>!['jomolhari','noto'].includes(token))];
+  if (JSON.stringify(Array.from(select.options,o=>[o.value,o.textContent]))!==JSON.stringify(choices)) {
+    select.replaceChildren(...choices.map(([value,label])=>{const o=document.createElement('option');o.value=value;o.textContent=label;return o;}));
+    select.value=choices.some(([token])=>token===current)?current:'';
+  }
+  refreshCharacterPreview();
+}
+function refreshCharacterPreview() {
+  if (!doc) return;
+  const input=$('text');
+  $('characterGrid').style.fontFamily=TextFormat.characterFamily(input.value,input.selectionStart,input.selectionEnd,$('characterFont').value,doc,Engine);
+}
+
 function buildCharacterPicker() {
   const font=$('characterFont').value, group=$('characterGroup').value, source=$('characterSource').value;
   const choices=source ? LegacyCharacters.chart(source,LEGACY_TABLE) : TibetanCharacters.filter(c=>c.group===group);
   $('characterGroupField').hidden=!!source;
   $('characterGrid').classList.toggle('legacy',!!source);
   $('characterHint').textContent=source ? 'Experimental legacy chart: inserts Unicode equivalents in the chosen web typeface. Slots show decimal and hexadecimal codes; unavailable or ambiguous mappings are disabled. Original glyph shapes and complete font coverage remain unverified.' : 'Assigned Unicode Tibetan characters, grouped by kind.';
-  $('characterGrid').style.fontFamily=font==='noto' ? 'Noto Serif Tibetan' : 'Jomolhari';
+  refreshCharacterPreview();
   $('characterGrid').replaceChildren(...choices.map(c=>{
     const button=document.createElement('button'); button.type='button'; button.className='btn';
     button.textContent=c.text===null?'—':c.text===' '?'␣':(c.combining?'ཀ':'')+c.text;
@@ -561,6 +579,7 @@ function flipFigure(res) {
 
 let timer = null;
 function schedule() {
+  refreshCharacterFonts();
   clearTimeout(timer);
   timer = setTimeout(render, 120);
 }
@@ -749,6 +768,7 @@ function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   d.print = { ...Engine.defaultDoc().print, ...d.print };
   if (d.print.sides === 'fronts' || d.print.sides === 'backs') d.print.sides = 'manual';
   doc = d; isSample = sample; source = src;
+  if (!keepTypingMode) {characterFontHistory.clear();$('characterFont').value='';}
   if (!keepTypingMode) {$('typeover').checked = false;$('lockedKeyboard').checked=false;}
   lockedComposition=null;fillLockedKeyboard();
   recovery.newDocument();
@@ -758,6 +778,8 @@ function setDoc(d, sample, src = null, {keepTypingMode = false} = {}) {
   previewStart = 0;
   showWork();
   buildPanels();
+  refreshCharacterFonts();
+  buildCharacterPicker();
   noteSample();
   render();
   buildImagePanel();
@@ -1319,6 +1341,10 @@ function init() {
   $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);
+  $('characterPicker').addEventListener('toggle',()=>{if($('characterPicker').open)refreshCharacterFonts();});
+  $('text').addEventListener('select',refreshCharacterPreview);
+  $('text').addEventListener('keyup',refreshCharacterPreview);
+  $('text').addEventListener('click',refreshCharacterPreview);
   buildCharacterPicker();
   const params = new URLSearchParams(location.search);
   setView('pages', true);

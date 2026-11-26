@@ -2,18 +2,38 @@
 const TextFormat = (() => {
   const names = {bold: 'b', italic: 'i', underline: 'u', strike: 's'};
   const role = t => ['root', 'commentary', 'heading', '/role'].includes(t);
-  function fontChoices(doc, Engine) {
+  // Names configured or used in this web document, including rich marks and all sections.
+  // Source legacy font names may already have been converted to Unicode on import.
+  function documentFontChoices(doc, Engine) {
     const choices = new Map();
     const add = token => {
       const family = Engine.fontFamily(token);
-      if (family) choices.set(token, Engine.primaryFont(family));
+      if (family) choices.set(Engine.fontToken(Engine.primaryFont(family)), Engine.primaryFont(family));
     };
-    for (const name of ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New',doc.fontName]) add(Engine.fontToken(name));
+    for (const name of [Engine.primaryFont(doc.font), doc.fontName, doc.folio?.font, doc.pageNum?.font]) add(Engine.fontToken(name));
     for (const value of Object.values(doc.roles || {})) add(Engine.fontToken(value.font));
-    for (const text of [doc.text, ...(doc.sections || []).map(s => s.text)]) {
-      for (const run of Engine.parseStream(text || '',false)) if (run.style?.font) add(run.style.font);
+    const texts = [doc.text, ...(doc.sections || []).map(s => s.text)];
+    if (doc.yigo?.rich) texts.push(doc.yigo.text);
+    if (doc.folio?.rhinoRich) texts.push(doc.folio.rhino);
+    for (const set of Object.values(doc.notes?.sets || {})) for (const slot of Object.values(set)) if (slot?.rich) texts.push(slot.text);
+    for (const text of texts) if (typeof text === 'string') {
+      // Include a trailing font choice even when no character follows it yet.
+      for (const run of Engine.parseStream(text+'\uFFFC',false)) if (run.style?.font) add(run.style.font);
     }
     return [...choices];
+  }
+  function fontChoices(doc, Engine) {
+    const defaults = ['Jomolhari','Noto Serif Tibetan','Georgia','Times New Roman','Arial','Courier New'].map(name=>[Engine.fontToken(name),name]);
+    return [...new Map([...defaults,...documentFontChoices(doc,Engine)])];
+  }
+  function characterFamily(text, start, end, font, doc, Engine) {
+    if (Engine.fontFamily(font)) return Engine.fontFamily(font);
+    // Match the insertion boundary when a selection touches a formatting code.
+    for (const m of text.matchAll(/\{[^{}\n]*\}/g)) if (start>m.index && start<m.index+m[0].length) {
+      start = start===end ? m.index+m[0].length : m.index; break;
+    }
+    const run=Engine.parseStream(text.slice(0,start)+'\uFFFC',false).filter(r=>r.k==='text').at(-1);
+    return Engine.fontFor(doc,run,23).family;
   }
   function token(key, value) {
     if (names[key]) return value === null ? 'bold' : (value ? '' : '/') + names[key];
@@ -171,6 +191,6 @@ const TextFormat = (() => {
     }
     return right > start ? {start, end: right} : null;
   }
-  return {lockedSettings,insertLocked,fontChoices,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
+  return {lockedSettings,insertLocked,fontChoices,documentFontChoices,characterFamily,apply,insertCharacter,selectedRich,removeRich,insertRich,findCode,removeReturns,typeoverRange};
 })();
 if (typeof module !== 'undefined') module.exports = TextFormat;
