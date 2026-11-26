@@ -302,6 +302,30 @@ const Engine = (() => {
       family: fontFamily(st.font) || (role ? `'${role.font}','Noto Serif Tibetan',serif` : doc.font) };
   }
 
+  function samePaint(a, b) {
+    const color = p => {
+      const value = (p.color || p.style?.color || '#14100e').toLowerCase();
+      return value.length === 4 ? '#' + [...value.slice(1)].map(c=>c+c).join('') : value;
+    };
+    return ['family','size','weight','italic','underline','strike','kerning'].every(k=>a.f[k]===b.f[k]) && color(a)===color(b);
+  }
+
+  function coalescePlaced(pieces, measure) {
+    // Redundant codes must not split kerning pairs or Tibetan shaping clusters.
+    // Only combine identical rendered attributes; real styling remains separate.
+    const group = [], merged = new Set();
+    for (const p of pieces) {
+      const previous = group.at(-1);
+      if (previous?.joinNext && !previous.image && !p.image && samePaint(previous,p) && isTib(previous.s[0])===isTib(p.s[0])) {
+        previous.s += p.s; previous.gap=p.gap; previous.spaces=p.spaces; previous.gapW=p.gapW;
+        previous.joinNext=p.joinNext; previous.lineAlign=p.lineAlign || p.style.align;
+        merged.add(previous);
+      } else group.push(p);
+    }
+    for (const p of merged) p.w=measure(p.s,p.f);
+    return group;
+  }
+
   function fillLine(atoms, start, W, doc, sizeDefault, measure, yigo) {
     const items = [];
     let i = start, x = 0, prevGap = 0, hard = false, pageBreak = false, hasTab = false, yigoCount = 0;
@@ -323,10 +347,12 @@ const Engine = (() => {
       const yiAtoms = doc.yigo.rich
         ? atomize(parseStream(doc.yigo.text, false).filter(it => it.k === 'text'), doc, measure).filter(a => !a.hr && !a.tab)
         : splitAtoms(doc.yigo.text);
-      for (const a of yiAtoms) {
+      const yiPieces = yiAtoms.map(a => {
         const style = doc.yigo.rich ? {...a.style, role: null, size: firstSize,
           color: doc.yigo.ignoreColor || a.style.color === null ? firstStyle.color : a.style.color} : firstStyle;
-        const p = place({ ...a, style });
+        return place({ ...a, style });
+      });
+      for (const p of coalescePlaced(yiPieces,measure)) {
         p.x = x + prevGap; x = p.x + p.w; prevGap = p.gapW;
         items.push(p); yigoCount++;
       }
@@ -344,12 +370,13 @@ const Engine = (() => {
         prevGap = 0; hasTab = true;
         continue;
       }
-      const group = [place(a)];
-      let end = i, width = group[0].w;
+      const pieces = [place(a)];
+      let end = i;
       while (end+1 < atoms.length && nonbreakingJoin(atoms[end],atoms[end+1])) {
-        const next = place(atoms[++end]);
-        width += group.at(-1).gapW + next.w; group.push(next);
+        pieces.push(place(atoms[++end]));
       }
+      const group = coalescePlaced(pieces,measure);
+      const width = group.reduce((sum,p,k)=>sum+p.w+(k<group.length-1?p.gapW:0),0);
       if (items.length > yigoCount && x + prevGap + width > W + 0.01) break;
       // An unbreakable span wider than the line still consumes all of its text,
       // including when an automatic yi-go already occupies the line's beginning.
@@ -582,10 +609,14 @@ const Engine = (() => {
 
   function annotationRuns(slot, doc, measure) {
     const source = slot.rich ? parseStream(slot.text, false).filter(it => it.k === 'text') : [{s: slot.text, style: {}}];
-    return source.map(it => {
+    const runs = [];
+    for (const it of source) {
       const s = it.s.replace(/[\u2028\r\n\t]/g, ' '), f = fontFor({...doc, textSize: slot.size}, it, slot.size);
-      return {s, f, color: it.style.color, width: measure(s, f), head: measure.head({...doc, font: f.family}, f.size)};
-    });
+      const next = {s, f, color: it.style.color}, previous = runs.at(-1);
+      if (previous && samePaint(previous,next)) previous.s += s;
+      else runs.push(next);
+    }
+    return runs.map(r=>({...r,width:measure(r.s,r.f),head:measure.head({...doc,font:r.f.family},r.f.size)}));
   }
   function richSideText(x, y, slot, doc, measure, anchor, angle = -90) {
     if (!slot.rich) return sideText(x, y, slot.text, slot.size, doc, anchor, angle);
