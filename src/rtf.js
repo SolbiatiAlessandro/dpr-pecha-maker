@@ -271,11 +271,24 @@ const Rtf = (() => {
       let asset = doc.assets.find(a => a.data === data);
       if (!asset) {asset = {id:uniqueId('rtf-asset-',doc.assets), data, width, height}; doc.assets.push(asset);}
       const resolution = PechaImages.pngResolution(bytes), goal = value('picwgoal'), heightGoal = value('pichgoal');
-      const dpi = goal > 0 ? width * 1440 / goal : resolution?.x || 96;
-      const dpiY = heightGoal > 0 ? height * 1440 / heightGoal : resolution?.y || 96;
+      const percent = name => {
+        const n=value(name);
+        if(n===undefined || n===null)return 100;
+        if(Number.isFinite(n) && n>0)return n;
+        warnings.add('An invalid RTF image scale was replaced with 100 percent.');return 100;
+      };
+      const x=percent('picscalex'), y=percent('picscaley');
+      // Store independent physical sizes through the existing per-axis DPI.
+      // Pick a shared scale that keeps both DPI values within Save's limits.
+      const dx=(goal>0 ? width*1440/goal : resolution?.x || 96)*100/x;
+      const dy=(heightGoal>0 ? height*1440/heightGoal : resolution?.y || 96)*100/y;
+      const low=Math.max(10,1000/dx,1000/dy), high=Math.min(200,240000/dx,240000/dy);
+      const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+      const fits=low<=high, scale=fits?clamp(x,low,high):clamp(x,10,200);
+      const dpi=clamp(dx*scale/100,10,2400), dpiY=clamp(dy*scale/100,10,2400);
+      if(!fits)warnings.add('RTF image dimensions exceed the supported scale/DPI limits and were adjusted. Check the picture size.');
       const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
-        dpiY:dpiY === dpi ? null : dpiY,scale:value('picscalex') || 100});
-      if (value('picscaley') && value('picscaley') !== p.scale) warnings.add('Nonuniform RTF image scaling was reduced to its width scale.');
+        dpiY:dpiY === dpi ? null : dpiY,scale});
       doc.images.push(p); emitStyle(state); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);
