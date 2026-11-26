@@ -464,6 +464,13 @@ const Engine = (() => {
     return out;
   }
 
+  function imageEl(placement, size, x, y) {
+    const id=esc(placement.id);
+    if (!size.crop) return `<image data-image-id="${id}" x="${num(x)}" y="${num(y)}" width="${num(size.w)}" height="${num(size.h)}" preserveAspectRatio="none" href="${size.asset.data}"/>`;
+    // Each occurrence has its own viewport; repeated images need no shared clip IDs.
+    return `<svg data-image-id="${id}" data-image-crop="true" x="${num(x)}" y="${num(y)}" width="${size.w}" height="${size.h}" viewBox="0 0 ${size.w} ${size.h}" overflow="hidden" preserveAspectRatio="none"><image data-image-id="${id}" x="${-size.left}" y="${-size.top}" width="${size.fullW}" height="${size.fullH}" preserveAspectRatio="none" href="${size.asset.data}"/></svg>`;
+  }
+
   function drawText(p, doc, measure) {
     const { T } = p.boxes, t = p.type;
     const head = measure.head(doc, doc.textSize || t.fontSize);
@@ -482,7 +489,7 @@ const Engine = (() => {
         if (a.image) {
           const im = PechaImages.dimensions(doc, a.image);
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" preserveAspectRatio="none" href="${im.asset.data}"/>`;
+          out += imageEl(a.image, im, T.x0 + (line.offset || 0) + a.x + a.image.space * PT, y);
           continue;
         }
         out += textEl(T.x0 + (line.offset || 0) + a.x, baseline - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
@@ -583,7 +590,7 @@ const Engine = (() => {
   function drawPageImages(p, doc) {
     return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
       const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
-      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" preserveAspectRatio="none" href="${r.asset.data}"/>`;
+      return imageEl(im,r,r.x,r.y);
     }).join('');
   }
 

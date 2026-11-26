@@ -1202,9 +1202,11 @@ function init() {
     insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
   });
   $('exportRtf').addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
-    const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
-    toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
+    try {
+      const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
+      const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
+      toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
+    } catch(error) {toast('Could not export RTF: '+error.message);}
   });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
   $('exportPxt').addEventListener('click', () => {

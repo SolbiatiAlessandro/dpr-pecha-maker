@@ -27,7 +27,11 @@ const Rtf = (() => {
           if (!r) continue;
           const binary = atob(r.asset.data.split(',')[1]), hex = Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
           const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
-          body.push(`\\${align}{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${Math.round(r.w * 20)}\\pichgoal${Math.round(r.h * 20)}\n${hex}}`);
+          const goalW=Math.round(r.fullW*20), goalH=Math.round(r.fullH*20);
+          if(r.crop && (goalW-Math.round(r.left*20)-Math.round(r.right*20)<=0 || goalH-Math.round(r.top*20)-Math.round(r.bottom*20)<=0))
+            throw new Error('A cropped image is too small for RTF twip precision. Use Save to preserve it.');
+          const crop=r.crop ? ['left','right','top','bottom'].map((k,i)=>`\\piccrop${['l','r','t','b'][i]}${Math.round(r[k]*20)}`).join('') : '';
+          body.push(`\\${align}{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${goalW}\\pichgoal${goalH}${crop}\n${hex}}`);
           continue;
         }
         const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
@@ -288,8 +292,16 @@ const Rtf = (() => {
       const fits=low<=high, scale=fits?clamp(x,low,high):clamp(x,10,200);
       const dpi=clamp(dx*scale/100,10,2400), dpiY=clamp(dy*scale/100,10,2400);
       if(!fits)warnings.add('RTF image dimensions exceed the supported scale/DPI limits and were adjusted. Check the picture size.');
+      // Crops are relative to the unscaled goal, so they follow each axis's scale.
+      const goalW=goal>0?goal:width*1440/(resolution?.x||96), goalH=heightGoal>0?heightGoal:height*1440/(resolution?.y||96);
+      const rawCrop={left:(value('piccropl')??0)/goalW,right:(value('piccropr')??0)/goalW,
+        top:(value('piccropt')??0)/goalH,bottom:(value('piccropb')??0)/goalH};
+      const crop=PechaImages.crop(rawCrop);
+      if(Object.values(rawCrop).some(n=>n!==0)) warnings.add(crop
+        ? 'RTF picture cropping is experimental; compare the visible area and size with the original.'
+        : 'Invalid or excessive RTF picture cropping was ignored. Check the full image.');
       const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
-        dpiY:dpiY === dpi ? null : dpiY,scale});
+        dpiY:dpiY === dpi ? null : dpiY,scale,...(crop?{crop}:{})});
       doc.images.push(p); emitStyle(state); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);

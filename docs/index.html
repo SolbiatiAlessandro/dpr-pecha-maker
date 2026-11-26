@@ -2467,6 +2467,14 @@ const PechaImages = (() => {
     return {id: '', asset: '', kind: 'inline', page: 1, anchor: 'text-left', scale: 100,
       dpi: 96, dpiY: null, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
   }
+  // Fractions of the full image: positive edges crop; negative edges add blank space.
+  function crop(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const result=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,value[k]??0]));
+    if (Object.values(result).some(n=>!Number.isFinite(n)||Math.abs(n)>20) ||
+        result.left+result.right>=1-1e-8 || result.top+result.bottom>=1-1e-8) return null;
+    return Object.values(result).some(n=>n!==0)?result:null;
+  }
   function normalize(input) {
     const assets = [], images = [], seen = new Set();
     for (const a of (Array.isArray(input.assets) ? input.assets : []).slice(0, 200)) {
@@ -2484,6 +2492,7 @@ const PechaImages = (() => {
       p.dpiY = x.dpiY == null ? null : clamp(x.dpiY, 10, 2400, p.dpi);
       for (const k of ['above','down','inward']) p[k] = clamp(x[k], -30, 30, p[k]);
       for (const k of ['space','margin']) p[k] = clamp(x[k], 0, 20, p[k]);
+      const cropping=crop(x.crop); if(cropping)p.crop=cropping;
       images.push(p); seen.add(p.id);
     }
     return {assets, images};
@@ -2507,6 +2516,7 @@ const PechaImages = (() => {
       doc.images = doc.images.filter(p => p.id !== id);
     }
     const added = placement({id:newId, asset:original.asset, dpi:original.dpi, dpiY:original.dpiY ?? null});
+    const cropping=crop(original.crop);if(cropping)added.crop=cropping;
     doc.images.push(added);
     const inserted = `{image:${newId}}`;
     target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
@@ -2517,8 +2527,10 @@ const PechaImages = (() => {
     if (!asset) return null;
     const dpiX = p.ignoreDpi ? 96 : p.dpi;
     const dpiY = p.ignoreDpi ? 96 : (p.dpiY ?? p.dpi);
-    return {asset, w: asset.width * 72 / dpiX * p.scale / 100,
-      h: asset.height * 72 / dpiY * p.scale / 100};
+    const fullW=asset.width*72/dpiX*p.scale/100, fullH=asset.height*72/dpiY*p.scale/100;
+    const c=crop(p.crop), left=(c?.left||0)*fullW, right=(c?.right||0)*fullW,
+      top=(c?.top||0)*fullH, bottom=(c?.bottom||0)*fullH;
+    return {asset,w:fullW-left-right,h:fullH-top-bottom,fullW,fullH,left,right,top,bottom,crop:c};
   }
   function pageRect(doc, placement, boxes, type) {
     if (placement.kind !== 'page') return null;
@@ -2551,7 +2563,7 @@ const PechaImages = (() => {
     return density?.unit===1 && density.x>0 && density.y>0 ? {x:density.x*.0254,y:density.y*.0254} : null;
   }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -3021,6 +3033,13 @@ const Engine = (() => {
     return out;
   }
 
+  function imageEl(placement, size, x, y) {
+    const id=esc(placement.id);
+    if (!size.crop) return `<image data-image-id="${id}" x="${num(x)}" y="${num(y)}" width="${num(size.w)}" height="${num(size.h)}" preserveAspectRatio="none" href="${size.asset.data}"/>`;
+    // Each occurrence has its own viewport; repeated images need no shared clip IDs.
+    return `<svg data-image-id="${id}" data-image-crop="true" x="${num(x)}" y="${num(y)}" width="${size.w}" height="${size.h}" viewBox="0 0 ${size.w} ${size.h}" overflow="hidden" preserveAspectRatio="none"><image data-image-id="${id}" x="${-size.left}" y="${-size.top}" width="${size.fullW}" height="${size.fullH}" preserveAspectRatio="none" href="${size.asset.data}"/></svg>`;
+  }
+
   function drawText(p, doc, measure) {
     const { T } = p.boxes, t = p.type;
     const head = measure.head(doc, doc.textSize || t.fontSize);
@@ -3039,7 +3058,7 @@ const Engine = (() => {
         if (a.image) {
           const im = PechaImages.dimensions(doc, a.image);
           const y = baseline - a.image.above * PT - (a.image.addTibetan ? doc.tibetanRaise * PT : 0);
-          out += `<image data-image-id="${esc(a.image.id)}" x="${num(T.x0 + (line.offset || 0) + a.x + a.image.space * PT)}" y="${num(y)}" width="${num(im.w)}" height="${num(im.h)}" preserveAspectRatio="none" href="${im.asset.data}"/>`;
+          out += imageEl(a.image, im, T.x0 + (line.offset || 0) + a.x + a.image.space * PT, y);
           continue;
         }
         out += textEl(T.x0 + (line.offset || 0) + a.x, baseline - (isTib(a.s[0]) ? (doc.tibetanRaise || 0) * PT : 0), a.s, a.f, a.style && a.style.color);
@@ -3140,7 +3159,7 @@ const Engine = (() => {
   function drawPageImages(p, doc) {
     return doc.images.filter(im => im.kind === 'page' && im.page === p.n).map(im => {
       const r = PechaImages.pageRect(doc, im, p.boxes, p.type); if (!r) return '';
-      return `<image data-image-id="${esc(im.id)}" x="${num(r.x)}" y="${num(r.y)}" width="${num(r.w)}" height="${num(r.h)}" preserveAspectRatio="none" href="${r.asset.data}"/>`;
+      return imageEl(im,r,r.x,r.y);
     }).join('');
   }
 
@@ -3519,7 +3538,11 @@ const Rtf = (() => {
           if (!r) continue;
           const binary = atob(r.asset.data.split(',')[1]), hex = Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
           const align = {l:'ql',r:'qr',c:'qc',j:'qj'}[run.style.align] || 'qj';
-          body.push(`\\${align}{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${Math.round(r.w * 20)}\\pichgoal${Math.round(r.h * 20)}\n${hex}}`);
+          const goalW=Math.round(r.fullW*20), goalH=Math.round(r.fullH*20);
+          if(r.crop && (goalW-Math.round(r.left*20)-Math.round(r.right*20)<=0 || goalH-Math.round(r.top*20)-Math.round(r.bottom*20)<=0))
+            throw new Error('A cropped image is too small for RTF twip precision. Use Save to preserve it.');
+          const crop=r.crop ? ['left','right','top','bottom'].map((k,i)=>`\\piccrop${['l','r','t','b'][i]}${Math.round(r[k]*20)}`).join('') : '';
+          body.push(`\\${align}{\\pict\\pngblip\\picw${r.asset.width}\\pich${r.asset.height}\\picwgoal${goalW}\\pichgoal${goalH}${crop}\n${hex}}`);
           continue;
         }
         const f = Engine.fontFor(doc, run, doc.types.body.fontSize), color = hexColor(run.style.color);
@@ -3780,8 +3803,16 @@ const Rtf = (() => {
       const fits=low<=high, scale=fits?clamp(x,low,high):clamp(x,10,200);
       const dpi=clamp(dx*scale/100,10,2400), dpiY=clamp(dy*scale/100,10,2400);
       if(!fits)warnings.add('RTF image dimensions exceed the supported scale/DPI limits and were adjusted. Check the picture size.');
+      // Crops are relative to the unscaled goal, so they follow each axis's scale.
+      const goalW=goal>0?goal:width*1440/(resolution?.x||96), goalH=heightGoal>0?heightGoal:height*1440/(resolution?.y||96);
+      const rawCrop={left:(value('piccropl')??0)/goalW,right:(value('piccropr')??0)/goalW,
+        top:(value('piccropt')??0)/goalH,bottom:(value('piccropb')??0)/goalH};
+      const crop=PechaImages.crop(rawCrop);
+      if(Object.values(rawCrop).some(n=>n!==0)) warnings.add(crop
+        ? 'RTF picture cropping is experimental; compare the visible area and size with the original.'
+        : 'Invalid or excessive RTF picture cropping was ignored. Check the full image.');
       const p = PechaImages.placement({id:uniqueId('rtf-image-',doc.images),asset:asset.id,dpi,
-        dpiY:dpiY === dpi ? null : dpiY,scale});
+        dpiY:dpiY === dpi ? null : dpiY,scale,...(crop?{crop}:{})});
       doc.images.push(p); emitStyle(state); output += `{image:${p.id}}`;
     }
     const skip = new Set(['fonttbl','colortbl','stylesheet','info','header','headerl','headerr','footer','footerl','footerr','footnote','annotation','object','objdata','fldinst','listtable','listoverridetable','generator','themedata','colorschememapping','datastore','xmlnstbl','shp','nonshppict']);
@@ -4791,6 +4822,7 @@ const Pxp = (() => {
     const add=(id,kind)=>{
       const p=doc.images.find(p=>p.id===id&&p.kind===kind),asset=p&&doc.assets.find(a=>a.id===p.asset);
       if(!p||!asset)throw new Error('The document contains an unsupported image reference.');
+      if(PechaImages.crop(p.crop))throw new Error('Cropped images cannot yet be exported to Windows files. Use Save to preserve the crop; RTF also supports inline crops.');
       if(lines.length+pages.length>=1000)throw new Error('Native export supports at most 1000 image occurrences.');
       const x=integer(p.dpi,10,2400,'horizontal DPI'),y=integer(p.dpiY??p.dpi,10,2400,'vertical DPI'),scale=integer(p.scale,kind==='page'?20:10,200,'scale');
       let fields;
@@ -6621,9 +6653,11 @@ function init() {
     insertAtCursor(`{${role}}${t.value.slice(a, b)}${restore}`);
   });
   $('exportRtf').addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
-    const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
-    toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
+    try {
+      const url = URL.createObjectURL(new Blob([Rtf.write(doc, Engine)], {type: 'application/rtf'}));
+      const a = document.createElement('a'); a.href = url; a.download = 'pecha-text.rtf'; a.click(); URL.revokeObjectURL(url);
+      toast('RTF saved: body formatting and inline images. Page layout, labels and automatic marks are separate.');
+    } catch(error) {toast('Could not export RTF: '+error.message);}
   });
   $('savePart').addEventListener('click', () => saveFile($('saveKind').value));
   $('exportPxt').addEventListener('click', () => {

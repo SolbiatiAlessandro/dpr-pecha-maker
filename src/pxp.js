@@ -644,6 +644,7 @@ const Pxp = (() => {
     const add=(id,kind)=>{
       const p=doc.images.find(p=>p.id===id&&p.kind===kind),asset=p&&doc.assets.find(a=>a.id===p.asset);
       if(!p||!asset)throw new Error('The document contains an unsupported image reference.');
+      if(PechaImages.crop(p.crop))throw new Error('Cropped images cannot yet be exported to Windows files. Use Save to preserve the crop; RTF also supports inline crops.');
       if(lines.length+pages.length>=1000)throw new Error('Native export supports at most 1000 image occurrences.');
       const x=integer(p.dpi,10,2400,'horizontal DPI'),y=integer(p.dpiY??p.dpi,10,2400,'vertical DPI'),scale=integer(p.scale,kind==='page'?20:10,200,'scale');
       let fields;

@@ -6,6 +6,14 @@ const PechaImages = (() => {
     return {id: '', asset: '', kind: 'inline', page: 1, anchor: 'text-left', scale: 100,
       dpi: 96, dpiY: null, ignoreDpi: false, above: .3, addTibetan: false, space: .03, down: 0, inward: 0, margin: .05, ...over};
   }
+  // Fractions of the full image: positive edges crop; negative edges add blank space.
+  function crop(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const result=Object.fromEntries(['left','right','top','bottom'].map(k=>[k,value[k]??0]));
+    if (Object.values(result).some(n=>!Number.isFinite(n)||Math.abs(n)>20) ||
+        result.left+result.right>=1-1e-8 || result.top+result.bottom>=1-1e-8) return null;
+    return Object.values(result).some(n=>n!==0)?result:null;
+  }
   function normalize(input) {
     const assets = [], images = [], seen = new Set();
     for (const a of (Array.isArray(input.assets) ? input.assets : []).slice(0, 200)) {
@@ -23,6 +31,7 @@ const PechaImages = (() => {
       p.dpiY = x.dpiY == null ? null : clamp(x.dpiY, 10, 2400, p.dpi);
       for (const k of ['above','down','inward']) p[k] = clamp(x[k], -30, 30, p[k]);
       for (const k of ['space','margin']) p[k] = clamp(x[k], 0, 20, p[k]);
+      const cropping=crop(x.crop); if(cropping)p.crop=cropping;
       images.push(p); seen.add(p.id);
     }
     return {assets, images};
@@ -46,6 +55,7 @@ const PechaImages = (() => {
       doc.images = doc.images.filter(p => p.id !== id);
     }
     const added = placement({id:newId, asset:original.asset, dpi:original.dpi, dpiY:original.dpiY ?? null});
+    const cropping=crop(original.crop);if(cropping)added.crop=cropping;
     doc.images.push(added);
     const inserted = `{image:${newId}}`;
     target.text = target.text.slice(0,cursor) + inserted + target.text.slice(cursor);
@@ -56,8 +66,10 @@ const PechaImages = (() => {
     if (!asset) return null;
     const dpiX = p.ignoreDpi ? 96 : p.dpi;
     const dpiY = p.ignoreDpi ? 96 : (p.dpiY ?? p.dpi);
-    return {asset, w: asset.width * 72 / dpiX * p.scale / 100,
-      h: asset.height * 72 / dpiY * p.scale / 100};
+    const fullW=asset.width*72/dpiX*p.scale/100, fullH=asset.height*72/dpiY*p.scale/100;
+    const c=crop(p.crop), left=(c?.left||0)*fullW, right=(c?.right||0)*fullW,
+      top=(c?.top||0)*fullH, bottom=(c?.bottom||0)*fullH;
+    return {asset,w:fullW-left-right,h:fullH-top-bottom,fullW,fullH,left,right,top,bottom,crop:c};
   }
   function pageRect(doc, placement, boxes, type) {
     if (placement.kind !== 'page') return null;
@@ -90,6 +102,6 @@ const PechaImages = (() => {
     return density?.unit===1 && density.x>0 && density.y>0 ? {x:density.x*.0254,y:density.y*.0254} : null;
   }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
-  return {anchors, placement, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
