@@ -44,6 +44,7 @@ AVAILABLE IN THE WEB APP
 - Static margin annotations for page type and front/back, with optional mixed font/style/colour, one size per annotation position, and inset.
 - Compact page view removes gaps/captions and disables app print buttons until turned off. Browser-level print commands still generate the normal sheet layout.
 - Optional font kerning where the browser supports matching canvas measurement and SVG rendering. Native font metrics remain unverified.
+- Formatting changes inside a word or Tibetan syllable preserve its wrapping boundary. Rinchen/Yang shad conversion also follows a syllable across formatting runs while keeping the mark's style. Original cross-font kerning and split-combining-mark shaping still need comparison.
 - Nonbreaking spaces stay inside an unbroken span, including across formatting runs and Tibetan syllable boundaries. Oversized spans overflow rather than losing text; explicit returns, tabs and page breaks remain boundaries. Save/RTF preserve the original spaces. Exact Windows spacing and overflow behavior remain unverified.
 - Left/right/center/justified text, font size and colour, bold/italic/underline/strike formatting marks, hard returns, hard page breaks and fixed shad.
 - One tab interval with tab-aligned text, shared line baselines for mixed-size text, independent Tibetan raise, and nonprinting baseline/page-type-colour guides. Native page-type first-baseline offsets now import from BaseLineAdj; historical font metrics still need comparison.

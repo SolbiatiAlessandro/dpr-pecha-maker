@@ -2697,22 +2697,24 @@ const Engine = (() => {
       .join(' ');
   }
 
-  function splitAtoms(s) {
+  function splitAtoms(s, offsets = false) {
     const out = [];
-    let cur = '', sawLetter = false;
+    let cur = '', sawLetter = false, start = 0;
+    const range = (start, end) => offsets ? {start, end} : {};
     const push = gap => {
-      if (cur) out.push({ s: cur, gap, spaces: 0 });
+      if (cur) out.push({ s: cur, gap, spaces: 0, ...range(start, start + cur.length) });
       cur = ''; sawLetter = false;
     };
     for (let i = 0; i < s.length; i++) {
       const ch = s[i], nx = s[i + 1] || '';
-      if (ch === ' ') { push('none'); out.push({ hr: true }); continue; }
-      if (ch === '\t') { push('none'); out.push({ tab: true }); continue; }
+      if (ch === ' ') { push('none'); out.push({ hr: true, ...range(i, i + 1) }); continue; }
+      if (ch === '\t') { push('none'); out.push({ tab: true, ...range(i, i + 1) }); continue; }
       if (ch === ' ') {
         if (cur) push('space');
         if (out.length) { const a = out[out.length - 1]; if (a.s !== undefined) { a.gap = 'space'; a.spaces++; } }
         continue;
       }
+      if (!cur) start = i;
       cur += ch;
       if (!isClosing(ch) && ch !== TSEK) sawLetter = true;
       if (ch === TSEK) {
@@ -2728,24 +2730,44 @@ const Engine = (() => {
   }
 
   const nonbreakingJoin = (a, b) => a && b && !a.hr && !a.page && !a.tab && !b.hr && !b.page && !b.tab
-    && a.gap !== 'space' && (a.s?.endsWith('\u00a0') || b.s?.startsWith('\u00a0'));
+    && a.gap !== 'space' && (a.joinNext || a.s?.endsWith('\u00a0') || b.s?.startsWith('\u00a0'));
 
   function atomize(items, doc, measure) {
     const atoms = [];
+    let text = '', runs = [];
+    const flush = () => {
+      // Determine word/syllable boundaries from the text, before splitting each
+      // atom into styled pieces. A font or colour change is not a line break.
+      const leading = /^ +/.exec(text), previous = atoms.at(-1);
+      if (leading && previous?.s !== undefined) {
+        previous.gap = 'space'; previous.spaces += leading[0].length;
+      }
+      let run = 0;
+      for (const a of splitAtoms(text, true)) {
+        while (runs[run].end <= a.start) run++;
+        if (a.hr || a.tab) { atoms.push({[a.hr ? 'hr' : 'tab']:true, style:runs[run].style}); continue; }
+        let pos = a.start;
+        while (pos < a.end) {
+          while (runs[run].end <= pos) run++;
+          const end = Math.min(a.end, runs[run].end), joined = end < a.end;
+          atoms.push({s:text.slice(pos,end), gap:joined?'none':a.gap, spaces:joined?0:a.spaces,
+            style:runs[run].style, ...(joined?{joinNext:true}:{})});
+          pos = end;
+        }
+      }
+      text = ''; runs = [];
+    };
     for (const it of items) {
-      if (it.k === 'page') { atoms.push({ page: true }); continue; }
+      if (it.k === 'page') { flush(); atoms.push({ page: true }); continue; }
       if (it.k === 'image') {
+        flush();
         const placement = doc.images.find(p => p.id === it.id && p.kind === 'inline');
         if (placement && PechaImages.dimensions(doc, placement)) atoms.push({s: '', gap: 'none', spaces: 0, style: it.style, image: placement});
         continue;
       }
-      // A style boundary must not swallow leading spaces in the next run.
-      const leading = /^ +/.exec(it.s), previous = atoms.at(-1);
-      if (leading && previous && previous.s !== undefined) {
-        previous.gap = 'space'; previous.spaces += leading[0].length;
-      }
-      for (const a of splitAtoms(it.s)) atoms.push({ ...a, style: it.style });
+      text += it.s; if(it.s)runs.push({end:text.length,style:it.style});
     }
+    flush();
     // A nonbreaking space may straddle formatting runs or Tibetan atom boundaries.
     // Do not justify the internal boundary as a separate tsheg gap.
     for (let i=1;i<atoms.length;i++) if (nonbreakingJoin(atoms[i-1],atoms[i])) atoms[i-1].gap='none';
@@ -2896,12 +2918,17 @@ const Engine = (() => {
     const idx = line.yigoCount;
     const a = line.items[idx];
     if (!a || !isTib(a.s[0])) return;
-    const m = /^([^་༌།-༔\s]+་?)།/.exec(a.s);
+    let end = idx, text = a.s;
+    while (line.items[end].joinNext && line.items[end + 1]) text += line.items[++end].s;
+    const m = /^([^་༌།-༔\s]+་?)།/.exec(text);
     if (!m) return;
-    a.s = m[1] + RINCHEN + a.s.slice(m[0].length);
-    a.w = measure(a.s, a.f);
-    const b = line.items[idx + 1];
-    if (o.yang && b && a.gap === 'space' && b.s[0] === SHAD) {
+    let offset = m[1].length, target = idx;
+    while (offset >= line.items[target].s.length) offset -= line.items[target++].s.length;
+    const mark = line.items[target];
+    mark.s = mark.s.slice(0,offset) + RINCHEN + mark.s.slice(offset+1);
+    mark.w = measure(mark.s, mark.f);
+    const b = line.items[end + 1];
+    if (o.yang && b && line.items[end].gap === 'space' && b.s[0] === SHAD) {
       b.s = RINCHEN + b.s.slice(1);
       b.w = measure(b.s, b.f);
     }
