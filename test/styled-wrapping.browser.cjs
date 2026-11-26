@@ -11,7 +11,7 @@ const E=require('../src/engine'),visible=s=>E.parseStream(s,false).filter(r=>r.k
   Object.assign(d.types.body,{lines:4,style:'none',sideOut:0,sideIn:0,side:0,top:.2});
   d.text='{font:family:Times%20New%20Roman 36 l}PREFIX ALPHA{b #aa0000}BETA{/b}';
   await upload('joined.pecha',Buffer.from(JSON.stringify(d)));await p.waitForFunction(()=>document.querySelector('#table').textContent.includes('BETA'));
-  const geometry=()=>p.locator('#table text').evaluateAll(ns=>ns.filter(n=>/PREFIX|ALPHA|BETA/.test(n.textContent)).map(n=>({text:n.textContent,x:+n.getAttribute('x'),y:+n.getAttribute('y'),weight:n.getAttribute('font-weight'),color:n.getAttribute('fill')})));
+  const geometry=()=>p.locator('#table text').evaluateAll(ns=>ns.filter(n=>/PREFIX|ALPHA|BETA/.test(n.textContent)).map(n=>({text:n.textContent,x:+n.getAttribute('x'),y:+n.getAttribute('y'),weight:n.getAttribute('font-weight'),color:getComputedStyle(n).fill})));
   const joined=await geometry(),prefix=joined.find(r=>r.text==='PREFIX'),a=joined.find(r=>r.text==='ALPHA'),b=joined.find(r=>r.text.includes('BETA'));
   assert(prefix&&a&&b);assert(a.y>prefix.y);assert.equal(a.y,b.y);assert.equal(b.weight,'700');assert.equal(await p.locator('#table text').filter({hasText:'BETA'}).getAttribute('fill'),'#aa0000');
   const ordinary={...d,text:d.text.replace('BETA',' BETA')};await upload('ordinary.pecha',Buffer.from(JSON.stringify(ordinary)));const separate=await geometry();assert.equal(separate.find(r=>r.text==='ALPHA').y,separate.find(r=>r.text==='PREFIX').y);assert(separate.find(r=>r.text==='BETA').y>separate.find(r=>r.text==='ALPHA').y);
