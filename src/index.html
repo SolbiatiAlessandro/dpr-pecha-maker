@@ -368,7 +368,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, older and multi-record TibetDoc import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, TibetDoc versions 2/3 and multi-record import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -440,7 +440,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <form method="dialog">
     <h2 id="dctTitle">Import TibetDoc</h2>
     <p id="dctFilename"></p>
-    <p class="hint">Experimental modern DCT import. Source layout and most styling are not retained.</p>
+    <p class="hint">Experimental DCT import: PKTC5 and numeric TibetDoc 4/5, one body record. Source layout and most styling are not retained.</p>
     <label for="dctTibetanSize">Tibetan size (legacy points)</label>
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>

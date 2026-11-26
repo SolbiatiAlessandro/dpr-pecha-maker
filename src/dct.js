@@ -1,4 +1,4 @@
-// Bounded, independent reader for the modern PKTC TibetDoc single-body format.
+// Bounded, independent reader for PKTC5 and numeric TibetD4/5 single-body files.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
   // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
@@ -32,9 +32,22 @@ const Dct = (() => {
       const text = Array.from(bytes.subarray(pos,end),b=>String.fromCharCode(b)).join('').replace(/\r$/,'');
       pos = end+1; return text;
     };
-    if (line() !== 'PKTC\x01\x1a\x05TibetDoc') throw new Error('Only modern PKTC TibetDoc version 5 is supported experimentally.');
-    const settings = line().split('\t');
-    if (settings.length < 7 || !settings.slice(0,6).every(v=>/^\d+$/.test(v)) || !['Ansi','TibetanAnsi'].includes(settings[6])) throw new Error('Unsupported DCT encoding header.');
+    // These numeric metadata fields are ignored, not coerced to JS integers:
+    // the public fixture includes a timestamp larger than a signed DWORD.
+    const header = line(), integer = value => /^[+-]?\d+$/.test(value);
+    let source = 'modern PKTC version 5';
+    if (header !== 'PKTC\x01\x1a\x05TibetDoc') {
+      const fields = header.trim().split(/[ \t]+/);
+      if (fields.length !== 4 || fields[2] !== 'TibetD' || ![fields[0],fields[1],fields[3]].every(integer)) throw new Error('Unsupported DCT file header.');
+      const version = Number(fields[3]);
+      if (version !== 4 && version !== 5) throw new Error('Only numeric TibetDoc versions 4 and 5 are supported; older glyph encodings remain unverified.');
+      source = `numeric TibetDoc version ${version}`;
+    }
+    // Native headers use five or six signed decimal fields before the mode.
+    // Keep metadata after a tab separate, as in the existing PKTC reader.
+    const settings = line().match(/^[ \t]*((?:[+-]?\d+[ \t]+){5,6})(Ansi|TibetanAnsi)(?:[ \t]*|\t.*)$/);
+    if (!settings || !settings[1].trim().split(/[ \t]+/).every(integer)) throw new Error('Unsupported DCT encoding header.');
+    const encoding = settings[2];
     let found = false;
     while (pos < bytes.length) {
       if (bytes[pos] === 49 && bytes[pos+1] === 9 && bytes[pos+2] === 33 && bytes[pos+3] === 9) {pos += 4; found = true; break;}
@@ -44,7 +57,7 @@ const Dct = (() => {
     const bodyStart = pos;
     let centered = false;
     const warnings = new Set([
-      'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
+      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 4/5; verify against the source.`,
       `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
@@ -107,7 +120,7 @@ const Dct = (() => {
         continue;
       }
       if (c < 32) throw new Error('Unsupported DCT control 0x'+c.toString(16).padStart(2,'0')+'.');
-      glyph(settings[6] === 'TibetanAnsi' ? 17 : 16,c);
+      glyph(encoding === 'TibetanAnsi' ? 17 : 16,c);
     }
     if(unknown)warnings.add(`${unknown} DCT glyphs could not be converted and were replaced with �.`);
     doc.text = output;

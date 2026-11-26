@@ -375,7 +375,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, older and multi-record TibetDoc import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, TibetDoc versions 2/3 and multi-record import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -447,7 +447,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <form method="dialog">
     <h2 id="dctTitle">Import TibetDoc</h2>
     <p id="dctFilename"></p>
-    <p class="hint">Experimental modern DCT import. Source layout and most styling are not retained.</p>
+    <p class="hint">Experimental DCT import: PKTC5 and numeric TibetDoc 4/5, one body record. Source layout and most styling are not retained.</p>
     <label for="dctTibetanSize">Tibetan size (legacy points)</label>
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
@@ -3801,7 +3801,7 @@ const Rtf = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
 
-// Bounded, independent reader for the modern PKTC TibetDoc single-body format.
+// Bounded, independent reader for PKTC5 and numeric TibetD4/5 single-body files.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
   // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
@@ -3835,9 +3835,22 @@ const Dct = (() => {
       const text = Array.from(bytes.subarray(pos,end),b=>String.fromCharCode(b)).join('').replace(/\r$/,'');
       pos = end+1; return text;
     };
-    if (line() !== 'PKTC\x01\x1a\x05TibetDoc') throw new Error('Only modern PKTC TibetDoc version 5 is supported experimentally.');
-    const settings = line().split('\t');
-    if (settings.length < 7 || !settings.slice(0,6).every(v=>/^\d+$/.test(v)) || !['Ansi','TibetanAnsi'].includes(settings[6])) throw new Error('Unsupported DCT encoding header.');
+    // These numeric metadata fields are ignored, not coerced to JS integers:
+    // the public fixture includes a timestamp larger than a signed DWORD.
+    const header = line(), integer = value => /^[+-]?\d+$/.test(value);
+    let source = 'modern PKTC version 5';
+    if (header !== 'PKTC\x01\x1a\x05TibetDoc') {
+      const fields = header.trim().split(/[ \t]+/);
+      if (fields.length !== 4 || fields[2] !== 'TibetD' || ![fields[0],fields[1],fields[3]].every(integer)) throw new Error('Unsupported DCT file header.');
+      const version = Number(fields[3]);
+      if (version !== 4 && version !== 5) throw new Error('Only numeric TibetDoc versions 4 and 5 are supported; older glyph encodings remain unverified.');
+      source = `numeric TibetDoc version ${version}`;
+    }
+    // Native headers use five or six signed decimal fields before the mode.
+    // Keep metadata after a tab separate, as in the existing PKTC reader.
+    const settings = line().match(/^[ \t]*((?:[+-]?\d+[ \t]+){5,6})(Ansi|TibetanAnsi)(?:[ \t]*|\t.*)$/);
+    if (!settings || !settings[1].trim().split(/[ \t]+/).every(integer)) throw new Error('Unsupported DCT encoding header.');
+    const encoding = settings[2];
     let found = false;
     while (pos < bytes.length) {
       if (bytes[pos] === 49 && bytes[pos+1] === 9 && bytes[pos+2] === 33 && bytes[pos+3] === 9) {pos += 4; found = true; break;}
@@ -3847,7 +3860,7 @@ const Dct = (() => {
     const bodyStart = pos;
     let centered = false;
     const warnings = new Set([
-      'Experimental DCT import: only modern PKTC version 5 with one body record is supported; verify against the source.',
+      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 4/5; verify against the source.`,
       `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
@@ -3910,7 +3923,7 @@ const Dct = (() => {
         continue;
       }
       if (c < 32) throw new Error('Unsupported DCT control 0x'+c.toString(16).padStart(2,'0')+'.');
-      glyph(settings[6] === 'TibetanAnsi' ? 17 : 16,c);
+      glyph(encoding === 'TibetanAnsi' ? 17 : 16,c);
     }
     if(unknown)warnings.add(`${unknown} DCT glyphs could not be converted and were replaced with �.`);
     doc.text = output;
