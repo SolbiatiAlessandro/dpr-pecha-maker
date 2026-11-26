@@ -11,12 +11,24 @@ const Dct = (() => {
   const coreCsx = {164:'ñ',165:'Ñ',224:'ā',225:'ß',226:'Ā',227:'ī',228:'Ī',229:'ū',230:'Ū',
     231:'ṛ',232:'Ṛ',233:'ṝ',234:'Ṝ',235:'ḷ',236:'Ḷ',237:'ḹ',238:'Ḹ',239:'ṅ',240:'Ṅ',
     241:'ṭ',242:'Ṭ',243:'ḍ',244:'Ḍ',245:'ṇ',246:'Ṇ',247:'ś',248:'Ś',249:'ṣ',250:'Ṣ',251:'”',252:'ṃ',253:'Ṃ',254:'ḥ',255:'Ḥ'};
+  // Additional unambiguous CSX+ encoding facts from the same concordance (pp. 1–4).
+  // Preserve rings below and candrabindu, rather than GRETIL's optional dot substitutions.
+  // Bytes 160/202 are unspecified; the underlined digraphs at 200/204 remain unresolved.
+  const extendedCsx = Object.fromEntries(Object.entries({
+    128:'Ç',129:'ü',130:'é',131:'â',132:'ä',133:'à',134:'å',135:'ç',136:'ê',137:'ë',138:'è',139:'ï',140:'î',141:'ì',142:'Ä',143:'Å',
+    144:'É',145:'æ',146:'Æ',147:'ô',148:'ö',149:'ò',150:'û',151:'ù',152:'ǣ',153:'Ö',154:'Ü',155:'ŭ',156:'ē\u0303',157:'r\u0325',158:'á',159:'ṟ',
+    161:'í',162:'ó',163:'ú',166:'l\u0303',167:'ṁ',168:'ā\u0306',169:'ī\u0306',170:'ū\u0306',171:'ā\u0303',172:'ī\u0303',173:'ṉ',
+    174:'r\u0325\u0304',175:'l\u0325',176:'l\u0325\u0304',177:'r\u0325\u0301',178:'r\u0325\u0300',179:'r\u0325\u0304\u0301',
+    180:'m\u0306',181:'ā\u0301',182:'ā\u0300',183:'ī\u0301',184:'ī\u0300',185:'ē',186:'ō',187:'R\u0325',188:'ẏ',189:'ū\u0301',190:'ū\u0300',
+    191:'r\u0306',192:'ō\u0303',193:'m\u0310',194:'ṯ',195:'Ē',196:'Ō',197:'n\u0306',198:'ṛ\u0301',199:'ṛ\u0300',201:'ḵ',203:'Ǣ',205:'ġ',206:'ĉ',
+    207:'ṝ\u0301',208:'ã',209:'ĩ',210:'ũ',211:'ẽ',212:'õ',213:'ĕ',214:'ŏ',215:'ḻ',216:'ū\u0303',217:'Ġ',218:'Ĉ',219:'ẖ',220:'ḫ',221:'–',222:'—',223:'“'
+  }).map(([byte,text])=>[byte,text.normalize('NFC')]));
   const diacriticLetters = Object.fromEntries(Array.from('aAiIuUpPqQkKlLoOtTdDnNsSrRmMhHÑ',
     (letter,index)=>[letter,Array.from('āĀīĪūŪṛṚṝṜḷḶḹḸṅṄṭṬḍḌṇṆśŚṣṢṃṂḥḤÑ')[index]]));
   function diacriticGlyph(byte, remap) {
     const letter = String.fromCharCode(byte);
     if (remap && diacriticLetters[letter]) return diacriticLetters[letter];
-    return coreCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
+    return coreCsx[byte] || extendedCsx[byte] || (byte >= 32 && byte < 127 ? letter : null);
   }
   function importSettings(input = {}, Engine) {
     const result = {tibetanSize:28,latinSize:18,latinFont:'family:Times%20New%20Roman',diacriticSize:18,diacriticFont:'serif',remapDiacritics:true,...input};
@@ -111,7 +123,7 @@ const Dct = (() => {
           const text = diacriticGlyph(b,typography.remapDiacritics);
           if (text === null) unknown++;
           emit(text === null ? '�' : text,'diacritic');
-          warnings.add('Diacritics use Unicode equivalents of the CSX+ core character set with a substitute web font. Extended CSX+ characters remain unsupported and appear as �; compare with the source.');
+          warnings.add('Diacritics use supported CSX+ Unicode equivalents with a substitute web font. Unspecified slots and unresolved underlined digraphs appear as �; compare combined accents and glyph shapes with the source.');
         } else if (c === 22) {unknown++;emit('�',false);warnings.add('Symbol-font glyphs were replaced with visible replacement characters.');}
         else glyph(c,b);
         continue;

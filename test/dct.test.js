@@ -20,7 +20,7 @@ for(const [marker,slot] of [[17,0],[18,1],[19,2],[20,3],[23,4]]) {
 assert.equal(plain(Dct.read(wrap([17,33,65],'Ansi'),Engine,TABLE).doc),'ཀA','glyph markers affect only one character');
 assert.equal(plain(Dct.read(wrap([65,9,66,11,67,12,68],'Ansi'),Engine,TABLE).doc),'A\tB\nC[PAGE]D');
 assert.equal(plain(Dct.read(wrap([123,125],'Ansi'),Engine,TABLE).doc),'{}');
-const unsupported=Dct.read(wrap([21,128,22,66,16,0]),Engine,TABLE);assert.equal(unsupported.unknown,3);assert.equal(plain(unsupported.doc),'���');
+const unsupported=Dct.read(wrap([21,160,22,66,16,0]),Engine,TABLE);assert.equal(unsupported.unknown,3);assert.equal(plain(unsupported.doc),'���');
 assert.equal(plain(Dct.read(wrap([33,25,98,27,49,33]),Engine,TABLE).doc),'ཀཀ');
 for(const bytes of [wrap([17]),wrap([25]),wrap([27]),wrap([24]),wrap([0]),Buffer.from('1 2 TibetD 3\n'),wrap([33],'UTF8'),Buffer.concat([wrap([33]),Buffer.from('\r\n2\t!\tA')]),new Uint8Array(4000001)])assert.throws(()=>Dct.read(bytes,Engine,TABLE));
 assert.equal(plain(Dct.read(publicFile.subarray(1),Engine,TABLE).doc).trim(),expected,'optional leading NUL');
@@ -54,11 +54,11 @@ for(const [source,unicode] of pairs) {
 const csxBytes=[164,165,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255];
 assert.equal(plain(Dct.read(wrap(csxBytes.flatMap(b=>[21,b])),Engine,TABLE,null,{remapDiacritics:false}).doc),'ñÑāßĀīĪūŪṛṚṝṜḷḶḹḸṅṄṭṬḍḌṇṆśŚṣṢ”ṃṂḥḤ');
 assert.equal(plain(Dct.read(wrap([21,97,21,98,21,123,21,125]),Engine,TABLE,null,{remapDiacritics:false}).doc),'ab{}');
-const mixed=Dct.read(wrap([16,65,21,97,33,21,128,22,65]),Engine,TABLE,null,{diacriticFont:'noto',diacriticSize:24});
+const mixed=Dct.read(wrap([16,65,21,97,33,21,160,22,65]),Engine,TABLE,null,{diacriticFont:'noto',diacriticSize:24});
 assert.equal(plain(mixed.doc),'Aāཀ��');assert.equal(mixed.unknown,2);
 const mixedRuns=Engine.parseStream(mixed.doc.text,false).filter(r=>r.k==='text');
 assert.deepEqual(mixedRuns.map(r=>[r.style.font,r.style.size]),[['family:Times%20New%20Roman',18],['noto',24],['jomolhari',21],['noto',24],['family:Times%20New%20Roman',18]]);
-assert(mixed.warnings.some(w=>w.includes('Extended CSX+')));
+assert(mixed.warnings.some(w=>w.includes('unresolved underlined digraphs')));
 for(const options of [{diacriticSize:0},{diacriticSize:201},{diacriticSize:18.5},{diacriticFont:'legacy'},{remapDiacritics:'true'}])assert.throws(()=>Dct.importSettings(options,Engine));
 assert.equal(Dct.importSettings({tibetanSize:40,latinFont:'noto',latinSize:22},Engine).diacriticSize,18,'previous saved preferences migrate');
 assert.throws(()=>Dct.read(wrap([21]),Engine,TABLE));

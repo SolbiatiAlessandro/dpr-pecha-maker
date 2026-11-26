@@ -10,7 +10,7 @@ const wrap=body=>Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\
   const url=process.argv[2]||'http://127.0.0.1:8789/';
   await page.goto(url);await page.locator('#pasteText').click();
   const upload=async(name,buffer)=>{await page.locator('#openFile').setInputFiles({name,mimeType:'application/octet-stream',buffer});if(name.endsWith('.dct'))await page.locator('#dctDialog').waitFor({state:'visible'});};
-  const fixture=wrap([16,65,21,97,21,115,21,114,21,109,21,104,33,21,128,22,65]);
+  const fixture=wrap([16,65,21,97,21,115,21,114,21,109,21,104,33,21,160,22,65]);
   await upload('mixed-diacritics.dct',fixture);
   await page.locator('#dctDiacriticOptions summary').click();
   assert(await page.locator('#dctRemapDiacritics').isChecked());
@@ -31,7 +31,7 @@ const wrap=body=>Buffer.concat([Buffer.from('\0PKTC\x01\x1a\x05TibetDoc\r\n1\t5\
   await page.waitForFunction(()=>document.querySelector('#table').textContent.includes('āśṣṃḥ'));
   const spans=await page.locator('#table text').evaluateAll(ns=>ns.map(n=>[n.textContent,n.getAttribute('font-family'),n.getAttribute('font-size')]));
   assert(spans.some(([t,f,s])=>t.includes('āśṣṃḥ')&&f.startsWith("'Noto")&&+s===24));
-  const warnings=await page.locator('#importMessages').textContent();assert(warnings.includes('2 DCT glyphs'));assert(warnings.includes('Extended CSX+'));assert(warnings.includes('Symbol-font'));
+  const warnings=await page.locator('#importMessages').textContent();assert(warnings.includes('2 DCT glyphs'));assert(warnings.includes('unresolved underlined digraphs'));assert(warnings.includes('Symbol-font'));
   await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));
   assert((await page.locator('#printRoot').textContent()).includes('āśṣṃḥ'));
   const download=page.waitForEvent('download');await page.locator('#saveDoc').click();
