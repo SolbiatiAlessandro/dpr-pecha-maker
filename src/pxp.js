@@ -723,7 +723,9 @@ const Pxp = (() => {
     const encodings = nativeEncodings();
     const cp=encodings[0].map;
     for (let id=0;id<5;id++) for (const [byte,text] of Object.entries(table[id ? 'TibetanMachineSkt'+id : 'TibetanMachine'] || {})) {
-      if (+byte < 32 || !text || !/[\u0f00-\u0fff]/.test(text)) continue;
+      // PDF mapping keys can be Unicode aliases (e.g. U+20AC), not byte slots.
+      // Never let Uint8Array silently truncate such keys into another glyph.
+      if (!Number.isInteger(+byte) || +byte < 32 || +byte > 255 || !text || !/[\u0f00-\u0fff]/.test(text)) continue;
       const list = tib.get(text[0]) || []; list.push({text,id,byte:+byte}); tib.set(text[0],list);
     }
     for (const list of tib.values()) list.sort((a,b)=>b.text.length-a.text.length || a.id-b.id || a.byte-b.byte);
