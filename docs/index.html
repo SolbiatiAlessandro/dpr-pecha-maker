@@ -380,7 +380,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
         <div>
           <p class="hint">This is an independent first-pass recreation, not an exact Windows port. Unicode fonts can produce different line and page breaks.</p>
           <p class="hint">Available: Title/Fancy/Body layouts, paper orientation and margins, folio and page starts, side labels, automatic marks, text formatting, reusable web templates, PDF reading and two-sided print preparation.</p>
-          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, TibetDoc versions 2/3 and multi-record import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
+          <p class="hint">Still incomplete: native image import (1.0/1.1 support is experimental; real native image specimens remain unverified), full RTF fidelity, complete TibetDoc glyph coverage and multi-record import, TibetDoc export, Windows legacy keyboard maps, and full native PXP/PXC/PXA export. Experimental Windows PXT layout export is available with explicit conversion notes. Full-page mode is available, but exact Windows layout parity remains unverified. Legacy imports do not preserve every setting or image.</p>
           <p class="hint">Multi-text numbering resets, section names and reordering are available under “Texts in this volume.” They are web additions. Exact original Tibetan label facing and several mark details await runtime verification.</p>
           <p class="hint">The global size, configurable text roles and extra folio rotation choices extend the web workflow; they are not claims about original Windows features.</p>
           <p class="hint"><a href="compatibility.txt" target="_blank" rel="noopener">Full compatibility and remaining-work list</a></p>
@@ -452,7 +452,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
   <form method="dialog">
     <h2 id="dctTitle">Import TibetDoc</h2>
     <p id="dctFilename"></p>
-    <p class="hint">Experimental DCT import: PKTC5 and numeric TibetDoc 4/5, one body record. Source layout and most styling are not retained.</p>
+    <p class="hint">Experimental DCT import: PKTC5 and numeric TibetDoc 2–5, one body record. Source layout and most styling are not retained.</p>
     <label for="dctTibetanSize">Tibetan size (legacy points)</label>
     <input id="dctTibetanSize" type="number" min="7" max="200" step="1" required>
     <p class="hint">Uses <span id="dctTibetanFont"></span>, your current Tibetan font. Legacy points convert to 75% for the web font; exact Windows metrics remain unverified.</p>
@@ -3843,9 +3843,13 @@ const Rtf = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Rtf;
 
-// Bounded, independent reader for PKTC5 and numeric TibetD4/5 single-body files.
+// Bounded, independent reader for PKTC5 and numeric TibetD2–5 single-body files.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
+  // Older TibetDoc bytes move to the current font slots before Unicode lookup.
+  // Apply once: several base-font entries form a cycle, not a chained rewrite.
+  const oldBase = {205:45,45:253,127:254,158:154,159:155,142:157,166:226,253:205};
+  const oldSubfont = {45:252,127:253,142:249,158:250,160:254,166:251};
   // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
   // DCT diacritic-kind letters represent these sounds when CSX+ remapping is on.
   // https://gretil.sub.uni-goettingen.de/gretil/gretdiac.pdf (pp. 2, 4–5)
@@ -3880,12 +3884,12 @@ const Dct = (() => {
     // These numeric metadata fields are ignored, not coerced to JS integers:
     // the public fixture includes a timestamp larger than a signed DWORD.
     const header = line(), integer = value => /^[+-]?\d+$/.test(value);
-    let source = 'modern PKTC version 5';
+    let source = 'modern PKTC version 5', version = 5;
     if (header !== 'PKTC\x01\x1a\x05TibetDoc') {
       const fields = header.trim().split(/[ \t]+/);
       if (fields.length !== 4 || fields[2] !== 'TibetD' || ![fields[0],fields[1],fields[3]].every(integer)) throw new Error('Unsupported DCT file header.');
-      const version = Number(fields[3]);
-      if (version !== 4 && version !== 5) throw new Error('Only numeric TibetDoc versions 4 and 5 are supported; older glyph encodings remain unverified.');
+      version = Number(fields[3]);
+      if (version < 2 || version > 5) throw new Error('Only numeric TibetDoc versions 2 through 5 are supported experimentally.');
       source = `numeric TibetDoc version ${version}`;
     }
     // Native headers use five or six signed decimal fields before the mode.
@@ -3902,10 +3906,11 @@ const Dct = (() => {
     const bodyStart = pos;
     let centered = false;
     const warnings = new Set([
-      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 4/5; verify against the source.`,
+      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 2–5; verify against the source.`,
       `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
+    if(version<=3)warnings.add('Older TibetDoc glyph slots are normalized before Unicode conversion. Genuine version 2/3 documents and original font shapes remain unverified; unresolved corrected slots appear as �.');
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
     doc.text = ''; doc.sections = []; doc.flow = false; doc.textSize = null;
     for (const type of Object.values(doc.types)) type.fontSize = tibetanSize;
@@ -3927,8 +3932,11 @@ const Dct = (() => {
       }
       const slot = kind === 23 ? 4 : kind-17;
       const name = slot ? 'TibetanMachineSkt'+slot : 'TibetanMachine';
+      const original = b;
+      if(version<=3)b=(slot?oldSubfont:oldBase)[b] ?? b;
       const mapped = b === 32 ? ' ' : table[name]?.[b];
-      if (mapped === undefined || mapped === '') {unknown++;emit('�',true);} else emit(mapped,true);
+      const unresolvedCorrection = b!==original && (typeof mapped!=='string' || !/^[\u0f00-\u0fff]+$/.test(mapped));
+      if (mapped === undefined || mapped === '' || unresolvedCorrection) {unknown++;emit('�',true);} else emit(mapped,true);
     };
     const following = () => {if(pos>=bytes.length)throw new Error('Truncated DCT control or glyph.');return bytes[pos++];};
     while (pos < bytes.length) {

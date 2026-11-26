@@ -1,6 +1,10 @@
-// Bounded, independent reader for PKTC5 and numeric TibetD4/5 single-body files.
+// Bounded, independent reader for PKTC5 and numeric TibetD2–5 single-body files.
 // Uses existing legacy-font maps; source layout and styling are not reproduced.
 const Dct = (() => {
+  // Older TibetDoc bytes move to the current font slots before Unicode lookup.
+  // Apply once: several base-font entries form a cycle, not a chained rewrite.
+  const oldBase = {205:45,45:253,127:254,158:154,159:155,142:157,166:226,253:205};
+  const oldSubfont = {45:252,127:253,142:249,158:250,160:254,166:251};
   // Encoding facts: core CSX+ positions from GRETIL's encoding concordance.
   // DCT diacritic-kind letters represent these sounds when CSX+ remapping is on.
   // https://gretil.sub.uni-goettingen.de/gretil/gretdiac.pdf (pp. 2, 4–5)
@@ -35,12 +39,12 @@ const Dct = (() => {
     // These numeric metadata fields are ignored, not coerced to JS integers:
     // the public fixture includes a timestamp larger than a signed DWORD.
     const header = line(), integer = value => /^[+-]?\d+$/.test(value);
-    let source = 'modern PKTC version 5';
+    let source = 'modern PKTC version 5', version = 5;
     if (header !== 'PKTC\x01\x1a\x05TibetDoc') {
       const fields = header.trim().split(/[ \t]+/);
       if (fields.length !== 4 || fields[2] !== 'TibetD' || ![fields[0],fields[1],fields[3]].every(integer)) throw new Error('Unsupported DCT file header.');
-      const version = Number(fields[3]);
-      if (version !== 4 && version !== 5) throw new Error('Only numeric TibetDoc versions 4 and 5 are supported; older glyph encodings remain unverified.');
+      version = Number(fields[3]);
+      if (version < 2 || version > 5) throw new Error('Only numeric TibetDoc versions 2 through 5 are supported experimentally.');
       source = `numeric TibetDoc version ${version}`;
     }
     // Native headers use five or six signed decimal fields before the mode.
@@ -57,10 +61,11 @@ const Dct = (() => {
     const bodyStart = pos;
     let centered = false;
     const warnings = new Set([
-      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 4/5; verify against the source.`,
+      `Experimental DCT import: ${source}, one body record. Supported headers are PKTC5 and numeric TibetDoc 2–5; verify against the source.`,
       `DCT source layout and most formatting are not reproduced; center/left toggles are retained. Tibetan ${typography.tibetanSize} legacy points are converted to ${tibetanSize} web points; exact font metrics remain unverified. Latin text uses ${typography.latinSize} points.`,
       'Legacy fonts are substituted. Opening-ornament shapes differ between available converters and remain unverified against Windows PechaMaker.'
     ]);
+    if(version<=3)warnings.add('Older TibetDoc glyph slots are normalized before Unicode conversion. Genuine version 2/3 documents and original font shapes remain unverified; unresolved corrected slots appear as �.');
     const doc = JSON.parse(JSON.stringify(base || Engine.defaultDoc()));
     doc.text = ''; doc.sections = []; doc.flow = false; doc.textSize = null;
     for (const type of Object.values(doc.types)) type.fontSize = tibetanSize;
@@ -82,8 +87,11 @@ const Dct = (() => {
       }
       const slot = kind === 23 ? 4 : kind-17;
       const name = slot ? 'TibetanMachineSkt'+slot : 'TibetanMachine';
+      const original = b;
+      if(version<=3)b=(slot?oldSubfont:oldBase)[b] ?? b;
       const mapped = b === 32 ? ' ' : table[name]?.[b];
-      if (mapped === undefined || mapped === '') {unknown++;emit('�',true);} else emit(mapped,true);
+      const unresolvedCorrection = b!==original && (typeof mapped!=='string' || !/^[\u0f00-\u0fff]+$/.test(mapped));
+      if (mapped === undefined || mapped === '' || unresolvedCorrection) {unknown++;emit('�',true);} else emit(mapped,true);
     };
     const following = () => {if(pos>=bytes.length)throw new Error('Truncated DCT control or glyph.');return bytes[pos++];};
     while (pos < bytes.length) {

@@ -22,8 +22,8 @@ const Engine=require('../src/engine'),Dct=require('../src/dct'),TABLE=require('.
   const save=page.waitForEvent('download');await page.locator('#saveDoc').click();const saved=fs.readFileSync(await(await save).path());assert.equal(JSON.parse(saved).text,expected);
   await upload('numeric-roundtrip.pecha',saved);await page.waitForFunction(()=>document.querySelector('#toast').textContent==='Opened numeric-roundtrip.pecha.');assert.equal(await page.locator('#text').inputValue(),expected);
   for(const [name,data,message] of [
-   ['old.dct',fixture({header:'1 2 TibetD 3'}),'versions 4 and 5'],
-   ['future.dct',fixture({header:'1 2 TibetD 6'}),'versions 4 and 5'],
+   ['old.dct',fixture({header:'1 2 TibetD 1'}),'versions 2 through 5'],
+   ['future.dct',fixture({header:'1 2 TibetD 6'}),'versions 2 through 5'],
    ['malformed.dct',fixture({settings:'1 2 3 4 Ansi'}),'encoding header'],
    ['multirecord.dct',fixture({body:[33,10,...Buffer.from('2\t!\tmore')]}),'Multiple DCT']
   ]) {await upload(name,data);await page.waitForFunction(s=>document.querySelector('#toast').textContent.includes(s),message);assert.equal(await page.locator('#text').inputValue(),expected);}

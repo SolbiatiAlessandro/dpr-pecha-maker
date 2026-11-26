@@ -18,7 +18,7 @@ const fixture=fs.readFileSync(__dirname+'/fixtures/dct/modern-public.dct');
   assert((await page.locator('#table').textContent()).includes('བཞུགས'));
   await upload('old-format.dct',Buffer.from('1 2 TibetD 3\n'));
   await page.locator('#dctImport').click();
-  await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('versions 4 and 5'));
+  await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('header'));
   assert.equal(await page.locator('#text').inputValue(),imported);
   const downloading=page.waitForEvent('download');await page.locator('#saveDoc').click();
   const saved=fs.readFileSync(await(await downloading).path());assert.equal(JSON.parse(saved).text,imported);

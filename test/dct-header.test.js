@@ -19,7 +19,7 @@ for(const version of [4,5]) {
  const doc=read(fixture({header:`1 2 TibetD ${version}`,body:[45,17,45,18,45,16,45,33]})).doc;
  assert.equal(plain(doc),'་་'+TABLE.TibetanMachineSkt1[45]+'-ཀ');
 }
-for(const header of ['1 2 TibetD 1','1 2 TibetD 2','1 2 TibetD 3','1 2 TibetD 6','1 2 TibetD 0','1 2 TibetD -4','1 2 TibetD 4.0','1 2 TibetD 4 extra','1 x TibetD 4','1 2 TibetDoc 4','PKTC\x01\x1a\x04TibetDoc','1 2 TibetD 4294967300'])assert.throws(()=>read(fixture({header})));
+for(const header of ['1 2 TibetD 1','1 2 TibetD 6','1 2 TibetD 0','1 2 TibetD -4','1 2 TibetD 4.0','1 2 TibetD 4 extra','1 x TibetD 4','1 2 TibetDoc 4','PKTC\x01\x1a\x04TibetDoc','1 2 TibetD 4294967300'])assert.throws(()=>read(fixture({header})));
 for(const settings of ['1 2 3 4 Ansi','1 2 3 4 5 6 7 Ansi','1 2 3 x 5 Ansi','1 2 3 4 5 UTF8','1 2 3 4 5 AnsiBad','1 2 3 4 5 TibetanAnsiBad','1 2 3 4 5.0 Ansi','1 2 3 4 5 Ansi trailing'])assert.throws(()=>read(fixture({settings})));
 for(const bytes of [Buffer.from('1 2 TibetD 4\n'),fixture({body:[17]}),fixture({body:[33,10,...Buffer.from('2\t!\tmore')]}),fixture({header:'1'.repeat(65537)+' 2 TibetD 4'})])assert.throws(()=>read(bytes));
 const base=Engine.defaultDoc();base.text='Prior';base.sections=[{text:'old'}];base.flow=true;base.textSize=70;base.notes.sets['body.front'].inL.text='Retained';base.paper.width=12;
