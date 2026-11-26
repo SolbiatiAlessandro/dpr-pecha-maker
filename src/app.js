@@ -433,17 +433,27 @@ function buildPrintPanel() {
 }
 
 function buildCharacterPicker() {
-  const font=$('characterFont').value, group=$('characterGroup').value;
+  const font=$('characterFont').value, group=$('characterGroup').value, source=$('characterSource').value;
+  const choices=source ? LegacyCharacters.chart(source,LEGACY_TABLE) : TibetanCharacters.filter(c=>c.group===group);
+  $('characterGroupField').hidden=!!source;
+  $('characterGrid').classList.toggle('legacy',!!source);
+  $('characterHint').textContent=source ? 'Experimental legacy chart: inserts Unicode equivalents in the chosen web typeface. Slots show decimal and hexadecimal codes; unavailable or ambiguous mappings are disabled. Original glyph shapes and complete font coverage remain unverified.' : 'Assigned Unicode Tibetan characters, grouped by kind.';
   $('characterGrid').style.fontFamily=font==='noto' ? 'Noto Serif Tibetan' : 'Jomolhari';
-  $('characterGrid').replaceChildren(...TibetanCharacters.filter(c=>c.group===group).map(c=>{
+  $('characterGrid').replaceChildren(...choices.map(c=>{
     const button=document.createElement('button'); button.type='button'; button.className='btn';
-    button.textContent=(c.combining?'ཀ':'')+c.text;
+    button.textContent=c.text===null?'—':c.text===' '?'␣':(c.combining?'ཀ':'')+c.text;
+    button.disabled=c.text===null;
+    if(source){button.dataset.byte=c.byte;const label=document.createElement('small');label.textContent=c.code;button.append(label);}
     button.style.fontFamily='inherit';
-    const name=c.name+' (U+'+c.text.codePointAt(0).toString(16).toUpperCase()+')';
+    const name=source?c.name:c.name+' (U+'+c.text.codePointAt(0).toString(16).toUpperCase()+')';
     button.title=name; button.setAttribute('aria-label',name);
     button.addEventListener('click',()=>{
       const input=$('text'), result=TextFormat.insertCharacter(input.value,input.selectionStart,input.selectionEnd,c.text,font,Engine);
-      input.value=result.text; setEditingText(result.text); input.focus({preventScroll:true}); input.setSelectionRange(result.cursor,result.cursor); schedule();
+      let start=0,end=input.value.length,right=result.text.length;
+      while(start<end&&start<right&&input.value[start]===result.text[start])start++;
+      while(end>start&&right>start&&input.value[end-1]===result.text[right-1]){end--;right--;}
+      applyTextEdit({...result,start,end,replacement:result.text.slice(start,right)});
+      refreshSelectionFonts();
     });
     return button;
   }));
@@ -928,7 +938,7 @@ function fillLockedKeyboard() {
   $('lockedFontChoices').replaceChildren(...TextFormat.fontChoices(doc||Engine.defaultDoc(),Engine).map(([,name])=>{const o=document.createElement('option');o.value=name;return o;}));
   refreshLockedKeyboard();
 }
-function applyLockedEdit(result) {
+function applyTextEdit(result) {
   const t=$('text');applyingLocked=true;
   try{
     t.focus();t.setSelectionRange(result.start,result.end);
@@ -1038,7 +1048,7 @@ function init() {
     if (applyingLocked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
     const t=event.target,range=$('typeover').checked?TextFormat.typeoverRange(t.value,t.selectionStart,t.selectionEnd,event.data):null;
     if($('lockedKeyboard').checked&&event.data){
-      event.preventDefault();applyLockedEdit(TextFormat.insertLocked(t.value,range?.start??t.selectionStart,range?.end??t.selectionEnd,event.data,lockedPreferences,Engine));
+      event.preventDefault();applyTextEdit(TextFormat.insertLocked(t.value,range?.start??t.selectionStart,range?.end??t.selectionEnd,event.data,lockedPreferences,Engine));
     }else if(range)t.setSelectionRange(range.start,range.end);
   });
   $('text').addEventListener('compositionstart',()=>{
@@ -1059,7 +1069,7 @@ function init() {
       let start=0,end=t.value.length,right=result.text.length;
       while(start<end&&start<right&&t.value[start]===result.text[start])start++;
       while(end>start&&right>start&&t.value[end-1]===result.text[right-1]){end--;right--;}
-      applyLockedEdit({...result,start,end,replacement:result.text.slice(start,right)});
+      applyTextEdit({...result,start,end,replacement:result.text.slice(start,right)});
     },0);
   });
   $('startSections').addEventListener('click', () => {
@@ -1274,14 +1284,19 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (!doc || $('work').hidden || $('dctDialog').open || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (!doc || $('work').hidden || $('dctDialog').open || event.isComposing) return;
+    if(event.key==='Escape' && $('characterPicker').open && (event.target===$('text') || $('characterPicker').contains(event.target))){
+      event.preventDefault();$('characterPicker').open=false;$('text').focus();return;
+    }
+    if(event.altKey || !(event.ctrlKey || event.metaKey))return;
     const key = event.key.toLowerCase();
     if (key === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
     } else if (key === 's' && !event.shiftKey) {
       event.preventDefault(); if (!event.repeat) saveFile();
     } else if (event.target === $('text') && !event.isComposing) {
-      if(key==='k'&&!event.shiftKey){event.preventDefault();if(!event.repeat){$('lockedKeyboard').checked=!$('lockedKeyboard').checked;refreshLockedKeyboard();}}
+      if(key==='i'&&!event.shiftKey){event.preventDefault();$('characterPicker').open=true;$('characterSource').focus();}
+      else if(key==='k'&&!event.shiftKey){event.preventDefault();if(!event.repeat){$('lockedKeyboard').checked=!$('lockedKeyboard').checked;refreshLockedKeyboard();}}
       else if (key === 'enter' || key === '\\') {
         event.preventDefault(); insertAtCursor(key === 'enter' ? '{page}' : '{hs}');
       } else if (key === '<' || key === '>' || (event.shiftKey && (event.code === 'Comma' || event.code === 'Period'))) {
@@ -1298,6 +1313,7 @@ function init() {
   });
   let resizing = null;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
+  $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);
   buildCharacterPicker();

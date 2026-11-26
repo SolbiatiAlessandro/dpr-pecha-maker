@@ -122,6 +122,9 @@ button:disabled { opacity: .55; cursor: default; }
 #dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-block: 10px; border-top: 1px solid var(--rule); }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
+#characterGrid.legacy { grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: 360px; overflow-y: auto; }
+#characterGrid.legacy button { flex-direction: column; min-width: 0; padding: 4px; color: var(--ink); border-color: var(--rule); }
+#characterGrid small { display: block; font: 11px system-ui; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 3px; z-index: 30; max-width: 90vw; }
 #printRoot { display: none; }
@@ -334,11 +337,13 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <details id="characterPicker">
         <summary>Choose Tibetan characters</summary>
         <div class="grid">
-          <div class="field"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
+          <div class="field"><label for="characterSource">Character chart</label><select id="characterSource"><option value="">Unicode Tibetan</option><option>TibetanMachine</option><option>TibetanMachineSkt1</option><option>TibetanMachineSkt2</option><option>TibetanMachineSkt3</option><option>TibetanMachineSkt4</option></select></div>
+          <div class="field" id="characterGroupField"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
           <div class="field"><label for="characterFont">Typeface</label><select id="characterFont"><option value="">Keep text font</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select></div>
         </div>
         <div id="characterGrid" aria-label="Tibetan character choices"></div>
-        <p class="hint">Choose a character to insert at the text cursor or replace selected text. Combining marks are shown on ཀ to make them readable; only the chosen mark is inserted. These are Unicode characters, not legacy Windows font codes.</p>
+        <p class="hint" id="characterHint"></p>
+        <p class="hint">Ctrl/Command+I opens this picker from the text editor. Escape closes it. Choose a character to insert at the cursor or replace selected text. Marks are shown on ཀ; only the mark is inserted.</p>
       </details>
       <p class="source" id="credits"></p>
       <details>
@@ -3397,6 +3402,28 @@ if (typeof module !== 'undefined') module.exports = TextFormat;
 const TibetanCharacters = [{"text":"ༀ","name":"SYLLABLE OM","group":"signs","combining":false},{"text":"༁","name":"MARK GTER YIG MGO TRUNCATED A","group":"signs","combining":false},{"text":"༂","name":"MARK GTER YIG MGO -UM RNAM BCAD MA","group":"signs","combining":false},{"text":"༃","name":"MARK GTER YIG MGO -UM GTER TSHEG MA","group":"signs","combining":false},{"text":"༄","name":"MARK INITIAL YIG MGO MDUN MA","group":"signs","combining":false},{"text":"༅","name":"MARK CLOSING YIG MGO SGAB MA","group":"signs","combining":false},{"text":"༆","name":"MARK CARET YIG MGO PHUR SHAD MA","group":"signs","combining":false},{"text":"༇","name":"MARK YIG MGO TSHEG SHAD MA","group":"signs","combining":false},{"text":"༈","name":"MARK SBRUL SHAD","group":"signs","combining":false},{"text":"༉","name":"MARK BSKUR YIG MGO","group":"signs","combining":false},{"text":"༊","name":"MARK BKA- SHOG YIG MGO","group":"signs","combining":false},{"text":"་","name":"MARK INTERSYLLABIC TSHEG","group":"signs","combining":false},{"text":"༌","name":"MARK DELIMITER TSHEG BSTAR","group":"signs","combining":false},{"text":"།","name":"MARK SHAD","group":"signs","combining":false},{"text":"༎","name":"MARK NYIS SHAD","group":"signs","combining":false},{"text":"༏","name":"MARK TSHEG SHAD","group":"signs","combining":false},{"text":"༐","name":"MARK NYIS TSHEG SHAD","group":"signs","combining":false},{"text":"༑","name":"MARK RIN CHEN SPUNGS SHAD","group":"signs","combining":false},{"text":"༒","name":"MARK RGYA GRAM SHAD","group":"signs","combining":false},{"text":"༓","name":"MARK CARET -DZUD RTAGS ME LONG CAN","group":"signs","combining":false},{"text":"༔","name":"MARK GTER TSHEG","group":"signs","combining":false},{"text":"༕","name":"LOGOTYPE SIGN CHAD RTAGS","group":"signs","combining":false},{"text":"༖","name":"LOGOTYPE SIGN LHAG RTAGS","group":"signs","combining":false},{"text":"༗","name":"ASTROLOGICAL SIGN SGRA GCAN -CHAR RTAGS","group":"signs","combining":false},{"text":"༘","name":"ASTROLOGICAL SIGN -KHYUD PA","group":"marks","combining":true},{"text":"༙","name":"ASTROLOGICAL SIGN SDONG TSHUGS","group":"marks","combining":true},{"text":"༚","name":"SIGN RDEL DKAR GCIG","group":"signs","combining":false},{"text":"༛","name":"SIGN RDEL DKAR GNYIS","group":"signs","combining":false},{"text":"༜","name":"SIGN RDEL DKAR GSUM","group":"signs","combining":false},{"text":"༝","name":"SIGN RDEL NAG GCIG","group":"signs","combining":false},{"text":"༞","name":"SIGN RDEL NAG GNYIS","group":"signs","combining":false},{"text":"༟","name":"SIGN RDEL DKAR RDEL NAG","group":"signs","combining":false},{"text":"༠","name":"DIGIT ZERO","group":"numbers","combining":false},{"text":"༡","name":"DIGIT ONE","group":"numbers","combining":false},{"text":"༢","name":"DIGIT TWO","group":"numbers","combining":false},{"text":"༣","name":"DIGIT THREE","group":"numbers","combining":false},{"text":"༤","name":"DIGIT FOUR","group":"numbers","combining":false},{"text":"༥","name":"DIGIT FIVE","group":"numbers","combining":false},{"text":"༦","name":"DIGIT SIX","group":"numbers","combining":false},{"text":"༧","name":"DIGIT SEVEN","group":"numbers","combining":false},{"text":"༨","name":"DIGIT EIGHT","group":"numbers","combining":false},{"text":"༩","name":"DIGIT NINE","group":"numbers","combining":false},{"text":"༪","name":"DIGIT HALF ONE","group":"numbers","combining":false},{"text":"༫","name":"DIGIT HALF TWO","group":"numbers","combining":false},{"text":"༬","name":"DIGIT HALF THREE","group":"numbers","combining":false},{"text":"༭","name":"DIGIT HALF FOUR","group":"numbers","combining":false},{"text":"༮","name":"DIGIT HALF FIVE","group":"numbers","combining":false},{"text":"༯","name":"DIGIT HALF SIX","group":"numbers","combining":false},{"text":"༰","name":"DIGIT HALF SEVEN","group":"numbers","combining":false},{"text":"༱","name":"DIGIT HALF EIGHT","group":"numbers","combining":false},{"text":"༲","name":"DIGIT HALF NINE","group":"numbers","combining":false},{"text":"༳","name":"DIGIT HALF ZERO","group":"numbers","combining":false},{"text":"༴","name":"MARK BSDUS RTAGS","group":"signs","combining":false},{"text":"༵","name":"MARK NGAS BZUNG NYI ZLA","group":"marks","combining":true},{"text":"༶","name":"MARK CARET -DZUD RTAGS BZHI MIG CAN","group":"signs","combining":false},{"text":"༷","name":"MARK NGAS BZUNG SGOR RTAGS","group":"marks","combining":true},{"text":"༸","name":"MARK CHE MGO","group":"signs","combining":false},{"text":"༹","name":"MARK TSA -PHRU","group":"marks","combining":true},{"text":"༺","name":"MARK GUG RTAGS GYON","group":"signs","combining":false},{"text":"༻","name":"MARK GUG RTAGS GYAS","group":"signs","combining":false},{"text":"༼","name":"MARK ANG KHANG GYON","group":"signs","combining":false},{"text":"༽","name":"MARK ANG KHANG GYAS","group":"signs","combining":false},{"text":"༾","name":"SIGN YAR TSHES","group":"marks","combining":true},{"text":"༿","name":"SIGN MAR TSHES","group":"marks","combining":true},{"text":"ཀ","name":"LETTER KA","group":"letters","combining":false},{"text":"ཁ","name":"LETTER KHA","group":"letters","combining":false},{"text":"ག","name":"LETTER GA","group":"letters","combining":false},{"text":"གྷ","name":"LETTER GHA","group":"letters","combining":false},{"text":"ང","name":"LETTER NGA","group":"letters","combining":false},{"text":"ཅ","name":"LETTER CA","group":"letters","combining":false},{"text":"ཆ","name":"LETTER CHA","group":"letters","combining":false},{"text":"ཇ","name":"LETTER JA","group":"letters","combining":false},{"text":"ཉ","name":"LETTER NYA","group":"letters","combining":false},{"text":"ཊ","name":"LETTER TTA","group":"letters","combining":false},{"text":"ཋ","name":"LETTER TTHA","group":"letters","combining":false},{"text":"ཌ","name":"LETTER DDA","group":"letters","combining":false},{"text":"ཌྷ","name":"LETTER DDHA","group":"letters","combining":false},{"text":"ཎ","name":"LETTER NNA","group":"letters","combining":false},{"text":"ཏ","name":"LETTER TA","group":"letters","combining":false},{"text":"ཐ","name":"LETTER THA","group":"letters","combining":false},{"text":"ད","name":"LETTER DA","group":"letters","combining":false},{"text":"དྷ","name":"LETTER DHA","group":"letters","combining":false},{"text":"ན","name":"LETTER NA","group":"letters","combining":false},{"text":"པ","name":"LETTER PA","group":"letters","combining":false},{"text":"ཕ","name":"LETTER PHA","group":"letters","combining":false},{"text":"བ","name":"LETTER BA","group":"letters","combining":false},{"text":"བྷ","name":"LETTER BHA","group":"letters","combining":false},{"text":"མ","name":"LETTER MA","group":"letters","combining":false},{"text":"ཙ","name":"LETTER TSA","group":"letters","combining":false},{"text":"ཚ","name":"LETTER TSHA","group":"letters","combining":false},{"text":"ཛ","name":"LETTER DZA","group":"letters","combining":false},{"text":"ཛྷ","name":"LETTER DZHA","group":"letters","combining":false},{"text":"ཝ","name":"LETTER WA","group":"letters","combining":false},{"text":"ཞ","name":"LETTER ZHA","group":"letters","combining":false},{"text":"ཟ","name":"LETTER ZA","group":"letters","combining":false},{"text":"འ","name":"LETTER -A","group":"letters","combining":false},{"text":"ཡ","name":"LETTER YA","group":"letters","combining":false},{"text":"ར","name":"LETTER RA","group":"letters","combining":false},{"text":"ལ","name":"LETTER LA","group":"letters","combining":false},{"text":"ཤ","name":"LETTER SHA","group":"letters","combining":false},{"text":"ཥ","name":"LETTER SSA","group":"letters","combining":false},{"text":"ས","name":"LETTER SA","group":"letters","combining":false},{"text":"ཧ","name":"LETTER HA","group":"letters","combining":false},{"text":"ཨ","name":"LETTER A","group":"letters","combining":false},{"text":"ཀྵ","name":"LETTER KSSA","group":"letters","combining":false},{"text":"ཪ","name":"LETTER FIXED-FORM RA","group":"letters","combining":false},{"text":"ཫ","name":"LETTER KKA","group":"letters","combining":false},{"text":"ཬ","name":"LETTER RRA","group":"letters","combining":false},{"text":"ཱ","name":"VOWEL SIGN AA","group":"marks","combining":true},{"text":"ི","name":"VOWEL SIGN I","group":"marks","combining":true},{"text":"ཱི","name":"VOWEL SIGN II","group":"marks","combining":true},{"text":"ུ","name":"VOWEL SIGN U","group":"marks","combining":true},{"text":"ཱུ","name":"VOWEL SIGN UU","group":"marks","combining":true},{"text":"ྲྀ","name":"VOWEL SIGN VOCALIC R","group":"marks","combining":true},{"text":"ཷ","name":"VOWEL SIGN VOCALIC RR","group":"marks","combining":true},{"text":"ླྀ","name":"VOWEL SIGN VOCALIC L","group":"marks","combining":true},{"text":"ཹ","name":"VOWEL SIGN VOCALIC LL","group":"marks","combining":true},{"text":"ེ","name":"VOWEL SIGN E","group":"marks","combining":true},{"text":"ཻ","name":"VOWEL SIGN EE","group":"marks","combining":true},{"text":"ོ","name":"VOWEL SIGN O","group":"marks","combining":true},{"text":"ཽ","name":"VOWEL SIGN OO","group":"marks","combining":true},{"text":"ཾ","name":"SIGN RJES SU NGA RO","group":"marks","combining":true},{"text":"ཿ","name":"SIGN RNAM BCAD","group":"marks","combining":true},{"text":"ྀ","name":"VOWEL SIGN REVERSED I","group":"marks","combining":true},{"text":"ཱྀ","name":"VOWEL SIGN REVERSED II","group":"marks","combining":true},{"text":"ྂ","name":"SIGN NYI ZLA NAA DA","group":"marks","combining":true},{"text":"ྃ","name":"SIGN SNA LDAN","group":"marks","combining":true},{"text":"྄","name":"MARK HALANTA","group":"marks","combining":true},{"text":"྅","name":"MARK PALUTA","group":"signs","combining":false},{"text":"྆","name":"SIGN LCI RTAGS","group":"marks","combining":true},{"text":"྇","name":"SIGN YANG RTAGS","group":"marks","combining":true},{"text":"ྈ","name":"SIGN LCE TSA CAN","group":"signs","combining":false},{"text":"ྉ","name":"SIGN MCHU CAN","group":"signs","combining":false},{"text":"ྊ","name":"SIGN GRU CAN RGYINGS","group":"signs","combining":false},{"text":"ྋ","name":"SIGN GRU MED RGYINGS","group":"signs","combining":false},{"text":"ྌ","name":"SIGN INVERTED MCHU CAN","group":"signs","combining":false},{"text":"ྍ","name":"SUBJOINED SIGN LCE TSA CAN","group":"marks","combining":true},{"text":"ྎ","name":"SUBJOINED SIGN MCHU CAN","group":"marks","combining":true},{"text":"ྏ","name":"SUBJOINED SIGN INVERTED MCHU CAN","group":"marks","combining":true},{"text":"ྐ","name":"SUBJOINED LETTER KA","group":"subjoined","combining":true},{"text":"ྑ","name":"SUBJOINED LETTER KHA","group":"subjoined","combining":true},{"text":"ྒ","name":"SUBJOINED LETTER GA","group":"subjoined","combining":true},{"text":"ྒྷ","name":"SUBJOINED LETTER GHA","group":"subjoined","combining":true},{"text":"ྔ","name":"SUBJOINED LETTER NGA","group":"subjoined","combining":true},{"text":"ྕ","name":"SUBJOINED LETTER CA","group":"subjoined","combining":true},{"text":"ྖ","name":"SUBJOINED LETTER CHA","group":"subjoined","combining":true},{"text":"ྗ","name":"SUBJOINED LETTER JA","group":"subjoined","combining":true},{"text":"ྙ","name":"SUBJOINED LETTER NYA","group":"subjoined","combining":true},{"text":"ྚ","name":"SUBJOINED LETTER TTA","group":"subjoined","combining":true},{"text":"ྛ","name":"SUBJOINED LETTER TTHA","group":"subjoined","combining":true},{"text":"ྜ","name":"SUBJOINED LETTER DDA","group":"subjoined","combining":true},{"text":"ྜྷ","name":"SUBJOINED LETTER DDHA","group":"subjoined","combining":true},{"text":"ྞ","name":"SUBJOINED LETTER NNA","group":"subjoined","combining":true},{"text":"ྟ","name":"SUBJOINED LETTER TA","group":"subjoined","combining":true},{"text":"ྠ","name":"SUBJOINED LETTER THA","group":"subjoined","combining":true},{"text":"ྡ","name":"SUBJOINED LETTER DA","group":"subjoined","combining":true},{"text":"ྡྷ","name":"SUBJOINED LETTER DHA","group":"subjoined","combining":true},{"text":"ྣ","name":"SUBJOINED LETTER NA","group":"subjoined","combining":true},{"text":"ྤ","name":"SUBJOINED LETTER PA","group":"subjoined","combining":true},{"text":"ྥ","name":"SUBJOINED LETTER PHA","group":"subjoined","combining":true},{"text":"ྦ","name":"SUBJOINED LETTER BA","group":"subjoined","combining":true},{"text":"ྦྷ","name":"SUBJOINED LETTER BHA","group":"subjoined","combining":true},{"text":"ྨ","name":"SUBJOINED LETTER MA","group":"subjoined","combining":true},{"text":"ྩ","name":"SUBJOINED LETTER TSA","group":"subjoined","combining":true},{"text":"ྪ","name":"SUBJOINED LETTER TSHA","group":"subjoined","combining":true},{"text":"ྫ","name":"SUBJOINED LETTER DZA","group":"subjoined","combining":true},{"text":"ྫྷ","name":"SUBJOINED LETTER DZHA","group":"subjoined","combining":true},{"text":"ྭ","name":"SUBJOINED LETTER WA","group":"subjoined","combining":true},{"text":"ྮ","name":"SUBJOINED LETTER ZHA","group":"subjoined","combining":true},{"text":"ྯ","name":"SUBJOINED LETTER ZA","group":"subjoined","combining":true},{"text":"ྰ","name":"SUBJOINED LETTER -A","group":"subjoined","combining":true},{"text":"ྱ","name":"SUBJOINED LETTER YA","group":"subjoined","combining":true},{"text":"ྲ","name":"SUBJOINED LETTER RA","group":"subjoined","combining":true},{"text":"ླ","name":"SUBJOINED LETTER LA","group":"subjoined","combining":true},{"text":"ྴ","name":"SUBJOINED LETTER SHA","group":"subjoined","combining":true},{"text":"ྵ","name":"SUBJOINED LETTER SSA","group":"subjoined","combining":true},{"text":"ྶ","name":"SUBJOINED LETTER SA","group":"subjoined","combining":true},{"text":"ྷ","name":"SUBJOINED LETTER HA","group":"subjoined","combining":true},{"text":"ྸ","name":"SUBJOINED LETTER A","group":"subjoined","combining":true},{"text":"ྐྵ","name":"SUBJOINED LETTER KSSA","group":"subjoined","combining":true},{"text":"ྺ","name":"SUBJOINED LETTER FIXED-FORM WA","group":"subjoined","combining":true},{"text":"ྻ","name":"SUBJOINED LETTER FIXED-FORM YA","group":"subjoined","combining":true},{"text":"ྼ","name":"SUBJOINED LETTER FIXED-FORM RA","group":"subjoined","combining":true},{"text":"྾","name":"KU RU KHA","group":"signs","combining":false},{"text":"྿","name":"KU RU KHA BZHI MIG CAN","group":"signs","combining":false},{"text":"࿀","name":"CANTILLATION SIGN HEAVY BEAT","group":"signs","combining":false},{"text":"࿁","name":"CANTILLATION SIGN LIGHT BEAT","group":"signs","combining":false},{"text":"࿂","name":"CANTILLATION SIGN CANG TE-U","group":"signs","combining":false},{"text":"࿃","name":"CANTILLATION SIGN SBUB -CHAL","group":"signs","combining":false},{"text":"࿄","name":"SYMBOL DRIL BU","group":"signs","combining":false},{"text":"࿅","name":"SYMBOL RDO RJE","group":"signs","combining":false},{"text":"࿆","name":"SYMBOL PADMA GDAN","group":"marks","combining":true},{"text":"࿇","name":"SYMBOL RDO RJE RGYA GRAM","group":"signs","combining":false},{"text":"࿈","name":"SYMBOL PHUR PA","group":"signs","combining":false},{"text":"࿉","name":"SYMBOL NOR BU","group":"signs","combining":false},{"text":"࿊","name":"SYMBOL NOR BU NYIS -KHYIL","group":"signs","combining":false},{"text":"࿋","name":"SYMBOL NOR BU GSUM -KHYIL","group":"signs","combining":false},{"text":"࿌","name":"SYMBOL NOR BU BZHI -KHYIL","group":"signs","combining":false},{"text":"࿎","name":"SIGN RDEL NAG RDEL DKAR","group":"signs","combining":false},{"text":"࿏","name":"SIGN RDEL NAG GSUM","group":"signs","combining":false},{"text":"࿐","name":"MARK BSKA- SHOG GI MGO RGYAN","group":"signs","combining":false},{"text":"࿑","name":"MARK MNYAM YIG GI MGO RGYAN","group":"signs","combining":false},{"text":"࿒","name":"MARK NYIS TSHEG","group":"signs","combining":false},{"text":"࿓","name":"MARK INITIAL BRDA RNYING YIG MGO MDUN MA","group":"signs","combining":false},{"text":"࿔","name":"MARK CLOSING BRDA RNYING YIG MGO SGAB MA","group":"signs","combining":false},{"text":"࿕","name":"RIGHT-FACING SVASTI SIGN","group":"signs","combining":false},{"text":"࿖","name":"LEFT-FACING SVASTI SIGN","group":"signs","combining":false},{"text":"࿗","name":"RIGHT-FACING SVASTI SIGN WITH DOTS","group":"signs","combining":false},{"text":"࿘","name":"LEFT-FACING SVASTI SIGN WITH DOTS","group":"signs","combining":false},{"text":"࿙","name":"MARK LEADING MCHAN RTAGS","group":"signs","combining":false},{"text":"࿚","name":"MARK TRAILING MCHAN RTAGS","group":"signs","combining":false}];
 if (typeof module !== "undefined") module.exports = TibetanCharacters;
 
+// Character-chart view of the independently maintained import mappings.
+// This does not implement an interactive TCC/Sambhota keyboard map.
+const LegacyCharacters = (() => {
+  const fonts = ['TibetanMachine', 'TibetanMachineSkt1', 'TibetanMachineSkt2', 'TibetanMachineSkt3', 'TibetanMachineSkt4'];
+  function chart(font, table) {
+    if (!fonts.includes(font)) throw new Error('Unsupported legacy character chart.');
+    const map = table[font] || {};
+    return Array.from({length:224},(_,index)=>{
+      const byte=index+32, mapped=map[byte];
+      // Never offer Latin fallback entries or the converter's ambiguous four-zero
+      // sequences as Tibetan glyphs. Missing byte slots remain visibly unavailable.
+      const text=byte===32?' ':typeof mapped==='string' && /^[\u0f00-\u0fff]+$/.test(mapped) && mapped!=='༠༠༠༠' ? mapped : null;
+      const code=`${byte} / 0x${byte.toString(16).toUpperCase().padStart(2,'0')}`;
+      const combining=text!==null && /^\p{M}/u.test(text);
+      const unicode=text===null?'':Array.from(text,c=>'U+'+c.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')).join(' ');
+      return {byte,text,combining,code,name:`${font} slot ${code}: ${text===null?'unavailable':byte===32?'space':unicode}`};
+    });
+  }
+  return {fonts,chart};
+})();
+if(typeof module!=='undefined')module.exports=LegacyCharacters;
+
 // Unicode RTF body export. Page layout, automatic labels and margin annotations are separate.
 const Rtf = (() => {
   function escape(text) {
@@ -5734,17 +5761,27 @@ function buildPrintPanel() {
 }
 
 function buildCharacterPicker() {
-  const font=$('characterFont').value, group=$('characterGroup').value;
+  const font=$('characterFont').value, group=$('characterGroup').value, source=$('characterSource').value;
+  const choices=source ? LegacyCharacters.chart(source,LEGACY_TABLE) : TibetanCharacters.filter(c=>c.group===group);
+  $('characterGroupField').hidden=!!source;
+  $('characterGrid').classList.toggle('legacy',!!source);
+  $('characterHint').textContent=source ? 'Experimental legacy chart: inserts Unicode equivalents in the chosen web typeface. Slots show decimal and hexadecimal codes; unavailable or ambiguous mappings are disabled. Original glyph shapes and complete font coverage remain unverified.' : 'Assigned Unicode Tibetan characters, grouped by kind.';
   $('characterGrid').style.fontFamily=font==='noto' ? 'Noto Serif Tibetan' : 'Jomolhari';
-  $('characterGrid').replaceChildren(...TibetanCharacters.filter(c=>c.group===group).map(c=>{
+  $('characterGrid').replaceChildren(...choices.map(c=>{
     const button=document.createElement('button'); button.type='button'; button.className='btn';
-    button.textContent=(c.combining?'ཀ':'')+c.text;
+    button.textContent=c.text===null?'—':c.text===' '?'␣':(c.combining?'ཀ':'')+c.text;
+    button.disabled=c.text===null;
+    if(source){button.dataset.byte=c.byte;const label=document.createElement('small');label.textContent=c.code;button.append(label);}
     button.style.fontFamily='inherit';
-    const name=c.name+' (U+'+c.text.codePointAt(0).toString(16).toUpperCase()+')';
+    const name=source?c.name:c.name+' (U+'+c.text.codePointAt(0).toString(16).toUpperCase()+')';
     button.title=name; button.setAttribute('aria-label',name);
     button.addEventListener('click',()=>{
       const input=$('text'), result=TextFormat.insertCharacter(input.value,input.selectionStart,input.selectionEnd,c.text,font,Engine);
-      input.value=result.text; setEditingText(result.text); input.focus({preventScroll:true}); input.setSelectionRange(result.cursor,result.cursor); schedule();
+      let start=0,end=input.value.length,right=result.text.length;
+      while(start<end&&start<right&&input.value[start]===result.text[start])start++;
+      while(end>start&&right>start&&input.value[end-1]===result.text[right-1]){end--;right--;}
+      applyTextEdit({...result,start,end,replacement:result.text.slice(start,right)});
+      refreshSelectionFonts();
     });
     return button;
   }));
@@ -6229,7 +6266,7 @@ function fillLockedKeyboard() {
   $('lockedFontChoices').replaceChildren(...TextFormat.fontChoices(doc||Engine.defaultDoc(),Engine).map(([,name])=>{const o=document.createElement('option');o.value=name;return o;}));
   refreshLockedKeyboard();
 }
-function applyLockedEdit(result) {
+function applyTextEdit(result) {
   const t=$('text');applyingLocked=true;
   try{
     t.focus();t.setSelectionRange(result.start,result.end);
@@ -6339,7 +6376,7 @@ function init() {
     if (applyingLocked || !event.cancelable || event.isComposing || event.inputType !== 'insertText') return;
     const t=event.target,range=$('typeover').checked?TextFormat.typeoverRange(t.value,t.selectionStart,t.selectionEnd,event.data):null;
     if($('lockedKeyboard').checked&&event.data){
-      event.preventDefault();applyLockedEdit(TextFormat.insertLocked(t.value,range?.start??t.selectionStart,range?.end??t.selectionEnd,event.data,lockedPreferences,Engine));
+      event.preventDefault();applyTextEdit(TextFormat.insertLocked(t.value,range?.start??t.selectionStart,range?.end??t.selectionEnd,event.data,lockedPreferences,Engine));
     }else if(range)t.setSelectionRange(range.start,range.end);
   });
   $('text').addEventListener('compositionstart',()=>{
@@ -6360,7 +6397,7 @@ function init() {
       let start=0,end=t.value.length,right=result.text.length;
       while(start<end&&start<right&&t.value[start]===result.text[start])start++;
       while(end>start&&right>start&&t.value[end-1]===result.text[right-1]){end--;right--;}
-      applyLockedEdit({...result,start,end,replacement:result.text.slice(start,right)});
+      applyTextEdit({...result,start,end,replacement:result.text.slice(start,right)});
     },0);
   });
   $('startSections').addEventListener('click', () => {
@@ -6575,14 +6612,19 @@ function init() {
     render(); $('table').scrollTop = 0;
   });
   document.addEventListener('keydown', event => {
-    if (!doc || $('work').hidden || $('dctDialog').open || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (!doc || $('work').hidden || $('dctDialog').open || event.isComposing) return;
+    if(event.key==='Escape' && $('characterPicker').open && (event.target===$('text') || $('characterPicker').contains(event.target))){
+      event.preventDefault();$('characterPicker').open=false;$('text').focus();return;
+    }
+    if(event.altKey || !(event.ctrlKey || event.metaKey))return;
     const key = event.key.toLowerCase();
     if (key === 'g') {
       event.preventDefault(); $('goPage').focus(); $('goPage').select();
     } else if (key === 's' && !event.shiftKey) {
       event.preventDefault(); if (!event.repeat) saveFile();
     } else if (event.target === $('text') && !event.isComposing) {
-      if(key==='k'&&!event.shiftKey){event.preventDefault();if(!event.repeat){$('lockedKeyboard').checked=!$('lockedKeyboard').checked;refreshLockedKeyboard();}}
+      if(key==='i'&&!event.shiftKey){event.preventDefault();$('characterPicker').open=true;$('characterSource').focus();}
+      else if(key==='k'&&!event.shiftKey){event.preventDefault();if(!event.repeat){$('lockedKeyboard').checked=!$('lockedKeyboard').checked;refreshLockedKeyboard();}}
       else if (key === 'enter' || key === '\\') {
         event.preventDefault(); insertAtCursor(key === 'enter' ? '{page}' : '{hs}');
       } else if (key === '<' || key === '>' || (event.shiftKey && (event.code === 'Comma' || event.code === 'Period'))) {
@@ -6599,6 +6641,7 @@ function init() {
   });
   let resizing = null;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
+  $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);
   buildCharacterPicker();

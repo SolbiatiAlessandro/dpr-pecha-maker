@@ -115,6 +115,9 @@ button:disabled { opacity: .55; cursor: default; }
 #dctDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; position: sticky; bottom: 0; background: var(--panel); padding-block: 10px; border-top: 1px solid var(--rule); }
 .more { color: #b9c8d1; font-size: 13px; margin: 4px 0 0; }
 #characterGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
+#characterGrid.legacy { grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: 360px; overflow-y: auto; }
+#characterGrid.legacy button { flex-direction: column; min-width: 0; padding: 4px; color: var(--ink); border-color: var(--rule); }
+#characterGrid small { display: block; font: 11px system-ui; }
 #characterGrid button { min-height: 42px; font-size: 24px; line-height: 1.5; }
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 3px; z-index: 30; max-width: 90vw; }
 #printRoot { display: none; }
@@ -327,11 +330,13 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <details id="characterPicker">
         <summary>Choose Tibetan characters</summary>
         <div class="grid">
-          <div class="field"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
+          <div class="field"><label for="characterSource">Character chart</label><select id="characterSource"><option value="">Unicode Tibetan</option><option>TibetanMachine</option><option>TibetanMachineSkt1</option><option>TibetanMachineSkt2</option><option>TibetanMachineSkt3</option><option>TibetanMachineSkt4</option></select></div>
+          <div class="field" id="characterGroupField"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
           <div class="field"><label for="characterFont">Typeface</label><select id="characterFont"><option value="">Keep text font</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select></div>
         </div>
         <div id="characterGrid" aria-label="Tibetan character choices"></div>
-        <p class="hint">Choose a character to insert at the text cursor or replace selected text. Combining marks are shown on ཀ to make them readable; only the chosen mark is inserted. These are Unicode characters, not legacy Windows font codes.</p>
+        <p class="hint" id="characterHint"></p>
+        <p class="hint">Ctrl/Command+I opens this picker from the text editor. Escape closes it. Choose a character to insert at the cursor or replace selected text. Marks are shown on ཀ; only the mark is inserted.</p>
       </details>
       <p class="source" id="credits"></p>
       <details>
