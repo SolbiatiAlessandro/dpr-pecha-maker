@@ -1313,6 +1313,9 @@ function init() {
   });
   let resizing = null;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
+  for (const name of LegacyCharacters.fontNames(LEGACY_TABLE)) {
+    const option=document.createElement('option');option.value=name;option.textContent=name;$('characterSource').append(option);
+  }
   $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);

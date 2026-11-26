@@ -337,7 +337,7 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       <details id="characterPicker">
         <summary>Choose Tibetan characters</summary>
         <div class="grid">
-          <div class="field"><label for="characterSource">Character chart</label><select id="characterSource"><option value="">Unicode Tibetan</option><option>TibetanMachine</option><option>TibetanMachineSkt1</option><option>TibetanMachineSkt2</option><option>TibetanMachineSkt3</option><option>TibetanMachineSkt4</option></select></div>
+          <div class="field"><label for="characterSource">Character chart</label><select id="characterSource"><option value="">Unicode Tibetan</option></select></div>
           <div class="field" id="characterGroupField"><label for="characterGroup">Characters</label><select id="characterGroup"><option value="letters">Letters</option><option value="subjoined">Subjoined letters</option><option value="marks">Vowels and combining marks</option><option value="signs">Signs and punctuation</option><option value="numbers">Numbers</option></select></div>
           <div class="field"><label for="characterFont">Typeface</label><select id="characterFont"><option value="">Keep text font</option><option value="jomolhari">Jomolhari</option><option value="noto">Noto Serif Tibetan</option></select></div>
         </div>
@@ -3424,8 +3424,11 @@ if (typeof module !== "undefined") module.exports = TibetanCharacters;
 // This does not implement an interactive TCC/Sambhota keyboard map.
 const LegacyCharacters = (() => {
   const fonts = ['TibetanMachine', 'TibetanMachineSkt1', 'TibetanMachineSkt2', 'TibetanMachineSkt3', 'TibetanMachineSkt4'];
+  function fontNames(table) {
+    return [...new Set([...fonts,...Object.keys(table).filter(name=>table[name] && typeof table[name]==='object' && !Array.isArray(table[name]))])];
+  }
   function chart(font, table) {
-    if (!fonts.includes(font)) throw new Error('Unsupported legacy character chart.');
+    if (!fontNames(table).includes(font)) throw new Error('Unsupported legacy character chart.');
     const map = table[font] || {};
     return Array.from({length:224},(_,index)=>{
       const byte=index+32, mapped=map[byte];
@@ -3438,7 +3441,7 @@ const LegacyCharacters = (() => {
       return {byte,text,combining,code,name:`${font} slot ${code}: ${text===null?'unavailable':byte===32?'space':unicode}`};
     });
   }
-  return {fonts,chart};
+  return {fonts,fontNames,chart};
 })();
 if(typeof module!=='undefined')module.exports=LegacyCharacters;
 
@@ -6682,6 +6685,9 @@ function init() {
   });
   let resizing = null;
   window.addEventListener('resize', () => { clearTimeout(resizing); resizing = setTimeout(() => { if (!$('start').hidden) drawFlags(); }, 150); });
+  for (const name of LegacyCharacters.fontNames(LEGACY_TABLE)) {
+    const option=document.createElement('option');option.value=name;option.textContent=name;$('characterSource').append(option);
+  }
   $('characterSource').addEventListener('change',buildCharacterPicker);
   $('characterGroup').addEventListener('change',buildCharacterPicker);
   $('characterFont').addEventListener('change',buildCharacterPicker);

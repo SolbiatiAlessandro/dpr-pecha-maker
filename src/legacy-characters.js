@@ -2,8 +2,11 @@
 // This does not implement an interactive TCC/Sambhota keyboard map.
 const LegacyCharacters = (() => {
   const fonts = ['TibetanMachine', 'TibetanMachineSkt1', 'TibetanMachineSkt2', 'TibetanMachineSkt3', 'TibetanMachineSkt4'];
+  function fontNames(table) {
+    return [...new Set([...fonts,...Object.keys(table).filter(name=>table[name] && typeof table[name]==='object' && !Array.isArray(table[name]))])];
+  }
   function chart(font, table) {
-    if (!fonts.includes(font)) throw new Error('Unsupported legacy character chart.');
+    if (!fontNames(table).includes(font)) throw new Error('Unsupported legacy character chart.');
     const map = table[font] || {};
     return Array.from({length:224},(_,index)=>{
       const byte=index+32, mapped=map[byte];
@@ -16,6 +19,6 @@ const LegacyCharacters = (() => {
       return {byte,text,combining,code,name:`${font} slot ${code}: ${text===null?'unavailable':byte===32?'space':unicode}`};
     });
   }
-  return {fonts,chart};
+  return {fonts,fontNames,chart};
 })();
 if(typeof module!=='undefined')module.exports=LegacyCharacters;
