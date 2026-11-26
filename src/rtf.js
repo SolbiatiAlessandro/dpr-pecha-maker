@@ -84,7 +84,7 @@ const Rtf = (() => {
     // RTF-J raw lead bytes consume the following byte before RTF syntax is parsed.
     // Track only the encoding-related controls here; the semantic reader below
     // still handles text/styles, Unicode fallback and ignored destinations.
-    const lexicalFonts = {}; let lexicalDefault = 0;
+    const lexicalFonts = {}; let lexicalDefault = 0, firstLexicalFont = null;
     const rawLead = (page,b) => page === 932 ? (b>=0x81&&b<=0x9f)||(b>=0xe0&&b<=0xfc)
       : [936,949,950].includes(page) && b>=0x81&&b<=0xfe;
     let pos = 0, count = 0;
@@ -92,7 +92,8 @@ const Rtf = (() => {
       const state = {...inherited, destination:null, fontTable:inherited.destination==='fonttbl'};
       let fallback = 0;
       const encoding = () => {
-        const f = lexicalFonts[state.font];
+        const id = !state.fontTable && state.font === 0 && !lexicalFonts[0]?.declared && firstLexicalFont !== null ? firstLexicalFont : state.font;
+        const f = lexicalFonts[id];
         if (f?.legacy && !state.fontTable) return null;
         return f?.page ?? (f?.charset === undefined || f.charset === 1 ? state.codepage : charsetPages[f.charset]);
       };
@@ -121,7 +122,7 @@ const Rtf = (() => {
           // Known Tibetan tables use single-byte glyph IDs, regardless of cpg.
           // Only primary font-entry text participates; nested metadata is excluded.
           for (const c of text||'') {
-            if (c===';') {f.legacy=Object.hasOwn(table,(f.name||'').trim());f.name='';}
+            if (c===';') {const name=(f.name||'').trim();f.legacy=Object.hasOwn(table,name);if(name){f.declared=true;firstLexicalFont ??= state.font;}f.name='';}
             else f.name=(f.name||'')+c;
           }
         }
@@ -160,7 +161,7 @@ const Rtf = (() => {
       return out;
     }
     const root = group(), flatten = list => list.flatMap(t => t.group ? flatten(t.group) : [t]);
-    const all = flatten(root), fonts = {}, fontCharsets = {}, fontPages = {}, colors = [], warnings = new Set();
+    const all = flatten(root), fonts = {}, fontCharsets = {}, fontPages = {}, fontOrder = [], colors = [], warnings = new Set();
     const headerPage = all.find(t=>t.name==='ansicpg')?.value || (all.some(t=>t.name==='mac') ? 10000 : 1252);
     const pageLabels = {874:'windows-874',932:'shift_jis',936:'gbk',949:'euc-kr',950:'big5',10000:'macintosh',65001:'utf-8',...Object.fromEntries(Array.from({length:9},(_,i)=>[1250+i,'windows-'+(1250+i)]))};
     // RTF 1.9.1: an explicit font code page supersedes the page implied by fcharset.
@@ -218,7 +219,7 @@ const Rtf = (() => {
         const text = t.text ?? t.literal ?? (t.byte === undefined ? '' : String.fromCharCode(t.byte));
         for (const c of text) {
           if (skip) { skip--; continue; }
-          if (c === ';') { names.flush(); if (id !== null) fonts[id] = name.trim(); name = ''; id = null; }
+          if (c === ';') { names.flush(); if (id !== null) {fonts[id] = name.trim();if(fonts[id] && !fontOrder.includes(id))fontOrder.push(id);} name = ''; id = null; }
           else if (c.charCodeAt(0) <= 255) names.append(c.charCodeAt(0));
           else { names.flush(); name += c; }
         }
@@ -237,7 +238,16 @@ const Rtf = (() => {
       }
     });
     if (Object.values(fonts).some(name => Object.hasOwn(table,name) && /^(?:TibetanClassic|TibetanChogyal)(?:Skt[1-4]?)?$/.test(name))) warnings.add('TibetanClassic/Chogyal conversion is experimental and still needs comparison with the original fonts.');
-    const defaultFont = all.find(t => t.name === 'deff')?.value || 0;
+    // Native compatibility: an absent font0 uses the first declared font, not the
+    // lowest numbered font. Other unresolved IDs retain the existing fallback.
+    const resolveFont = id => {
+      if(id === 0 && !fonts[0] && fontOrder.length) {
+        warnings.add('RTF font 0 is missing; the first declared font is used. Check the text and font appearance against the source.');
+        return fontOrder[0];
+      }
+      return id;
+    };
+    const defaultFont = resolveFont(all.find(t => t.name === 'deff')?.value || 0);
     const doc = JSON.parse(JSON.stringify(current || Engine.defaultDoc()));
     doc.text = ''; doc.flow = false; doc.textSize = null; doc.sections = [];
     doc.images = doc.images.filter(p => p.kind === 'yigo' && p.id === doc.yigo.image);
@@ -345,7 +355,7 @@ const Rtf = (() => {
         const n = t.value, name = t.name;
         if (name === 'u' && n !== null) { emit(String.fromCharCode(n < 0 ? n + 65536 : n),state); fallback = state.uc; }
         else if (name === 'uc') state.uc = fallbackLength(n);
-        else if (name === 'f') state.font = n;
+        else if (name === 'f') state.font = resolveFont(n);
         else if (name === 'fs') state.size = Math.max(1,Math.min(200,(n || 24)/2));
         else if (name === 'b') state.bold = n !== 0;
         else if (name === 'i') state.italic = n !== 0;
