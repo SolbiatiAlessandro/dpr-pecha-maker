@@ -2398,6 +2398,16 @@ const LEGACY_TABLE = {"TibetanMachine":{"33":"ཀ","34":"ཁ","35":"ག","36":"�
     }
   }
 }
+// Public py-tiblegenc font-name normalization: Dedris uses the corresponding
+// Ededris map; Sama/b/c use Esama/b/c; the historical -syma name uses -sym.
+// Share maps so unresolved slots and later corrections stay identical. Only
+// known targets are added; explicit source-name tables always take precedence.
+// https://github.com/buda-base/py-tiblegenc/blob/52a3c72f3afb6fe123d6605b124c488d6d47a102/pytiblegenc/char_converter.py
+{
+  const aliases={Sama:'Esama',Samb:'Esamb',Samc:'Esamc','Dedris-syma':'Ededris-sym','Ededris-syma':'Ededris-sym'};
+  for(const name of Object.keys(LEGACY_TABLE))if(name.startsWith('Ededris-'))aliases[name.replace(/^Ededris-/,'Dedris-')]=name;
+  for(const [name,target] of Object.entries(aliases))if(!Object.hasOwn(LEGACY_TABLE,name) && Object.hasOwn(LEGACY_TABLE,target))LEGACY_TABLE[name]=LEGACY_TABLE[target];
+}
 if (typeof module !== 'undefined') module.exports = LEGACY_TABLE;
 
 // Folio numbers spelled out in Tibetan, the way they appear in a pecha margin.

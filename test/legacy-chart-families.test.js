@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 global.PechaImages=require('../src/images');global.Folio=require('../src/folio');
 const C=require('../src/legacy-characters'),T=require('../src/legacy-table'),E=require('../src/engine'),F=require('../src/text-format'),R=require('../src/rtf'),D=require('../src/documents'),{cases}=require('./legacy-chart-families-fixture');
-const before=JSON.stringify(T),names=C.fontNames(T);assert.equal(names.length,56);assert.equal(new Set(names).size,56);assert.deepEqual(names.slice(0,5),C.fonts);
+const before=JSON.stringify(T),names=C.fontNames(T);assert.equal(names.length,91);assert.equal(new Set(names).size,91);assert.equal(new Set(Object.values(T)).size,56);assert.deepEqual(names.slice(0,5),C.fonts);
 assert.deepEqual(new Set(names),new Set(Object.keys(T)));
 const extra=Object.create({Inherited:{33:'ཀ'}});Object.assign(extra,{Empty:null,Array:[],Text:'bad',Valid:{33:'ཀ'}});
 assert.deepEqual(C.fontNames(extra),[...C.fonts,'Valid']);assert.throws(()=>C.chart('Inherited',extra));
@@ -23,4 +23,4 @@ for(const [name,byte,text] of cases){
 for(const c of 'abcdefg')for(const suffix of ['',1,2,3])assert.equal(C.chart('Ededris-'+c+suffix,T)[34-32].text,null);
 for(const [name,byte] of [['LMantra',33],['Esamc',126],['Ededris-vowa',126],['TCRC Bod-Yig',33],['TibetanMachineWeb',127]])assert.equal(C.chart(name,T)[byte-32].text,null);
 assert.equal(JSON.stringify(T),before);
-console.log('PASS: all56 chart names/224slots, map isolation and inherited/invalid exclusions, 17 exact examples and RTF parity, font/style restoration, Save/RTF and unresolved/ambiguous/non-Tibetan disabled slots');
+console.log('PASS: all91 chart names/56maps/224slots, map isolation and inherited/invalid exclusions, 17 exact examples and RTF parity, font/style restoration, Save/RTF and unresolved/ambiguous/non-Tibetan disabled slots');
