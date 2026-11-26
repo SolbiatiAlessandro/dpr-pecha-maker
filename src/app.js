@@ -882,19 +882,47 @@ function chooseDctSettings(name, currentFont) {
   $('dctRemapDiacritics').checked = dctPreferences.remapDiacritics;
   dialog.returnValue = '';
   return new Promise(resolve => {
-    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'import' ? {
-      tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:dctFontChoice('dctLatinFont'),
-      diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:dctFontChoice('dctDiacriticFont'),remapDiacritics:$('dctRemapDiacritics').checked
-    } : null), {once:true});
+    const form = dialog.querySelector('form');
+    const finish = value => {
+      const settings = value === 'import' ? {
+        tibetanSize:Number($('dctTibetanSize').value),latinSize:Number($('dctLatinSize').value),latinFont:dctFontChoice('dctLatinFont'),
+        diacriticSize:Number($('dctDiacriticSize').value),diacriticFont:dctFontChoice('dctDiacriticFont'),remapDiacritics:$('dctRemapDiacritics').checked
+      } : null;
+      form.removeEventListener('submit', submit);
+      $('dctCancel').removeEventListener('click', cancel);
+      dialog.removeEventListener('cancel', cancel);
+      dialog.removeEventListener('close', closed);
+      if (dialog.open) dialog.close(value);
+      resolve(settings);
+    };
+    const submit = event => {event.preventDefault();finish('import');};
+    const cancel = event => {event.preventDefault();finish('cancel');};
+    // A queued close event from an earlier import must not settle a reopened dialog.
+    const closed = () => {if (!dialog.open) finish(dialog.returnValue);};
+    form.addEventListener('submit', submit);
+    $('dctCancel').addEventListener('click', cancel);
+    dialog.addEventListener('cancel', cancel);
+    dialog.addEventListener('close', closed);
     dialog.showModal();
   });
 }
 
+let openingFile = false;
 async function openFile(file) {
-  const buf = new Uint8Array(await file.arrayBuffer());
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.pdf') || file.type === 'application/pdf') return openPdf(file, buf);
+  if (openingFile) {toast('Finish or cancel the current file import first.');return;}
+  openingFile = true;
+  const wasEditing = !$('work').hidden, name = file.name.toLowerCase();
   try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+      showStart();
+      await openPdf(file, buf);
+      if (wasEditing && $('work').hidden) {
+        const message = $('startStatus').textContent;
+        showWork(); reportImport([message]); toast(message);
+      }
+      return;
+    }
     if (name.endsWith('.dct')) {
       const settings = await chooseDctSettings(file.name, doc?.fontName || 'Jomolhari');
       if (!settings) return;
@@ -927,10 +955,11 @@ async function openFile(file) {
       toast(`Opened ${file.name}.`);
     }
   } catch (e) {
-    if (name.endsWith('.dct')) {
-      const message = `Could not read ${file.name}: ${e.message}`;
-      reportImport([message]); toast(message);
-    } else showStart(`Could not read ${file.name}. Use a PDF, or a .pxp, .pecha or .txt file.`, true);
+    const message = `Could not read ${file.name}: ${e.message || 'The file could not be opened.'}`;
+    if (wasEditing) {showWork();reportImport([message]);toast(message);}
+    else {showStart(message,true);toast(message);}
+  } finally {
+    openingFile = false;
   }
 }
 
@@ -988,7 +1017,6 @@ function init() {
   }
   $('dctDiacriticFontName').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
   $('dctDiacriticSize').addEventListener('invalid', () => {$('dctDiacriticOptions').open = true;});
-  $('dctCancel').addEventListener('click', () => $('dctDialog').close('cancel'));
   const codes = [['Centre', '{c}'], ['Justify', '{j}'], ['Left', '{l}'], ['Right', '{r}'], ['Larger', '{30}'], ['Normal size', '{size}'], ['Bold', '{b}'], ['End bold', '{/b}'], ['Italic', '{i}'], ['End italic', '{/i}'], ['Underline', '{u}'], ['End underline', '{/u}'], ['Red', '{#b03020}'], ['Black', '{color}'], ['New page', '{page}'], ['Fixed shad', '{hs}'], ['Tab', '\t']];
   for (const [label, code] of codes) {
     const b = document.createElement('button');
@@ -1256,14 +1284,16 @@ function init() {
   $('resume').addEventListener('click', () => { const s = restore(); if (s) setDoc(s.doc, s.isSample); });
   $('keepOther').addEventListener('change', e => { if (source) { const d = docFromPdf(source.result, e.target.checked); setEditingText(d.text); $('text').value = d.text; schedule(); } });
   let depth = 0;
-  window.addEventListener('dragenter', e => { e.preventDefault(); depth++; document.body.classList.add('dragging'); });
+  const fileDrag = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+  window.addEventListener('dragenter', e => { if (!fileDrag(e)) return; e.preventDefault(); depth++; document.body.classList.add('dragging'); });
   window.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove('dragging'); });
-  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('dragover', e => { if (fileDrag(e)) e.preventDefault(); });
   window.addEventListener('drop', e => {
+    if (!fileDrag(e)) return;
     e.preventDefault();
     depth = 0; document.body.classList.remove('dragging');
     const f = e.dataTransfer.files[0];
-    if (f) { if (!$('start').hidden) openFile(f); else { showStart(); openFile(f); } }
+    if (f) openFile(f);
   });
   $('recoveryInterval').value = String(recoveryMinutes);
   $('recoveryInterval').addEventListener('change', event => {
