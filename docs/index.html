@@ -4265,7 +4265,7 @@ const Pxp = (() => {
   //   0x14 x font ch y 0x14  stack character taken from another font of the set
   // Windows font charset values map to standard code pages. DBCS bytes are
   // decoded together, ending at native records rather than crossing their boundaries.
-  const charsetPages = {0:1252,1:1252,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
+  const charsetPages = {0:1252,1:1252,77:10000,161:1253,162:1254,163:1258,177:1255,178:1256,186:1257,204:1251,222:874,238:1250};
   const multibyteLabels = {128:'shift_jis',129:'euc-kr',134:'gbk',136:'big5'};
   const byteDecoders = new Map();
   let nativeEncodingCache;
@@ -4314,7 +4314,7 @@ const Pxp = (() => {
       const charset = fontCharsets[fontId] ?? 0, page = charsetPages[charset];
       let text = null;
       if (page) {
-        if (!byteDecoders.has(page)) byteDecoders.set(page, Array.from(new TextDecoder('windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i))));
+        if (!byteDecoders.has(page)) byteDecoders.set(page, Array.from(new TextDecoder(page===10000?'macintosh':'windows-'+page).decode(Uint8Array.from({length:256},(_,i)=>i))));
         text = byteDecoders.get(page)[c];
         if (charset === 1 && c >= 128) warnings.add('A system-default font charset was decoded as Windows-1252. The source Windows locale is not recorded; check extended characters.');
       } else if (multibyteLabels[charset]) {
