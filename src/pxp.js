@@ -383,6 +383,7 @@ const Pxp = (() => {
     const d = base, t = p.template, v = p.nonBody.values, raw = p.nonBody.raw;
     const fontScale = TIB_SCALE;
     const nativeImages=readImages(p.imageBlock);
+    if (Object.values(p.fonts).some(name => Object.hasOwn(table,name) && /^(?:TibetanClassic|TibetanChogyal)(?:Skt[1-4]?)?$/.test(name))) nativeImages.warnings.push('TibetanClassic/Chogyal conversion is experimental and still needs comparison with the original fonts.');
     if (p.version.startsWith('.pxa 0.1')) {
       nativeImages.warnings.push('Native annotation-file import is experimental; exact legacy rendering still needs original-app verification.');
       const head=LAT(u8 instanceof Uint8Array ? u8 : new Uint8Array(u8),0,100);

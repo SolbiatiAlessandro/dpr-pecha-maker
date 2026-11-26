@@ -232,6 +232,7 @@ const Rtf = (() => {
         }
       }
     });
+    if (Object.values(fonts).some(name => Object.hasOwn(table,name) && /^(?:TibetanClassic|TibetanChogyal)(?:Skt[1-4]?)?$/.test(name))) warnings.add('TibetanClassic/Chogyal conversion is experimental and still needs comparison with the original fonts.');
     const defaultFont = all.find(t => t.name === 'deff')?.value || 0;
     const doc = JSON.parse(JSON.stringify(current || Engine.defaultDoc()));
     doc.text = ''; doc.flow = false; doc.textSize = null; doc.sections = [];

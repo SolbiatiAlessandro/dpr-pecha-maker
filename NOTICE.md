@@ -22,3 +22,12 @@ confirmed against real text so far.
 **Example text**: the Dorje Chang Tungma by Bengar Jampal Zangpo, Tibetan as published by
 [Lotsawa House](https://www.lotsawahouse.org/tibetan-masters/bengar-jampal-zangpo/invoking-the-blessings)
 under CC BY-NC 4.0.
+
+**Experimental TibetanClassic and TibetanChogyal tables** (base and Skt1–4) use the distinct
+family maps from [py-tiblegenc tiblegenc.csv](https://github.com/buda-base/py-tiblegenc/blob/52a3c72f3afb6fe123d6605b124c488d6d47a102/pytiblegenc/font-tables/tiblegenc.csv),
+Apache-2.0; license included in `src/legacy-table.LICENSE`. Pinned CSV SHA256:
+`59d50a2975179e8533085c45e521af74fdf4e26b627c13647b535f25b78ee399`.
+`tools/import_tcc_tables.py` retains Tibetan Unicode sequences, space and explicit empty
+slots, and rejects four-zero error markers and non-Tibetan placeholders. The public
+converter's Skt-to-Skt1 names are aliases. These are public conversion references,
+not verified original font shapes; missing slots remain unresolved.

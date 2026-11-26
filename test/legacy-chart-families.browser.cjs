@@ -31,6 +31,6 @@ const visible=text=>E.parseStream(text,false).filter(r=>r.k==='text').map(r=>r.s
   assert.deepEqual(await glyphs('#printRoot'),await glyphs('#table'));assert((await p.locator('#printRoot').textContent()).includes('401'));
   const pdf=await p.pdf({preferCSSPageSize:true,printBackground:true});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');if(process.env.QA_PDF)fs.writeFileSync(process.env.QA_PDF,pdf);
   await editor.focus();await editor.press('Meta+i');await source.selectOption('Ededris-a');await p.locator('#characterGrid [data-byte="33"]').scrollIntoViewIfNeeded();if(process.env.QA_SCREENSHOT)await p.screenshot({path:process.env.QA_SCREENSHOT,fullPage:true});
-  assert.deepEqual(errors,[]);console.log('PASS: all91 browser chart names and 224slots, no horizontal clipping, excluded Ededris/ambiguous/non-Tibetan entries, 17family insertions/labels, formatting/restoration/undo, keyboard open/close, Save/RTF and preview/print/PDF');
+  assert.deepEqual(errors,[]);console.log('PASS: all103 browser chart names and 224slots, no horizontal clipping, excluded Ededris/ambiguous/non-Tibetan entries, 17family insertions/labels, formatting/restoration/undo, keyboard open/close, Save/RTF and preview/print/PDF');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
