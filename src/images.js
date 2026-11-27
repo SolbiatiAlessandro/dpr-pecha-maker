@@ -139,13 +139,19 @@ const PechaImages = (() => {
       const needed=mono?stride*height:width*height*channels*sampleBytes;
       if(at+needed>bytes.length)bad();
     }
+    // Every plain non-monochrome sample needs a digit and a separator (except
+    // the last). Reject impossible rasters before allocating decoded buffers.
+    if(!raw&&!mono&&bytes.length-at<width*height*channels*2-1)bad();
     const start=at,data=new Uint8ClampedArray(width*height*4);
+    const samples16=max>255?new Uint16Array(width*height*channels):null;let nextSample=0;
     const sample=()=>{
       let value;
       if(raw){value=bytes[at++];if(sampleBytes===2)value=value*256+bytes[at++];}
       else if(mono){skip();value=bytes[at++]-48;}else value=number();
       if(!Number.isInteger(value)||value<0||value>max)bad();
-      return mono?(1-value)*255:Math.round(value*255/max);
+      // The bundled decoder scales to the full channel range and truncates.
+      if(samples16)samples16[nextSample++]=Math.floor(value*65535/max);
+      return mono?(1-value)*255:Math.floor(value*255/max);
     };
     for(let y=0;y<height;y++)for(let x=0;x<width;x++){
       const p=(y*width+x)*4;
@@ -153,7 +159,30 @@ const PechaImages = (() => {
       data[p]=first;data[p+1]=rgb?sample():first;data[p+2]=rgb?sample():first;data[p+3]=255;
     }
     // Netpbm permits concatenated raw images. Insertion uses the first image.
-    return {width,height,data,reducedDepth:max>255};
+    return {width,height,data,samples16,channels};
+  }
+  // Canvas PNG serialization is 8-bit. Encode high-depth Netpbm samples
+  // directly so Save, Download PNG and native/RTF exports retain low bits.
+  async function png16({width,height,samples16,channels}) {
+    if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>20000||height>20000||width*height>16000000||
+        ![1,3].includes(channels)||!(samples16 instanceof Uint16Array)||samples16.length!==width*height*channels)throw new Error('Invalid 16-bit image.');
+    if(typeof CompressionStream==='undefined')throw new Error('This browser cannot preserve 16-bit images. Use a browser with CompressionStream support.');
+    const row=width*channels*2,scanlines=new Uint8Array((row+1)*height);
+    for(let y=0;y<height;y++)for(let x=0;x<width*channels;x++){
+      const value=samples16[y*width*channels+x],at=y*(row+1)+1+x*2;
+      scanlines[at]=value>>>8;scanlines[at+1]=value&255;
+    }
+    const compressed=new Uint8Array(await new Response(new Blob([scanlines]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+    const chunk=(name,data)=>{
+      const result=new Uint8Array(data.length+12),view=new DataView(result.buffer);view.setUint32(0,data.length);
+      result.set([...name].map(c=>c.charCodeAt(0)),4);result.set(data,8);
+      let crc=0xffffffff;
+      for(const b of result.subarray(4,-4)){crc^=b;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+      view.setUint32(result.length-4,(crc^0xffffffff)>>>0);return result;
+    };
+    const header=new Uint8Array(13),view=new DataView(header.buffer);view.setUint32(0,width);view.setUint32(4,height);header[8]=16;header[9]=channels===1?0:2;
+    const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',compressed),chunk('IEND',new Uint8Array())];
+    const bytes=new Uint8Array(parts.reduce((n,p)=>n+p.length,0));let at=0;for(const part of parts){bytes.set(part,at);at+=part.length;}return bytes;
   }
   function bmpResolution(bytes) {
     if(bytes.length<54||bytes[0]!==66||bytes[1]!==77)return null;
@@ -248,6 +277,6 @@ const PechaImages = (() => {
     for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}
     return result;
   }
-  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, readPnm, bmpResolution, jpegResolution, pngWithResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, readPnm, png16, bmpResolution, jpegResolution, pngWithResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;

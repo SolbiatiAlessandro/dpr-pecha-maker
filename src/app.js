@@ -366,11 +366,11 @@ async function addImage(file) {
   try {
     const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes);
     if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP, PBM, PGM, PPM or WebP image.');
-    const canvas = document.createElement('canvas');let reducedDepth=false;
+    const canvas = document.createElement('canvas');let highDepthPng=null;
     if(format==='pnm') {
       const bitmap=PechaImages.readPnm(sourceBytes);canvas.width=bitmap.width;canvas.height=bitmap.height;
-      reducedDepth=bitmap.reducedDepth;
-      canvas.getContext('2d').putImageData(new ImageData(bitmap.data,bitmap.width,bitmap.height),0,0);
+      if(bitmap.samples16)highDepthPng=await PechaImages.png16(bitmap);
+      else canvas.getContext('2d').putImageData(new ImageData(bitmap.data,bitmap.width,bitmap.height),0,0);
     } else {
       url=URL.createObjectURL(new Blob([sourceBytes],{type:'image/'+format}));
       const img = new Image(); img.src = url; await img.decode();
@@ -381,10 +381,10 @@ async function addImage(file) {
     const sourceResolution = PechaImages.pngResolution(sourceBytes) || PechaImages.jpegResolution(sourceBytes) || PechaImages.bmpResolution(sourceBytes);
     const resolution = sourceResolution && {x:Math.max(10,Math.min(2400,sourceResolution.x)),y:Math.max(10,Math.min(2400,sourceResolution.y))};
     const adjusted = resolution && (resolution.x!==sourceResolution.x || resolution.y!==sourceResolution.y);
-    let data = canvas.toDataURL('image/png');
+    let data = highDepthPng ? '' : canvas.toDataURL('image/png');
     // Keep an existing PNG intact so Download PNG retains its resolution metadata.
-    if (format === 'png') {
-      let binary = ''; for (const byte of sourceBytes) binary += String.fromCharCode(byte);
+    if (format === 'png' || highDepthPng) {
+      let binary = ''; for (const byte of highDepthPng || sourceBytes) binary += String.fromCharCode(byte);
       data = 'data:image/png;base64,' + btoa(binary);
     } else if (resolution) {
       const converted=Uint8Array.from(atob(data.split(',')[1]),c=>c.charCodeAt(0));
@@ -400,7 +400,7 @@ async function addImage(file) {
       dpi: resolution?.x || 96, dpiY: resolution && resolution.x !== resolution.y ? resolution.y : null});
     doc.images.push(p); imageId = p.id;
     if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
-    buildPanels(); toast(adjusted ? 'Image embedded. Resolution was adjusted to the supported 10–2400 DPI range.' : reducedDepth ? 'Image embedded as PNG. Higher-depth samples were reduced to 8 bits per colour channel.' : 'Image embedded in this document.');
+    buildPanels(); toast(adjusted ? 'Image embedded. Resolution was adjusted to the supported 10–2400 DPI range.' : highDepthPng ? 'Image embedded as PNG with 16 bits per colour channel.' : 'Image embedded in this document.');
   } catch (e) { toast(e.message || 'Could not read this image.'); }
   finally { if(url)URL.revokeObjectURL(url); }
 }
