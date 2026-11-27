@@ -300,10 +300,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <details>
         <summary>Images</summary>
-        <p class="hint">PNG, JPEG, GIF, BMP, PBM, PGM, PPM and WebP images are embedded in your saved document as PNG. GIFs and multi-image Netpbm files use their first image. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
+        <p class="hint">PNG, JPEG, GIF, BMP, PBM, PGM, PPM, TGA and WebP images are embedded in your saved document as PNG. GIFs and multi-image Netpbm files use their first image. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
         <label for="newImageKind">Add as</label><select id="newImageKind"><option value="inline">Inline at cursor</option><option value="yigo">Automatic yi-go</option><option value="page">Fixed on a page</option></select>
         <button class="btn" type="button" id="addImage">Choose image</button>
-        <input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/x-ms-bmp,image/webp,.bmp,.pbm,.pgm,.ppm,.pnm" hidden>
+        <input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/x-ms-bmp,image/webp,image/x-tga,.bmp,.pbm,.pgm,.ppm,.pnm,.tga,.targa" hidden>
         <label for="imagePick">Edit image</label><select id="imagePick"></select>
         <div class="grid" id="imageFields"></div>
         <p class="hint" id="imageWarning" role="status"></p>
@@ -2564,7 +2564,7 @@ const PechaImages = (() => {
   }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
 
-  function sourceFormat(bytes) {
+  function sourceFormat(bytes, name='') {
     const prefix=String.fromCharCode(...bytes.subarray(0,12));
     if(prefix.startsWith('\x89PNG\r\n\x1a\n'))return 'png';
     if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'jpeg';
@@ -2572,7 +2572,60 @@ const PechaImages = (() => {
     if(prefix.startsWith('BM'))return 'bmp';
     if(prefix.startsWith('RIFF')&&prefix.slice(8,12)==='WEBP')return 'webp';
     if(/^P[1-6][\t\n\v\f\r ]/.test(prefix))return 'pnm';
+    // Original TGA has no magic number. Require its filename extension unless
+    // the version2 footer positively identifies the format.
+    if((bytes.length>=26&&String.fromCharCode(...bytes.subarray(-18))==='TRUEVISION-XFILE.\0')||/\.(tga|targa)$/i.test(name))return 'tga';
     return null;
+  }
+  function readTga(bytes) {
+    const bad=()=>{throw new Error('Invalid, incomplete or unsupported Targa image.');};
+    if(bytes.length<18||bytes.length>8000000)bad();
+    const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),type=bytes[2],base=type&7,rle=type>=9;
+    if(![1,2,3,9,10,11].includes(type)||bytes[1]>1||(bytes[17]&192))bad();
+    const width=v.getUint16(12,true),height=v.getUint16(14,true),bits=bytes[16],attrs=bytes[17]&15;
+    if(!width||!height||width>20000||height>20000||width*height>16000000)throw new Error('Choose an image with at most 20000 pixels per side and 16 million pixels.');
+    const mapped=base===1,gray=base===3,paletteBits=bytes[7],first=v.getUint16(3,true),count=v.getUint16(5,true);
+    if(mapped ? bytes[1]!==1||![8,16].includes(bits) : gray ? ![8,16].includes(bits) : ![15,16,24,32].includes(bits))bad();
+    if(bytes[1]&&(!count||first+count>65536||![15,16,24,32].includes(paletteBits)))bad();
+    const colorBits=mapped?paletteBits:bits,alphaBits=gray?(bits===16?8:0):colorBits===32?8:colorBits===16?1:0;
+    if(attrs!==0&&attrs!==alphaBits)bad();
+    let at=18+bytes[0],limit=bytes.length,alphaType=null;
+    if(bytes.length>=26&&String.fromCharCode(...bytes.subarray(-18))==='TRUEVISION-XFILE.\0'){
+      const footer=bytes.length-26,extension=v.getUint32(footer,true),developer=v.getUint32(footer+4,true);limit=footer;
+      for(const offset of [extension,developer])if(offset){if(offset<18||offset>=footer)bad();limit=Math.min(limit,offset);}
+      if(extension){
+        if(extension+495>footer)bad();const size=v.getUint16(extension,true);if(size<495||extension+size>footer)bad();
+        alphaType=bytes[extension+494];if(alphaType>4)bad();
+        for(const field of [482,486,490]){const offset=v.getUint32(extension+field,true);if(offset){if(offset<18||offset>=footer)bad();limit=Math.min(limit,offset);}}
+      }
+    }
+    const alpha=alphaBits>0&&(alphaType===null?(attrs>0||(mapped&&paletteBits===32)):alphaType>=2);
+    const color=(pos,depth,isGray=false)=>{
+      let r,g,b,a=255;
+      if(isGray){r=g=b=bytes[pos];if(alpha)a=bytes[pos+1];}
+      else if(depth===15||depth===16){const n=v.getUint16(pos,true),expand=x=>(x<<3)|(x>>2);r=expand((n>>10)&31);g=expand((n>>5)&31);b=expand(n&31);if(alpha)a=n&32768?255:0;}
+      else {b=bytes[pos];g=bytes[pos+1];r=bytes[pos+2];if(alpha)a=bytes[pos+3];}
+      if(alpha&&alphaType===4){if(a){r=Math.min(255,Math.round(r*255/a));g=Math.min(255,Math.round(g*255/a));b=Math.min(255,Math.round(b*255/a));}else r=g=b=0;}
+      return [r,g,b,a];
+    };
+    const palette=[];
+    if(bytes[1]){const size=Math.ceil(paletteBits/8);if(at+count*size>limit)bad();if(mapped)for(let i=0;i<count;i++)palette.push(color(at+i*size,paletteBits));at+=count*size;}
+    const size=Math.ceil(bits/8),total=width*height;
+    if(at>limit||(!rle&&at+total*size>limit))bad();
+    const data=new Uint8ClampedArray(total*4);
+    const pixel=()=>{
+      if(at+size>limit)bad();let value;
+      if(mapped){const index=(bits===8?bytes[at]:v.getUint16(at,true))-first;if(index<0||index>=count)bad();value=palette[index];}
+      else value=color(at,bits,gray);at+=size;return value;
+    };
+    let written=0;
+    const put=value=>{const col=written%width,row=Math.floor(written/width),x=bytes[17]&16?width-1-col:col,y=bytes[17]&32?row:height-1-row;data.set(value,(y*width+x)*4);written++;};
+    while(written<total){
+      if(!rle){put(pixel());continue;}
+      if(at>=limit)bad();const packet=bytes[at++],length=(packet&127)+1;if(written+length>total)bad();
+      if(packet&128){const value=pixel();for(let i=0;i<length;i++)put(value);}else for(let i=0;i<length;i++)put(pixel());
+    }
+    return {width,height,data};
   }
   function readPnm(bytes) {
     const bad=()=>{throw new Error('Invalid or incomplete PBM, PGM or PPM image.');};
@@ -2738,7 +2791,7 @@ const PechaImages = (() => {
     for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}
     return result;
   }
-  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, readPnm, png16, bmpResolution, jpegResolution, pngWithResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, readPnm, readTga, png16, bmpResolution, jpegResolution, pngWithResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;
 
@@ -6104,11 +6157,11 @@ async function addImage(file) {
   if (doc.images.length >= 1000 || doc.assets.length >= 200) { toast('This document has reached its image limit.'); return; }
   let url;
   try {
-    const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes);
-    if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP, PBM, PGM, PPM or WebP image.');
+    const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes,file.name);
+    if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP, PBM, PGM, PPM, TGA or WebP image.');
     const canvas = document.createElement('canvas');let highDepthPng=null;
-    if(format==='pnm') {
-      const bitmap=PechaImages.readPnm(sourceBytes);canvas.width=bitmap.width;canvas.height=bitmap.height;
+    if(format==='pnm'||format==='tga') {
+      const bitmap=format==='tga'?PechaImages.readTga(sourceBytes):PechaImages.readPnm(sourceBytes);canvas.width=bitmap.width;canvas.height=bitmap.height;
       if(bitmap.samples16)highDepthPng=await PechaImages.png16(bitmap);
       else canvas.getContext('2d').putImageData(new ImageData(bitmap.data,bitmap.width,bitmap.height),0,0);
     } else {

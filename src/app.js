@@ -364,11 +364,11 @@ async function addImage(file) {
   if (doc.images.length >= 1000 || doc.assets.length >= 200) { toast('This document has reached its image limit.'); return; }
   let url;
   try {
-    const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes);
-    if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP, PBM, PGM, PPM or WebP image.');
+    const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes,file.name);
+    if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP, PBM, PGM, PPM, TGA or WebP image.');
     const canvas = document.createElement('canvas');let highDepthPng=null;
-    if(format==='pnm') {
-      const bitmap=PechaImages.readPnm(sourceBytes);canvas.width=bitmap.width;canvas.height=bitmap.height;
+    if(format==='pnm'||format==='tga') {
+      const bitmap=format==='tga'?PechaImages.readTga(sourceBytes):PechaImages.readPnm(sourceBytes);canvas.width=bitmap.width;canvas.height=bitmap.height;
       if(bitmap.samples16)highDepthPng=await PechaImages.png16(bitmap);
       else canvas.getContext('2d').putImageData(new ImageData(bitmap.data,bitmap.width,bitmap.height),0,0);
     } else {
