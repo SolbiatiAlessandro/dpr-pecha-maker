@@ -1,0 +1,32 @@
+const assert=require('node:assert/strict'),I=require('../src/images'),F=require('./jpeg-density-fixture'),P=require('./image-dpi-fixture');
+const read=(...segments)=>I.jpegResolution(F.jpeg(undefined,segments));
+assert.deepEqual(read(F.jfif()),{x:300,y:150});
+assert.deepEqual(read(F.jfif(100,50,2)),{x:254,y:127});
+for(const unit of [0,3,255])assert.equal(read(F.jfif(300,150,unit)),null);
+for(const pair of [[0,150],[300,0],[0,0]])assert.equal(read(F.jfif(...pair)),null);
+for(const little of [false,true])for(const orientation of [1,2,3,4,5,6,7,8]){
+ const expected=orientation<5?{x:300,y:150}:{x:150,y:300};
+ assert.deepEqual(read(F.exif({little,orientation})),expected);
+ assert.deepEqual(read(F.jfif(72,72),F.exif({little,orientation})),expected,'Exif wins over conflicting JFIF');
+ assert.deepEqual(read(F.exif({little,orientation}),F.jfif(72,72)),expected,'priority independent of marker order');
+}
+assert.deepEqual(read(F.exif({x:600,y:300,denominator:2})),{x:300,y:150});
+assert.deepEqual(read(F.exif({x:100,y:50,unit:3})),{x:254,y:127});
+assert.deepEqual(read(F.exif({omitUnit:true})),{x:300,y:150});
+assert.equal(read(F.exif({unit:1})),null);
+assert.equal(read(F.exif({denominator:0})),null);
+assert.deepEqual(read(F.jfif(),F.exif({unit:1,orientation:6})),{x:150,y:300},'JFIF fallback follows browser orientation');
+const malformed=F.exif();malformed.writeUInt32LE(0xfffffff0,14);assert.deepEqual(read(F.jfif(),malformed),{x:300,y:150});
+const badOffset=F.exif();badOffset.writeUInt32LE(0xfffffff0,40);assert.equal(read(badOffset),null);
+for(const data of [F.jpeg(),F.jpeg(undefined,[F.exif()]),F.jpeg(undefined,[F.jfif(),F.exif()])])for(let n=0;n<data.length;n++)assert.doesNotThrow(()=>I.jpegResolution(data.subarray(0,n)));
+assert.equal(I.jpegResolution(Buffer.from([255,216,255,225,0,0])),null);
+assert.equal(I.jpegResolution(P.png()),null);
+const jpeg=F.jpeg();assert.deepEqual(I.jpegResolution(Buffer.concat([Buffer.alloc(7),jpeg]).subarray(7)),{x:300,y:150});
+const source=P.png(),converted=I.pngWithResolution(source,{x:300,y:150});
+const resolution=I.pngResolution(converted);assert(Math.abs(resolution.x-300)<.013&&Math.abs(resolution.y-150)<.013);
+let count=0;for(let at=8;at<converted.length;){const length=new DataView(converted.buffer).getUint32(at);if(Buffer.from(converted.subarray(at+4,at+8)).toString()==='pHYs')count++;at+=length+12;}assert.equal(count,1);
+assert.deepEqual(I.pngWithResolution(converted,{x:300,y:150}),converted,'density stamping is idempotent');
+assert.deepEqual(source,P.png(),'source PNG untouched');
+assert.equal(I.pngWithResolution(source,null),source);
+assert.throws(()=>I.pngWithResolution(source.subarray(0,40),{x:300,y:150}),/Incomplete/);
+console.log('PASS: JFIF inch/cm/relative/zero, Exif endian/rational/default-unit/orientation/priority, bounded malformed metadata and PNG density preservation');
