@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PechaMaker — Desktop rebuild</title>
+    <link rel="stylesheet" href="desktop.css" />
+  </head>
+  <body>
+    <div id="app" class="window">
+      <header class="titlebar">
+        <span class="app-icon">▰</span
+        ><span id="window-title">PechaMaker - Untitled</span
+        ><span class="window-buttons" aria-hidden="true">_ □ ×</span>
+      </header>
+      <nav id="menubar" aria-label="Menu bar"></nav>
+      <div id="toolbar" role="toolbar" aria-label="Document toolbar"></div>
+      <main id="workspace" aria-label="Document workspace">
+        <div id="pages"></div>
+      </main>
+      <footer id="statusbar">
+        <span id="status">Ready</span
+        ><span id="font-status">Times New Roman, 12 pt</span
+        ><span id="page-status">Page 1</span><span id="insert-status">INS</span>
+      </footer>
+    </div>
+    <dialog id="dialog">
+      <form method="dialog">
+        <div class="titlebar">
+          <span id="dialog-title"></span
+          ><button value="cancel" aria-label="Close dialog">×</button>
+        </div>
+        <div id="dialog-content"></div>
+        <div id="dialog-actions">
+          <button value="ok">OK</button><button value="cancel">Cancel</button
+          ><button type="button" id="apply">Apply</button>
+        </div>
+      </form>
+    </dialog>
+    <input type="file" id="open-file" hidden accept=".pecha-web,.json,.txt" />
+    <div id="print-pages"></div>
+    <script src="../src/folio.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
