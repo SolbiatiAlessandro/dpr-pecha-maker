@@ -110,7 +110,50 @@ const PechaImages = (() => {
     if(prefix.startsWith('GIF87a')||prefix.startsWith('GIF89a'))return 'gif';
     if(prefix.startsWith('BM'))return 'bmp';
     if(prefix.startsWith('RIFF')&&prefix.slice(8,12)==='WEBP')return 'webp';
+    if(/^P[1-6][\t\n\v\f\r ]/.test(prefix))return 'pnm';
     return null;
+  }
+  function readPnm(bytes) {
+    const bad=()=>{throw new Error('Invalid or incomplete PBM, PGM or PPM image.');};
+    if(sourceFormat(bytes)!=='pnm'||bytes.length>8000000)bad();
+    const kind=bytes[1]-48,mono=kind===1||kind===4,rgb=kind===3||kind===6,raw=kind>=4;
+    const white=b=>b===32||(b>=9&&b<=13);
+    let at=2;
+    const comment=()=>{while(at<bytes.length&&bytes[at]!==10&&bytes[at]!==13)at++;};
+    const skip=()=>{while(at<bytes.length){if(white(bytes[at]))at++;else if(bytes[at]===35)comment();else break;}};
+    const number=()=>{
+      skip();const start=at;let value=0;
+      while(bytes[at]>=48&&bytes[at]<=57){value=value*10+bytes[at++]-48;if(value>0x7fffffff)bad();}
+      if(at===start||(at<bytes.length&&!white(bytes[at])&&bytes[at]!==35))bad();
+      return value;
+    };
+    const width=number(),height=number(),max=mono?1:number();
+    if(!width||!height||width>20000||height>20000||width*height>16000000)throw new Error('Choose an image with at most 20000 pixels per side and 16 million pixels.');
+    if(!max||max>65535)bad();
+    const channels=rgb?3:1,sampleBytes=max>255?2:1,stride=Math.ceil(width/8);
+    if(raw){
+      // Consume exactly the raster delimiter. Whitespace and # after it are
+      // pixel bytes, not more header text. A comment may precede the delimiter.
+      if(bytes[at]===35)comment();
+      if(!white(bytes[at]))bad();at++;
+      const needed=mono?stride*height:width*height*channels*sampleBytes;
+      if(at+needed>bytes.length)bad();
+    }
+    const start=at,data=new Uint8ClampedArray(width*height*4);
+    const sample=()=>{
+      let value;
+      if(raw){value=bytes[at++];if(sampleBytes===2)value=value*256+bytes[at++];}
+      else if(mono){skip();value=bytes[at++]-48;}else value=number();
+      if(!Number.isInteger(value)||value<0||value>max)bad();
+      return mono?(1-value)*255:Math.round(value*255/max);
+    };
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      const p=(y*width+x)*4;
+      const first=raw&&mono ? ((bytes[start+y*stride+(x>>3)]>>(7-(x&7)))&1?0:255) : sample();
+      data[p]=first;data[p+1]=rgb?sample():first;data[p+2]=rgb?sample():first;data[p+3]=255;
+    }
+    // Netpbm permits concatenated raw images. Insertion uses the first image.
+    return {width,height,data,reducedDepth:max>255};
   }
   function bmpResolution(bytes) {
     if(bytes.length<54||bytes[0]!==66||bytes[1]!==77)return null;
@@ -205,6 +248,6 @@ const PechaImages = (() => {
     for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}
     return result;
   }
-  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, bmpResolution, jpegResolution, pngWithResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, readPnm, bmpResolution, jpegResolution, pngWithResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;

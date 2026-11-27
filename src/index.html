@@ -293,10 +293,10 @@ details > div { margin-top: 8px; display: flex; flex-direction: column; gap: 8px
       </details>
       <details>
         <summary>Images</summary>
-        <p class="hint">PNG, JPEG, GIF, BMP and WebP images are embedded in your saved document as PNG. GIFs use their first frame. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
+        <p class="hint">PNG, JPEG, GIF, BMP, PBM, PGM, PPM and WebP images are embedded in your saved document as PNG. GIFs and multi-image Netpbm files use their first image. Inline images move with the text; an image yi-go follows the yi-go page rules.</p>
         <label for="newImageKind">Add as</label><select id="newImageKind"><option value="inline">Inline at cursor</option><option value="yigo">Automatic yi-go</option><option value="page">Fixed on a page</option></select>
         <button class="btn" type="button" id="addImage">Choose image</button>
-        <input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/x-ms-bmp,image/webp,.bmp" hidden>
+        <input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/x-ms-bmp,image/webp,.bmp,.pbm,.pgm,.ppm,.pnm" hidden>
         <label for="imagePick">Edit image</label><select id="imagePick"></select>
         <div class="grid" id="imageFields"></div>
         <p class="hint" id="imageWarning" role="status"></p>
