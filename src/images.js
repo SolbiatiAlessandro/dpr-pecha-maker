@@ -103,6 +103,25 @@ const PechaImages = (() => {
   }
   const pngDpi = bytes => pngResolution(bytes)?.x ?? null;
 
+  function sourceFormat(bytes) {
+    const prefix=String.fromCharCode(...bytes.subarray(0,12));
+    if(prefix.startsWith('\x89PNG\r\n\x1a\n'))return 'png';
+    if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'jpeg';
+    if(prefix.startsWith('GIF87a')||prefix.startsWith('GIF89a'))return 'gif';
+    if(prefix.startsWith('BM'))return 'bmp';
+    if(prefix.startsWith('RIFF')&&prefix.slice(8,12)==='WEBP')return 'webp';
+    return null;
+  }
+  function bmpResolution(bytes) {
+    if(bytes.length<54||bytes[0]!==66||bytes[1]!==77)return null;
+    const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),header=v.getUint32(14,true),pixels=v.getUint32(10,true);
+    // Windows INFO/V2/V3/V4/V5 headers share these signed pixels/metre fields.
+    // OS/2 CORE and other header variants have no supported absolute density here.
+    if(![40,52,56,108,124].includes(header)||14+header>bytes.length||pixels<14+header||pixels>bytes.length)return null;
+    const x=v.getInt32(38,true),y=v.getInt32(42,true);
+    return x>0&&y>0?{x:x*.0254,y:y*.0254}:null;
+  }
+
   // JPEG APP0/JFIF and APP1/Exif density. Decode pixels in the browser; read
   // only bounded metadata here. Thumbnail IFDs must not set the main image DPI.
   function jpegResolution(bytes) {
@@ -186,6 +205,6 @@ const PechaImages = (() => {
     for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}
     return result;
   }
-  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, jpegResolution, pngWithResolution, transferInline};
+  return {anchors, placement, crop, normalize, dimensions, pageRect, pngDpi, pngDensity, pngResolution, sourceFormat, bmpResolution, jpegResolution, pngWithResolution, transferInline};
 })();
 if (typeof module !== 'undefined') module.exports = PechaImages;

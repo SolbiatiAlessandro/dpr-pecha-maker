@@ -359,22 +359,24 @@ function updateImageWarning() {
     ? 'This image is taller than twice a configured line height and may overlap nearby lines. Reduce its scale or increase line spacing.' : '';
 }
 async function addImage(file) {
-  if (!file || !['image/png','image/jpeg','image/webp'].includes(file.type)) { toast('Choose a PNG, JPEG or WebP image.'); return; }
+  if (!file) return;
   if (file.size > 8000000) { toast('Choose an image smaller than 8 MB.'); return; }
   if (doc.images.length >= 1000 || doc.assets.length >= 200) { toast('This document has reached its image limit.'); return; }
-  const url = URL.createObjectURL(file);
+  let url;
   try {
+    const sourceBytes = new Uint8Array(await file.arrayBuffer()),format=PechaImages.sourceFormat(sourceBytes);
+    if(!format)throw new Error('Choose a PNG, JPEG, GIF, BMP or WebP image.');
+    url=URL.createObjectURL(new Blob([sourceBytes],{type:'image/'+format}));
     const img = new Image(); img.src = url; await img.decode();
     if (img.naturalWidth * img.naturalHeight > 16000000) throw new Error('Choose an image with fewer than 16 million pixels.');
     const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
     canvas.getContext('2d').drawImage(img, 0, 0);
-    const sourceBytes = new Uint8Array(await file.arrayBuffer());
-    const sourceResolution = PechaImages.pngResolution(sourceBytes) || PechaImages.jpegResolution(sourceBytes);
+    const sourceResolution = PechaImages.pngResolution(sourceBytes) || PechaImages.jpegResolution(sourceBytes) || PechaImages.bmpResolution(sourceBytes);
     const resolution = sourceResolution && {x:Math.max(10,Math.min(2400,sourceResolution.x)),y:Math.max(10,Math.min(2400,sourceResolution.y))};
     const adjusted = resolution && (resolution.x!==sourceResolution.x || resolution.y!==sourceResolution.y);
     let data = canvas.toDataURL('image/png');
     // Keep an existing PNG intact so Download PNG retains its resolution metadata.
-    if (file.type === 'image/png') {
+    if (format === 'png') {
       let binary = ''; for (const byte of sourceBytes) binary += String.fromCharCode(byte);
       data = 'data:image/png;base64,' + btoa(binary);
     } else if (resolution) {
@@ -393,7 +395,7 @@ async function addImage(file) {
     if (kind === 'inline') insertAtCursor(`{image:${p.id}}`); else if (kind === 'page') schedule(); else { doc.yigo.image = p.id; doc.yigo.enabled = true; schedule(); }
     buildPanels(); toast(adjusted ? 'Image embedded. Resolution was adjusted to the supported 10–2400 DPI range.' : 'Image embedded in this document.');
   } catch (e) { toast(e.message || 'Could not read this image.'); }
-  finally { URL.revokeObjectURL(url); }
+  finally { if(url)URL.revokeObjectURL(url); }
 }
 
 function buildSectionPanel() {
